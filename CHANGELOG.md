@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.4.0 - 2026-08-12
+
+### Added
+
+- Git Tap registration, validation, updates, commit checkout, and removal
+- Formula catalog for skills, agents, workflows, instructions, prompts, MCP configurations, and adapters
+- dependency resolution, conflict detection, immutable Cellar installs, and SHA-256 receipts
+- OpenAI Codex and Claude Code target linking with ownership and tamper checks
+- `update`, `outdated`, and rollback-safe `upgrade` commands
+- Git-reproducible `Harnessfile`, `Harnessfile.lock`, `bundle install`, and `bundle cleanup`
+- TypeScript 7.0 strict builds, comprehensive tests, npm packaging, and GitHub release automation
+
+### Changed
+
+- redefined HarnessBrew as a Git-native package manager for AI Agent assets
+- moved version history from per-asset snapshots to Tap commits and tags
+- raised the minimum supported Node.js version to 20
+
+### Removed
+
+- repository-owned sample assets and the obsolete workspace/export architecture
+
 ## 0.3.0 - 2026-06-27
 
 ### Added

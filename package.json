@@ -1,6 +1,6 @@
 {
   "name": "harnessbrew",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A Git-native package manager for AI Agent assets.",
   "type": "module",
   "bin": {
@@ -24,7 +24,8 @@
     "build:test": "tsc -p tsconfig.test.json",
     "start": "node ./dist/cli.js",
     "test": "npm run build:test && node --test .test-dist/tests/*.test.js",
-    "check": "npm run build && npm test && npm pack --dry-run --cache .npm-cache",
+    "test:package": "npm run build && node ./scripts/package-smoke.mjs",
+    "check": "npm run build && npm test && npm run test:package && npm pack --dry-run --cache .npm-cache",
     "prepack": "npm run build"
   },
   "keywords": [
@@ -36,6 +37,19 @@
     "package-manager"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anzihenry/HarnessBrew.git"
+  },
+  "homepage": "https://github.com/anzihenry/HarnessBrew#readme",
+  "bugs": {
+    "url": "https://github.com/anzihenry/HarnessBrew/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "packageManager": "npm@11.17.0",
   "engines": {
     "node": ">=20"
   },
