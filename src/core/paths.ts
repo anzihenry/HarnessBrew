@@ -23,3 +23,24 @@ export function resolveTapPath(home: string, name: string): string {
 export function resolveStatePath(home: string): string {
   return path.join(home, "state.json");
 }
+
+export function parseCoordinate(coordinate: string): [string, string, string] {
+  const parts = coordinate.split("/");
+  if (parts.length !== 3 || parts.some((part) => !/^[a-z0-9][a-z0-9-]*$/u.test(part))) {
+    throw new HarnessBrewError(`Invalid formula coordinate: ${coordinate}`);
+  }
+  return parts as [string, string, string];
+}
+
+export function resolveCellarPath(home: string, coordinate: string, commit: string): string {
+  const [owner, tap, formula] = parseCoordinate(coordinate);
+  if (!/^[0-9a-f]{40}$/u.test(commit)) {
+    throw new HarnessBrewError(`Invalid Git commit for ${coordinate}: ${commit}`);
+  }
+  return path.join(home, "cellar", owner, tap, formula, commit);
+}
+
+export function resolveReceiptPath(home: string, coordinate: string): string {
+  const [owner, tap, formula] = parseCoordinate(coordinate);
+  return path.join(home, "receipts", owner, tap, `${formula}.json`);
+}

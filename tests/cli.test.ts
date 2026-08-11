@@ -73,3 +73,17 @@ test("search and info expose formulas from registered taps", async () => {
   assert.equal(await runCli(["info", "code-review"], output.io, { home }), 0);
   assert.match(output.stdout.join("\n"), /"kind": "skill"/);
 });
+
+test("install, list, and uninstall manage Cellar receipts", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-cli-"));
+  const home = path.join(root, "home");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "skills", "code-review");
+  const output = captureIO();
+
+  await runCli(["tap", "add", "personal/agents", repository], output.io, { home });
+  assert.equal(await runCli(["install", "code-review"], output.io, { home }), 0);
+  assert.equal(await runCli(["list"], output.io, { home }), 0);
+  assert.match(output.stdout.join("\n"), /Installed personal\/agents\/code-review/);
+  assert.equal(await runCli(["uninstall", "code-review"], output.io, { home }), 0);
+});

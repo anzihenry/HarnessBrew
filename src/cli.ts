@@ -3,6 +3,7 @@
 import { pathToFileURL } from "node:url";
 import { HarnessBrewError } from "./core/errors.js";
 import { formulaKinds, getFormula, searchFormulas, type FormulaKind } from "./core/formulas.js";
+import { installFormula, listInstalled, uninstallFormula } from "./core/installations.js";
 import { resolveHarnessHome } from "./core/paths.js";
 import { addTap, listTaps, removeTap, updateTaps } from "./core/taps.js";
 import { VERSION } from "./version.js";
@@ -35,6 +36,9 @@ Commands:
   untap      Remove a Git tap
   search     Search formulas across registered taps
   info       Show formula metadata
+  install    Install a formula and its dependencies
+  list       List installed formulas
+  uninstall  Safely uninstall a formula
 `;
 
 function optionValue(args: readonly string[], name: string): string | undefined {
@@ -143,6 +147,28 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
       commit: formula.commit,
       ...(formula.deprecated === undefined ? {} : { deprecated: formula.deprecated })
     }, null, 2));
+    return 0;
+  }
+
+  if (command === "install") {
+    const name = args[1];
+    if (name === undefined) throw new HarnessBrewError("Usage: harnessbrew install <formula>");
+    const receipts = await installFormula(home, name);
+    receipts.forEach((receipt) => io.stdout(`Installed ${receipt.coordinate} at ${receipt.commit.slice(0, 12)}.`));
+    return 0;
+  }
+
+  if (command === "list") {
+    const receipts = await listInstalled(home);
+    receipts.forEach((receipt) => io.stdout(`${receipt.coordinate}\t${receipt.commit.slice(0, 12)}`));
+    return 0;
+  }
+
+  if (command === "uninstall") {
+    const name = args[1];
+    if (name === undefined) throw new HarnessBrewError("Usage: harnessbrew uninstall <formula> [--force]");
+    const receipt = await uninstallFormula(home, name, { force: args.includes("--force") });
+    io.stdout(`Uninstalled ${receipt.coordinate}.`);
     return 0;
   }
 
