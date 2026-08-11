@@ -17,7 +17,7 @@ import { listAdapterTargets, renderForTarget } from "./adapters.js";
 import { createJsonDiff, createTextDiff } from "../utils/diff.js";
 
 const defaultWorkspace = {
-  name: "Harness",
+  name: "HarnessBrew",
   version: "0.1.1",
   schemaVersion: "1",
   timezone: process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
@@ -34,10 +34,10 @@ const sampleAssets = [
     id: "agent.harness-manager",
     metadata: {
       id: "agent.harness-manager",
-      name: "Harness Manager",
+      name: "HarnessBrew Manager",
       kind: "agent",
       version: "0.1.0",
-      description: "Coordinates asset governance across agent ecosystems.",
+      description: "Coordinates a personal asset library and workflow packages across agent ecosystems.",
       status: "active",
       tags: ["manager", "governance"],
       owner: "team-harness",
@@ -68,9 +68,9 @@ const sampleAssets = [
         }
       ]
     },
-    content: `# Harness Manager
+    content: `# HarnessBrew Manager
 
-You manage agent assets across multiple runtime targets.
+You manage a personal library of agent assets and workflow packages across multiple runtime targets.
 
 Responsibilities:
 - keep agents, skills, and instructions organized
@@ -359,7 +359,7 @@ function createTarGzip(entries) {
 
 export async function initWorkspace(options = {}) {
   if (!options.force && (await pathExists(workspaceConfigPath))) {
-    throw new Error("Harness workspace already exists. Re-run with --force to overwrite the current workspace.");
+    throw new Error("HarnessBrew workspace already exists. Re-run with --force to overwrite the current workspace.");
   }
 
   await mkdir(path.dirname(workspaceConfigPath), { recursive: true });
@@ -755,7 +755,7 @@ export async function archiveAsset(kind, assetId, options = {}) {
     status: "archived",
     archive: {
       date: currentDate(),
-      reason: options.reason || "Archived by Harness."
+      reason: options.reason || "Archived by HarnessBrew."
     }
   };
 

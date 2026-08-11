@@ -61,65 +61,65 @@ function parseFlags(args) {
 }
 
 function printHelp() {
-  console.log(`Harness CLI
+  console.log(`HarnessBrew CLI
 
 Usage:
-  harness --version
-  harness init [--force]
-  harness list [--kind <kind>] [--tag <tag>] [--owner <owner>] [--status active|archived] [--target <target>] [--group-by <field>] [--json]
-  harness targets
-  harness validate [--json]
-  harness new <kind> <id> [--name <name>] [--description <text>] [--owner <owner>] [--tags a,b] [--targets a,b] [--version x.y.z] [--note <text>]
-  harness clone <kind> <source-id> <target-id> [--name <name>] [--version x.y.z] [--note <text>]
-  harness archive <kind> <id> [--reason <text>]
-  harness set <kind> <id> [--name <name>] [--description <text>] [--owner <owner>] [--tags a,b] [--targets a,b]
-  harness add-dependency <kind> <id> <dependency-kind> <dependency-id> [--optional]
-  harness remove-dependency <kind> <id> <dependency-kind> <dependency-id>
-  harness bump-version <kind> <id> <version> [--note <text>]
-  harness diff <kind> <id> <from-version> [to-version] [--json]
-  harness deps <kind> <id> [--json]
-  harness dependents <kind> <id> [--json]
-  harness orphans [--kind <kind>] [--json]
-  harness impact <kind> <id> [--json]
-  harness history <kind> <id> [--json]
-  harness show <kind> <id> [version] [--metadata|--content|--resolved]
-  harness export [target] [--entry <kind:id>] [--include-dependencies] [--json]
-  harness pack [target] --entry <kind:id> [--include-dependencies] [--channel draft|stable] [--output <dir>] [--archive] [--json]
-  harness verify-bundle <bundle-path> [--json]
+  harnessbrew --version
+  harnessbrew init [--force]
+  harnessbrew list [--kind <kind>] [--tag <tag>] [--owner <owner>] [--status active|archived] [--target <target>] [--group-by <field>] [--json]
+  harnessbrew targets
+  harnessbrew validate [--json]
+  harnessbrew new <kind> <id> [--name <name>] [--description <text>] [--owner <owner>] [--tags a,b] [--targets a,b] [--version x.y.z] [--note <text>]
+  harnessbrew clone <kind> <source-id> <target-id> [--name <name>] [--version x.y.z] [--note <text>]
+  harnessbrew archive <kind> <id> [--reason <text>]
+  harnessbrew set <kind> <id> [--name <name>] [--description <text>] [--owner <owner>] [--tags a,b] [--targets a,b]
+  harnessbrew add-dependency <kind> <id> <dependency-kind> <dependency-id> [--optional]
+  harnessbrew remove-dependency <kind> <id> <dependency-kind> <dependency-id>
+  harnessbrew bump-version <kind> <id> <version> [--note <text>]
+  harnessbrew diff <kind> <id> <from-version> [to-version] [--json]
+  harnessbrew deps <kind> <id> [--json]
+  harnessbrew dependents <kind> <id> [--json]
+  harnessbrew orphans [--kind <kind>] [--json]
+  harnessbrew impact <kind> <id> [--json]
+  harnessbrew history <kind> <id> [--json]
+  harnessbrew show <kind> <id> [version] [--metadata|--content|--resolved]
+  harnessbrew export [target] [--entry <kind:id>] [--include-dependencies] [--json]
+  harnessbrew pack [target] --entry <kind:id> [--include-dependencies] [--channel draft|stable] [--output <dir>] [--archive] [--json]
+  harnessbrew verify-bundle <bundle-path> [--json]
 
 Examples:
-  harness init
-  harness init --force
-  harness list
-  harness list --kind skill --json
-  harness list --group-by owner
-  harness list --status archived
-  harness targets
-  harness validate --json
-  harness new skill skill.agent-review --owner team-harness --tags review,agent
-  harness clone skill skill.prompt-authoring skill.prompt-authoring-copy --name "Prompt Authoring Copy"
-  harness archive skill skill.prompt-authoring-copy --reason "Folded into prompt-authoring"
-  harness set skill skill.agent-review --owner team-platform --tags review,quality
-  harness add-dependency skill skill.agent-review instruction instruction.repository-guardrails --optional
-  harness remove-dependency skill skill.agent-review instruction instruction.repository-guardrails
-  harness bump-version skill skill.prompt-authoring 1.1.0 --note "Refined guidance"
-  harness diff skill skill.prompt-authoring 1.0.0 1.1.0 --json
-  harness deps agent agent.harness-manager --json
-  harness dependents skill skill.prompt-authoring --json
-  harness orphans --kind skill --json
-  harness impact skill skill.prompt-authoring --json
-  harness history skill skill.prompt-authoring --json
-  harness show skill skill.prompt-authoring 1.0.0
-  harness show skill skill.prompt-authoring --content
-  harness show agent agent.harness-manager --resolved
-  harness show skill skill.prompt-authoring
-  harness export generic --entry agent:agent.harness-manager --include-dependencies --json
-  harness pack generic --entry agent:agent.harness-manager --include-dependencies --json
-  harness pack generic --entry agent:agent.harness-manager --channel stable
-  harness pack generic --entry agent:agent.harness-manager --archive
-  harness verify-bundle releases/agent.harness-manager-generic --json
-  harness export openai-codex --json
-  harness export
+  harnessbrew init
+  harnessbrew init --force
+  harnessbrew list
+  harnessbrew list --kind skill --json
+  harnessbrew list --group-by owner
+  harnessbrew list --status archived
+  harnessbrew targets
+  harnessbrew validate --json
+  harnessbrew new skill skill.agent-review --owner team-harness --tags review,agent
+  harnessbrew clone skill skill.prompt-authoring skill.prompt-authoring-copy --name "Prompt Authoring Copy"
+  harnessbrew archive skill skill.prompt-authoring-copy --reason "Folded into prompt-authoring"
+  harnessbrew set skill skill.agent-review --owner team-platform --tags review,quality
+  harnessbrew add-dependency skill skill.agent-review instruction instruction.repository-guardrails --optional
+  harnessbrew remove-dependency skill skill.agent-review instruction instruction.repository-guardrails
+  harnessbrew bump-version skill skill.prompt-authoring 1.1.0 --note "Refined guidance"
+  harnessbrew diff skill skill.prompt-authoring 1.0.0 1.1.0 --json
+  harnessbrew deps agent agent.harness-manager --json
+  harnessbrew dependents skill skill.prompt-authoring --json
+  harnessbrew orphans --kind skill --json
+  harnessbrew impact skill skill.prompt-authoring --json
+  harnessbrew history skill skill.prompt-authoring --json
+  harnessbrew show skill skill.prompt-authoring 1.0.0
+  harnessbrew show skill skill.prompt-authoring --content
+  harnessbrew show agent agent.harness-manager --resolved
+  harnessbrew show skill skill.prompt-authoring
+  harnessbrew export generic --entry agent:agent.harness-manager --include-dependencies --json
+  harnessbrew pack generic --entry agent:agent.harness-manager --include-dependencies --json
+  harnessbrew pack generic --entry agent:agent.harness-manager --channel stable
+  harnessbrew pack generic --entry agent:agent.harness-manager --archive
+  harnessbrew verify-bundle releases/agent.harness-manager-generic --json
+  harnessbrew export openai-codex --json
+  harnessbrew export
 `);
 }
 
@@ -139,7 +139,7 @@ function printSection(title, lines = []) {
 }
 
 function printVersion() {
-  console.log(`harness ${cliVersion}`);
+  console.log(`harnessbrew ${cliVersion}`);
 }
 
 function parseEntryFlag(entry) {
@@ -244,7 +244,7 @@ async function main() {
       const result = await initWorkspace({
         force: flags.force === "true"
       });
-      console.log(`Initialized Harness workspace at ${result.workspace}`);
+      console.log(`Initialized HarnessBrew workspace at ${result.workspace}`);
       console.log(`Seeded ${result.assetCount} sample assets.`);
       return;
     }
@@ -331,7 +331,7 @@ async function main() {
       const { flags, positionals } = parseFlags(args);
       const [kind, assetId] = positionals;
       if (!kind || !assetId) {
-        throw new Error("Usage: harness new <kind> <id> [--name <name>] [--description <text>] [--owner <owner>] [--tags a,b] [--targets a,b] [--version x.y.z] [--note <text>]");
+        throw new Error("Usage: harnessbrew new <kind> <id> [--name <name>] [--description <text>] [--owner <owner>] [--tags a,b] [--targets a,b] [--version x.y.z] [--note <text>]");
       }
 
       const result = await createAsset(kind, assetId, flags);
@@ -343,7 +343,7 @@ async function main() {
       const { flags, positionals } = parseFlags(args);
       const [kind, sourceId, targetId] = positionals;
       if (!kind || !sourceId || !targetId) {
-        throw new Error("Usage: harness clone <kind> <source-id> <target-id> [--name <name>] [--version x.y.z] [--note <text>]");
+        throw new Error("Usage: harnessbrew clone <kind> <source-id> <target-id> [--name <name>] [--version x.y.z] [--note <text>]");
       }
 
       const result = await cloneAsset(kind, sourceId, targetId, flags);
@@ -355,7 +355,7 @@ async function main() {
       const { flags, positionals } = parseFlags(args);
       const [kind, assetId] = positionals;
       if (!kind || !assetId) {
-        throw new Error("Usage: harness archive <kind> <id> [--reason <text>]");
+        throw new Error("Usage: harnessbrew archive <kind> <id> [--reason <text>]");
       }
 
       const result = await archiveAsset(kind, assetId, flags);
@@ -369,7 +369,7 @@ async function main() {
       const { flags, positionals } = parseFlags(args);
       const [kind, assetId] = positionals;
       if (!kind || !assetId) {
-        throw new Error("Usage: harness set <kind> <id> [--name <name>] [--description <text>] [--owner <owner>] [--tags a,b] [--targets a,b]");
+        throw new Error("Usage: harnessbrew set <kind> <id> [--name <name>] [--description <text>] [--owner <owner>] [--tags a,b] [--targets a,b]");
       }
 
       const result = await updateAssetMetadata(kind, assetId, flags);
@@ -382,7 +382,7 @@ async function main() {
       const { flags, positionals } = parseFlags(args);
       const [kind, assetId, dependencyKind, dependencyId] = positionals;
       if (!kind || !assetId || !dependencyKind || !dependencyId) {
-        throw new Error("Usage: harness add-dependency <kind> <id> <dependency-kind> <dependency-id> [--optional]");
+        throw new Error("Usage: harnessbrew add-dependency <kind> <id> <dependency-kind> <dependency-id> [--optional]");
       }
 
       const result = await addAssetDependency(kind, assetId, dependencyKind, dependencyId, flags);
@@ -396,7 +396,7 @@ async function main() {
       const { positionals } = parseFlags(args);
       const [kind, assetId, dependencyKind, dependencyId] = positionals;
       if (!kind || !assetId || !dependencyKind || !dependencyId) {
-        throw new Error("Usage: harness remove-dependency <kind> <id> <dependency-kind> <dependency-id>");
+        throw new Error("Usage: harnessbrew remove-dependency <kind> <id> <dependency-kind> <dependency-id>");
       }
 
       const result = await removeAssetDependency(kind, assetId, dependencyKind, dependencyId);
@@ -410,7 +410,7 @@ async function main() {
       const { flags, positionals } = parseFlags(args);
       const [kind, assetId, version] = positionals;
       if (!kind || !assetId || !version) {
-        throw new Error("Usage: harness bump-version <kind> <id> <version> [--note <text>]");
+        throw new Error("Usage: harnessbrew bump-version <kind> <id> <version> [--note <text>]");
       }
 
       const result = await bumpAssetVersion(kind, assetId, version, flags);
@@ -422,7 +422,7 @@ async function main() {
       const { flags, positionals } = parseFlags(args);
       const [kind, assetId, fromVersion, toVersion] = positionals;
       if (!kind || !assetId || !fromVersion) {
-        throw new Error("Usage: harness diff <kind> <id> <from-version> [to-version]");
+        throw new Error("Usage: harnessbrew diff <kind> <id> <from-version> [to-version]");
       }
 
       const result = await diffAsset(kind, assetId, fromVersion, toVersion);
@@ -452,7 +452,7 @@ async function main() {
       const { flags, positionals } = parseFlags(args);
       const [kind, assetId] = positionals;
       if (!kind || !assetId) {
-        throw new Error("Usage: harness deps <kind> <id> [--json]");
+        throw new Error("Usage: harnessbrew deps <kind> <id> [--json]");
       }
 
       const result = await getAssetDependencies(kind, assetId);
@@ -480,7 +480,7 @@ async function main() {
       const { flags, positionals } = parseFlags(args);
       const [kind, assetId] = positionals;
       if (!kind || !assetId) {
-        throw new Error("Usage: harness dependents <kind> <id> [--json]");
+        throw new Error("Usage: harnessbrew dependents <kind> <id> [--json]");
       }
 
       const result = await getAssetDependents(kind, assetId);
@@ -532,7 +532,7 @@ async function main() {
       const { flags, positionals } = parseFlags(args);
       const [kind, assetId] = positionals;
       if (!kind || !assetId) {
-        throw new Error("Usage: harness impact <kind> <id> [--json]");
+        throw new Error("Usage: harnessbrew impact <kind> <id> [--json]");
       }
 
       const result = await getAssetImpact(kind, assetId);
@@ -559,7 +559,7 @@ async function main() {
       const { flags, positionals } = parseFlags(args);
       const [kind, assetId] = positionals;
       if (!kind || !assetId) {
-        throw new Error("Usage: harness history <kind> <id>");
+        throw new Error("Usage: harnessbrew history <kind> <id>");
       }
 
       const result = await getAssetHistory(kind, assetId);
@@ -587,7 +587,7 @@ async function main() {
       const { flags, positionals } = parseFlags(args);
       const [kind, assetId, version] = positionals;
       if (!kind || !assetId) {
-        throw new Error("Usage: harness show <kind> <id> [version] [--metadata|--content|--resolved]");
+        throw new Error("Usage: harnessbrew show <kind> <id> [version] [--metadata|--content|--resolved]");
       }
 
       const enabledModes = [flags.metadata === "true", flags.content === "true", flags.resolved === "true"].filter(Boolean).length;
@@ -674,7 +674,7 @@ async function main() {
       const { flags, positionals } = parseFlags(args);
       const [bundlePath] = positionals;
       if (!bundlePath) {
-        throw new Error("Usage: harness verify-bundle <bundle-path> [--json]");
+        throw new Error("Usage: harnessbrew verify-bundle <bundle-path> [--json]");
       }
 
       const result = await verifyBundle(bundlePath);

@@ -51,11 +51,11 @@ test("CLI smoke flow covers init, validate, list, show, export, new, bump-versio
   try {
     let result = runCli(workspaceDir, ["--version"]);
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /harness 0\.3\.0/);
+    assert.match(result.stdout, /harnessbrew 0\.3\.0/);
 
     result = runCli(workspaceDir, ["init"]);
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /Initialized Harness workspace/);
+    assert.match(result.stdout, /Initialized HarnessBrew workspace/);
 
     result = runCli(workspaceDir, ["validate"]);
     assert.equal(result.status, 0, result.stderr);
@@ -83,7 +83,7 @@ test("CLI smoke flow covers init, validate, list, show, export, new, bump-versio
     result = runCli(workspaceDir, ["list", "--kind", "skill", "--json"]);
     assert.equal(result.status, 0, result.stderr);
     const listedSkills = JSON.parse(result.stdout);
-    assert.equal(listedSkills.workspace.name, "Harness");
+    assert.equal(listedSkills.workspace.name, "HarnessBrew");
     assert.equal(listedSkills.filters.kind, "skill");
     assert.equal(listedSkills.groupBy, "kind");
     assert.equal(listedSkills.assetCount, 1);
@@ -601,7 +601,7 @@ test("clone creates a new asset with copied content, dependencies, and its own s
     );
     assert.equal(clonedAgent.history.length, 1);
     assert.equal(clonedAgent.history[0].notes, "Created platform manager variant");
-    assert.match(clonedAgent.renderedContent, /You manage agent assets/);
+    assert.match(clonedAgent.renderedContent, /personal library of agent assets and workflow packages/);
 
     result = runCli(workspaceDir, ["show", "agent", "agent.platform-manager", "0.2.0"]);
     assert.equal(result.status, 0, result.stderr);
@@ -869,7 +869,7 @@ test("init refuses to overwrite an existing workspace without --force", () => {
 
     result = runCli(workspaceDir, ["init"]);
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /Harness workspace already exists/);
+    assert.match(result.stderr, /HarnessBrew workspace already exists/);
   } finally {
     rmSync(workspaceDir, { recursive: true, force: true });
   }
@@ -882,7 +882,7 @@ test("export uses workspace exportDirectory and validate accepts the configured 
     let result = runCli(workspaceDir, ["init"]);
     assert.equal(result.status, 0, result.stderr);
 
-    const workspaceConfigPath = path.join(workspaceDir, ".harness", "workspace.json");
+    const workspaceConfigPath = path.join(workspaceDir, ".harnessbrew", "workspace.json");
     const workspace = readJson(workspaceConfigPath);
     workspace.exportDirectory = "custom-exports/nested";
     writeFileSync(workspaceConfigPath, `${JSON.stringify(workspace, null, 2)}\n`, "utf8");
@@ -929,7 +929,7 @@ test("workspace can load a local adapter module and export with the custom targe
       "utf8"
     );
 
-    const workspaceConfigPath = path.join(workspaceDir, ".harness", "workspace.json");
+    const workspaceConfigPath = path.join(workspaceDir, ".harnessbrew", "workspace.json");
     const workspace = readJson(workspaceConfigPath);
     workspace.adapterModules = ["adapters/json-lines.js"];
     workspace.supportedTargets.push("json-lines");
@@ -1068,7 +1068,7 @@ test("history fails clearly for missing arguments", () => {
   try {
     const result = runCli(workspaceDir, ["history", "skill"]);
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /Usage: harness history <kind> <id>/);
+    assert.match(result.stderr, /Usage: harnessbrew history <kind> <id>/);
   } finally {
     rmSync(workspaceDir, { recursive: true, force: true });
   }
@@ -1111,7 +1111,7 @@ test("stable pack requires a valid workspace", () => {
     let result = runCli(workspaceDir, ["init"]);
     assert.equal(result.status, 0, result.stderr);
 
-    const workspaceConfigPath = path.join(workspaceDir, ".harness", "workspace.json");
+    const workspaceConfigPath = path.join(workspaceDir, ".harnessbrew", "workspace.json");
     const workspace = readJson(workspaceConfigPath);
     workspace.version = "not-semver";
     writeFileSync(workspaceConfigPath, `${JSON.stringify(workspace, null, 2)}\n`, "utf8");

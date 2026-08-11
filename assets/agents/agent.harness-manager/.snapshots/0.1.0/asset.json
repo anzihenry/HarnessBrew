@@ -1,9 +1,9 @@
 {
   "id": "agent.harness-manager",
-  "name": "Harness Manager",
+  "name": "HarnessBrew Manager",
   "kind": "agent",
   "version": "0.1.0",
-  "description": "Coordinates asset governance across agent ecosystems.",
+  "description": "Coordinates a personal asset library and workflow packages across agent ecosystems.",
   "status": "active",
   "tags": [
     "manager",

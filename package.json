@@ -1,10 +1,10 @@
 {
-  "name": "harness",
+  "name": "harnessbrew",
   "version": "0.3.0",
-  "description": "A tool for managing agent assets with versioning and agent-specific adaptation.",
+  "description": "A personal asset library and workflow package manager for coding agents.",
   "type": "module",
   "bin": {
-    "harness": "./src/cli.js"
+    "harnessbrew": "./src/cli.js"
   },
   "scripts": {
     "start": "node ./src/cli.js",

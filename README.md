@@ -1,12 +1,12 @@
-# Harness
+# HarnessBrew
 
-Harness 是一个用于管理 Agent 相关资产的本地工具。它聚焦三类核心能力：
+HarnessBrew 是面向个人的 Agent 资产库和工作流包管理器。它的目标是沉淀你自己的 instructions、skills 与 agents，并安全地导入、审查、版本化和安装第三方工作流资产。
 
 - 统一管理 `agents`、`skills`、`instructions` 等资产
-- 为资产附带版本元数据，支持演进、追踪和导出
-- 面向不同 Agent 运行时，按各自配置规范自适应导出
+- 为资产附带版本元数据、来源信息和依赖关系，支持演进、追踪与审查
+- 面向不同 Agent 运行时，按各自配置规范安装或导出
 
-当前仓库提供的是一个零依赖 Node.js CLI，加上一套可扩展的资产模型与适配层。当前仓库基线版本是 `0.3.0`，聚焦资产维护、依赖治理和发布物强化能力。
+当前仓库提供的是一个零依赖 Node.js CLI，加上一套可扩展的资产模型与适配层。当前仓库基线版本是 `0.3.0`，已具备资产维护、依赖治理和可验证发布物能力；第三方导入、原生安装器与来源追踪是下一阶段重点。
 
 ## 解决的问题
 
@@ -52,7 +52,7 @@ Harness 的设计目标是把这些内容收敛成一个可管理、可导出、
 - `openai-codex`
 - `claude-code`
 
-工作区也可以通过 `.harness/workspace.json` 中的 `adapterModules` 挂载本地 adapter 模块，为仓库新增自定义 target。
+工作区也可以通过 `.harnessbrew/workspace.json` 中的 `adapterModules` 挂载本地 adapter 模块，为仓库新增自定义 target。
 
 适配器会把统一资产模型转换成目标 Agent 更容易消费的结构，例如：
 
@@ -81,7 +81,7 @@ Harness 的设计目标是把这些内容收敛成一个可管理、可导出、
 
 ```text
 .
-├── .harness/
+├── .harnessbrew/
 │   └── workspace.json
 ├── assets/
 │   ├── agents/
@@ -99,6 +99,10 @@ Harness 的设计目标是把这些内容收敛成一个可管理、可导出、
 └── docs/
     └── architecture.md
 ```
+
+## 从 Harness 迁移
+
+HarnessBrew 将工作区配置目录从 `.harness/` 更名为 `.harnessbrew/`，CLI 命令也从 `harness` 更名为 `harnessbrew`。升级已有工作区时，先将 `.harness/` 移动为 `.harnessbrew/`，再使用新命令运行 `validate`。
 
 ## 快速开始
 
@@ -131,7 +135,7 @@ node ./src/cli.js verify-bundle releases/agent.harness-manager-generic --json
 node ./src/cli.js export openai-codex --json
 ```
 
-导出结果默认写入 `.harness/workspace.json` 中 `exportDirectory` 指定的目录；当前默认值是 `exports/<target>.json`。
+导出结果默认写入 `.harnessbrew/workspace.json` 中 `exportDirectory` 指定的目录；当前默认值是 `exports/<target>.json`。
 
 ## 命令说明
 
@@ -400,7 +404,7 @@ export default {
 
 Harness 当前有三层版本语义：
 
-- 项目版本：`package.json` 和 `.harness/workspace.json` 中的 `version`，表示当前工具/工作区基线版本。
+- 项目版本：`package.json` 和 `.harnessbrew/workspace.json` 中的 `version`，表示当前工具/工作区基线版本。
 - 资产版本：每个 asset 自己的 `version` 和 `history`，用于跟踪单个 agent、skill、instruction 的演进。
 - Git 版本标签：用于标记某一份完整仓库代码快照，例如 `v0.1.0`、`v0.1.1`、`v0.2.0`、`v0.3.0`。
 
@@ -423,7 +427,7 @@ npm run check
 node ./src/cli.js --version
 node ./src/cli.js validate
 npm run check
-git add package.json .harness/workspace.json CHANGELOG.md README.md docs/release-0.3.0.md docs/walkthrough-asset-to-bundle.md
+git add package.json .harnessbrew/workspace.json CHANGELOG.md README.md docs/release-0.3.0.md docs/walkthrough-asset-to-bundle.md
 git commit -m "release: prepare 0.3.0"
 git tag -a v0.3.0 -m "Release 0.3.0"
 git push origin main --follow-tags

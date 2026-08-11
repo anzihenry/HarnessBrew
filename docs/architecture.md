@@ -1,8 +1,8 @@
-# Harness Architecture
+# HarnessBrew Architecture
 
 ## 1. Core idea
 
-Harness 的核心思路是把 Agent 生态里的各种“可复用能力资产”抽象成统一对象，然后再根据目标 Agent 的约束进行导出。
+HarnessBrew 的核心思路是把 Agent 生态里的各种“可复用能力资产”沉淀为个人资产库，再根据目标 Agent 的约束进行安装或导出。
 
 统一对象带来的好处：
 
@@ -84,7 +84,7 @@ Harness 的核心思路是把 Agent 生态里的各种“可复用能力资产�
 
 ## 4. Adaptation strategy
 
-Harness 不要求内部数据结构与某个 Agent 一一对应，而是采用：
+HarnessBrew 不要求内部数据结构与某个 Agent 一一对应，而是采用：
 
 1. 内部统一模型
 2. 外部目标适配器
@@ -112,10 +112,10 @@ Harness 不要求内部数据结构与某个 Agent 一一对应，而是采用�
 
 未来建议把适配器升级为插件：
 
-- `@harness/adapter-openai-codex`
-- `@harness/adapter-claude-code`
-- `@harness/adapter-generic`
+- `@harnessbrew/adapter-openai-codex`
+- `@harnessbrew/adapter-claude-code`
+- `@harnessbrew/adapter-generic`
 
 这样可以把 Agent 规范变化与主仓库解耦。
 
-在当前 MVP 阶段，Harness 已经支持通过工作区里的 `adapterModules` 加载本地 ESM adapter 模块，作为走向插件系统之前的轻量扩展机制。
+在当前 MVP 阶段，HarnessBrew 已经支持通过工作区里的 `adapterModules` 加载本地 ESM adapter 模块，作为走向插件系统之前的轻量扩展机制。

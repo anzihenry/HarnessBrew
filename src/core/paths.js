@@ -1,8 +1,8 @@
 import path from "node:path";
 
 export const workspaceRoot = process.cwd();
-export const harnessDir = path.join(workspaceRoot, ".harness");
-export const workspaceConfigPath = path.join(harnessDir, "workspace.json");
+export const harnessBrewDir = path.join(workspaceRoot, ".harnessbrew");
+export const workspaceConfigPath = path.join(harnessBrewDir, "workspace.json");
 export const assetsRoot = path.join(workspaceRoot, "assets");
 export const exportsRoot = path.join(workspaceRoot, "exports");
 export const snapshotsFolderName = ".snapshots";
