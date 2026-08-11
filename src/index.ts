@@ -6,5 +6,7 @@ export { installFormula, listInstalled, readReceipt, resolveDependencies, uninst
 export type { InstallReceipt, InstalledFile, InstalledLink, UninstallOptions } from "./core/installations.js";
 export { builtinTargets, installForTarget, linkFormula, targetDestination, unlinkFormula } from "./core/targets.js";
 export type { BuiltinTarget, LinkOptions } from "./core/targets.js";
+export { findOutdated, upgradeFormulas } from "./core/upgrades.js";
+export type { OutdatedFormula, UpgradeResult } from "./core/upgrades.js";
 export type { TapRecord } from "./core/state.js";
 export { VERSION } from "./version.js";

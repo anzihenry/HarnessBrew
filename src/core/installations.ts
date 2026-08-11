@@ -158,7 +158,11 @@ function assertNoConflicts(formulas: CatalogFormula[], installed: InstallReceipt
   }
 }
 
-async function installOne(home: string, formula: CatalogFormula, requested: boolean): Promise<InstallReceipt> {
+export async function installCatalogFormula(
+  home: string,
+  formula: CatalogFormula,
+  requested: boolean
+): Promise<InstallReceipt> {
   const existing = await readReceipt(home, formula.coordinate);
   if (existing !== undefined) {
     if (requested && !existing.requested) {
@@ -215,7 +219,7 @@ export async function installFormula(home: string, nameOrCoordinate: string): Pr
   try {
     for (const formula of formulas) {
       const existed = await readReceipt(home, formula.coordinate) !== undefined;
-      const receipt = await installOne(home, formula, formula.coordinate === root.coordinate);
+      const receipt = await installCatalogFormula(home, formula, formula.coordinate === root.coordinate);
       receipts.push(receipt);
       if (!existed) created.push(receipt);
     }
@@ -252,6 +256,11 @@ async function verifyReceiptLinks(receipt: InstallReceipt): Promise<void> {
   }
 }
 
+export async function verifyReceiptIntegrity(receipt: InstallReceipt): Promise<void> {
+  await verifyReceiptFiles(receipt);
+  await verifyReceiptLinks(receipt);
+}
+
 export async function uninstallFormula(
   home: string,
   nameOrCoordinate: string,
@@ -271,8 +280,7 @@ export async function uninstallFormula(
     );
   }
   if (options.force !== true) {
-    await verifyReceiptFiles(receipt);
-    await verifyReceiptLinks(receipt);
+    await verifyReceiptIntegrity(receipt);
   }
   for (const link of receipt.links) {
     await rm(link.path, { force: true });

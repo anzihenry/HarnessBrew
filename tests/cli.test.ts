@@ -87,3 +87,19 @@ test("install, list, and uninstall manage Cellar receipts", async () => {
   assert.match(output.stdout.join("\n"), /Installed personal\/agents\/code-review/);
   assert.equal(await runCli(["uninstall", "code-review"], output.io, { home }), 0);
 });
+
+test("update, outdated, and upgrade expose the Git release lifecycle", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-cli-"));
+  const home = path.join(root, "home");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "skills", "code-review");
+  const output = captureIO();
+
+  await runCli(["tap", "add", "personal/agents", repository], output.io, { home });
+  await runCli(["install", "code-review"], output.io, { home });
+  await addFormula(repository, "skills", "code-review", { description: "new review" });
+  assert.equal(await runCli(["update"], output.io, { home }), 0);
+  assert.equal(await runCli(["outdated"], output.io, { home }), 0);
+  assert.equal(await runCli(["upgrade", "code-review"], output.io, { home }), 0);
+  assert.match(output.stdout.join("\n"), /Upgraded personal\/agents\/code-review/);
+});

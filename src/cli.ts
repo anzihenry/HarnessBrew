@@ -5,6 +5,7 @@ import { HarnessBrewError } from "./core/errors.js";
 import { formulaKinds, getFormula, searchFormulas, type FormulaKind } from "./core/formulas.js";
 import { installFormula, listInstalled, uninstallFormula } from "./core/installations.js";
 import { builtinTargets, installForTarget, linkFormula, unlinkFormula, type BuiltinTarget } from "./core/targets.js";
+import { findOutdated, upgradeFormulas } from "./core/upgrades.js";
 import { resolveHarnessHome } from "./core/paths.js";
 import { addTap, listTaps, removeTap, updateTaps } from "./core/taps.js";
 import { VERSION } from "./version.js";
@@ -42,6 +43,9 @@ Commands:
   uninstall  Safely uninstall a formula
   link       Link an installed formula to an Agent target
   unlink     Remove a managed target link
+  update     Fetch all registered taps
+  outdated   List installed formulas with available changes
+  upgrade    Upgrade formulas while preserving target links
 `;
 
 function optionValue(args: readonly string[], name: string): string | undefined {
@@ -109,6 +113,14 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
   const home = resolveHarnessHome(options.home);
   if (command === "tap") {
     return runTapCommand(args.slice(1), home, io);
+  }
+
+  if (command === "update") {
+    const updates = await updateTaps(home);
+    updates.forEach((update) => io.stdout(update.changed
+      ? `Updated ${update.name}: ${update.before.slice(0, 12)} -> ${update.after.slice(0, 12)}.`
+      : `${update.name} is already up-to-date.`));
+    return 0;
   }
 
   if (command === "untap") {
@@ -200,6 +212,24 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
       await unlinkFormula(home, name, targetValue as BuiltinTarget, args.includes("--force"));
       io.stdout(`Unlinked ${name} from ${targetValue}.`);
     }
+    return 0;
+  }
+
+  if (command === "outdated") {
+    const outdated = await findOutdated(home);
+    outdated.forEach((item) => io.stdout(item.available
+      ? `${item.coordinate}\t${item.installedCommit.slice(0, 12)} -> ${item.availableCommit?.slice(0, 12)}`
+      : `${item.coordinate}\t${item.installedCommit.slice(0, 12)} -> unavailable`));
+    return 0;
+  }
+
+  if (command === "upgrade") {
+    const name = args[1]?.startsWith("--") === true ? undefined : args[1];
+    const results = await upgradeFormulas(home, name);
+    if (results.length === 0) io.stdout("All installed formulas are up-to-date.");
+    results.forEach((result) => io.stdout(
+      `Upgraded ${result.coordinate}: ${result.before.slice(0, 12)} -> ${result.after.slice(0, 12)}.`
+    ));
     return 0;
   }
 
