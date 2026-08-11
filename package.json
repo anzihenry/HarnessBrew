@@ -1,22 +1,46 @@
 {
   "name": "harnessbrew",
   "version": "0.3.0",
-  "description": "A personal asset library and workflow package manager for coding agents.",
+  "description": "A Git-native package manager for AI Agent assets.",
   "type": "module",
   "bin": {
-    "harnessbrew": "./src/cli.js"
+    "harnessbrew": "./dist/cli.js"
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "scripts": {
-    "start": "node ./src/cli.js",
-    "test": "node --test ./tests/*.test.js",
-    "check": "node --check ./src/cli.js && node --check ./src/core/workspace.js && node --check ./src/core/adapters.js && node --check ./src/core/paths.js && node --check ./src/utils/diff.js && node --check ./src/utils/json.js && npm run test"
+    "build": "tsc -p tsconfig.json",
+    "build:test": "tsc -p tsconfig.test.json",
+    "start": "node ./dist/cli.js",
+    "test": "npm run build:test && node --test .test-dist/tests/*.test.js",
+    "check": "npm run build && npm test && npm pack --dry-run --cache .npm-cache",
+    "prepack": "npm run build"
   },
   "keywords": [
     "agent",
     "assets",
     "skills",
     "instructions",
-    "versioning"
+    "git",
+    "package-manager"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "typescript": "^7.0.2"
+  }
 }
