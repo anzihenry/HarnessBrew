@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { HarnessBrewError } from "./core/errors.js";
 import { formulaKinds, getFormula, searchFormulas, type FormulaKind } from "./core/formulas.js";
 import { installFormula, listInstalled, uninstallFormula } from "./core/installations.js";
+import { builtinTargets, installForTarget, linkFormula, unlinkFormula, type BuiltinTarget } from "./core/targets.js";
 import { resolveHarnessHome } from "./core/paths.js";
 import { addTap, listTaps, removeTap, updateTaps } from "./core/taps.js";
 import { VERSION } from "./version.js";
@@ -39,6 +40,8 @@ Commands:
   install    Install a formula and its dependencies
   list       List installed formulas
   uninstall  Safely uninstall a formula
+  link       Link an installed formula to an Agent target
+  unlink     Remove a managed target link
 `;
 
 function optionValue(args: readonly string[], name: string): string | undefined {
@@ -153,7 +156,14 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
   if (command === "install") {
     const name = args[1];
     if (name === undefined) throw new HarnessBrewError("Usage: harnessbrew install <formula>");
-    const receipts = await installFormula(home, name);
+    const targetValue = optionValue(args, "--target");
+    if (targetValue !== undefined && !builtinTargets.includes(targetValue as BuiltinTarget)) {
+      throw new HarnessBrewError(`Unsupported built-in target: ${targetValue}`);
+    }
+    const targetRoot = optionValue(args, "--target-root");
+    const receipts = targetValue === undefined
+      ? await installFormula(home, name)
+      : await installForTarget(home, name, targetValue as BuiltinTarget, targetRoot === undefined ? {} : { root: targetRoot });
     receipts.forEach((receipt) => io.stdout(`Installed ${receipt.coordinate} at ${receipt.commit.slice(0, 12)}.`));
     return 0;
   }
@@ -169,6 +179,27 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
     if (name === undefined) throw new HarnessBrewError("Usage: harnessbrew uninstall <formula> [--force]");
     const receipt = await uninstallFormula(home, name, { force: args.includes("--force") });
     io.stdout(`Uninstalled ${receipt.coordinate}.`);
+    return 0;
+  }
+
+  if (command === "link" || command === "unlink") {
+    const name = args[1];
+    const targetValue = optionValue(args, "--target");
+    if (name === undefined || targetValue === undefined) {
+      throw new HarnessBrewError(`Usage: harnessbrew ${command} <formula> --target <target> [--target-root <path>]`);
+    }
+    if (!builtinTargets.includes(targetValue as BuiltinTarget)) {
+      throw new HarnessBrewError(`Unsupported built-in target: ${targetValue}`);
+    }
+    if (command === "link") {
+      await linkFormula(home, name, targetValue as BuiltinTarget, {
+        ...(optionValue(args, "--target-root") === undefined ? {} : { root: optionValue(args, "--target-root") as string })
+      });
+      io.stdout(`Linked ${name} to ${targetValue}.`);
+    } else {
+      await unlinkFormula(home, name, targetValue as BuiltinTarget, args.includes("--force"));
+      io.stdout(`Unlinked ${name} from ${targetValue}.`);
+    }
     return 0;
   }
 

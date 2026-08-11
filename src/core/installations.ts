@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, readFile, readdir, readlink, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { HarnessBrewError } from "./errors.js";
 import { getFormula, loadCatalog, type CatalogFormula } from "./formulas.js";
@@ -8,6 +8,11 @@ import { resolveCellarPath, resolveReceiptPath } from "./paths.js";
 export interface InstalledFile {
   path: string;
   sha256: string;
+}
+
+export interface InstalledLink extends InstalledFile {
+  source: string;
+  target: string;
 }
 
 export interface InstallReceipt {
@@ -22,8 +27,9 @@ export interface InstallReceipt {
   conflicts: string[];
   requested: boolean;
   files: InstalledFile[];
+  supportedTargets: string[];
   targets: string[];
-  links: InstalledFile[];
+  links: InstalledLink[];
   installedAt: string;
 }
 
@@ -83,7 +89,7 @@ export async function readReceipt(home: string, coordinate: string): Promise<Ins
   }
 }
 
-async function writeReceipt(home: string, receipt: InstallReceipt): Promise<void> {
+export async function writeReceipt(home: string, receipt: InstallReceipt): Promise<void> {
   const receiptPath = resolveReceiptPath(home, receipt.coordinate);
   await mkdir(path.dirname(receiptPath), { recursive: true });
   const temporaryPath = `${receiptPath}.${process.pid}.tmp`;
@@ -181,6 +187,7 @@ async function installOne(home: string, formula: CatalogFormula, requested: bool
       conflicts: formula.conflicts,
       requested,
       files: await inventory(cellarPath),
+      supportedTargets: formula.targets,
       targets: [],
       links: [],
       installedAt: new Date().toISOString()
@@ -231,6 +238,20 @@ async function verifyReceiptFiles(receipt: InstallReceipt): Promise<void> {
   }
 }
 
+async function verifyReceiptLinks(receipt: InstallReceipt): Promise<void> {
+  for (const link of receipt.links) {
+    try {
+      const metadata = await lstat(link.path);
+      if (!metadata.isSymbolicLink() || path.resolve(path.dirname(link.path), await readlink(link.path)) !== link.source) {
+        throw new Error("link target changed");
+      }
+      if (await digestFile(link.source) !== link.sha256) throw new Error("source changed");
+    } catch {
+      throw new HarnessBrewError(`Installed target was modified for ${receipt.coordinate}: ${link.path}`);
+    }
+  }
+}
+
 export async function uninstallFormula(
   home: string,
   nameOrCoordinate: string,
@@ -249,7 +270,13 @@ export async function uninstallFormula(
       `Cannot uninstall ${receipt.coordinate}; required by ${dependents.map((item) => item.coordinate).join(", ")}`
     );
   }
-  if (options.force !== true) await verifyReceiptFiles(receipt);
+  if (options.force !== true) {
+    await verifyReceiptFiles(receipt);
+    await verifyReceiptLinks(receipt);
+  }
+  for (const link of receipt.links) {
+    await rm(link.path, { force: true });
+  }
   await rm(receipt.cellarPath, { recursive: true, force: true });
   await rm(resolveReceiptPath(home, receipt.coordinate), { force: true });
   return receipt;
