@@ -30,3 +30,30 @@ export async function commitFile(repository: string, relativePath: string, conte
   await git(repository, "commit", "-m", `update ${relativePath}`);
   return git(repository, "rev-parse", "HEAD");
 }
+
+export async function addFormula(
+  repository: string,
+  kindDirectory: string,
+  name: string,
+  overrides: Record<string, unknown> = {}
+): Promise<string> {
+  const directory = path.join(repository, kindDirectory, name);
+  await mkdir(directory, { recursive: true });
+  const kind = kindDirectory === "mcp" ? "mcp" : kindDirectory.replace(/s$/u, "");
+  const formula = {
+    schemaVersion: 1,
+    name,
+    kind,
+    description: `${name} test formula`,
+    entry: "content.md",
+    targets: ["openai-codex"],
+    dependencies: [],
+    tags: ["test"],
+    ...overrides
+  };
+  await writeFile(path.join(directory, "formula.json"), `${JSON.stringify(formula, null, 2)}\n`, "utf8");
+  await writeFile(path.join(directory, "content.md"), `# ${name}\n`, "utf8");
+  await git(repository, "add", kindDirectory);
+  await git(repository, "commit", "-m", `add ${name}`);
+  return git(repository, "rev-parse", "HEAD");
+}

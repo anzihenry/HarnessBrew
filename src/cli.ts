@@ -2,6 +2,7 @@
 
 import { pathToFileURL } from "node:url";
 import { HarnessBrewError } from "./core/errors.js";
+import { formulaKinds, getFormula, searchFormulas, type FormulaKind } from "./core/formulas.js";
 import { resolveHarnessHome } from "./core/paths.js";
 import { addTap, listTaps, removeTap, updateTaps } from "./core/taps.js";
 import { VERSION } from "./version.js";
@@ -32,6 +33,8 @@ Commands:
   version    Show the installed version
   tap        Add, list, update, or remove Git taps
   untap      Remove a Git tap
+  search     Search formulas across registered taps
+  info       Show formula metadata
 `;
 
 function optionValue(args: readonly string[], name: string): string | undefined {
@@ -106,6 +109,40 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
     if (name === undefined) throw new HarnessBrewError("Usage: harnessbrew untap <owner/name>");
     await removeTap(home, name);
     io.stdout(`Untapped ${name}.`);
+    return 0;
+  }
+
+  if (command === "search") {
+    const kindValue = optionValue(args, "--kind");
+    if (kindValue !== undefined && !formulaKinds.includes(kindValue as FormulaKind)) {
+      throw new HarnessBrewError(`Unsupported formula kind: ${kindValue}`);
+    }
+    const target = optionValue(args, "--target");
+    const query = args.slice(1).find((value, index, values) => {
+      if (value.startsWith("--")) return false;
+      return index === 0 || !values[index - 1]?.startsWith("--");
+    }) ?? "";
+    const formulas = await searchFormulas(home, query, {
+      ...(kindValue === undefined ? {} : { kind: kindValue as FormulaKind }),
+      ...(target === undefined ? {} : { target })
+    });
+    formulas.forEach((formula) => io.stdout(`${formula.coordinate}\t${formula.kind}\t${formula.description}`));
+    return 0;
+  }
+
+  if (command === "info") {
+    const name = args[1];
+    if (name === undefined) throw new HarnessBrewError("Usage: harnessbrew info <formula>");
+    const formula = await getFormula(home, name);
+    io.stdout(JSON.stringify({
+      coordinate: formula.coordinate,
+      kind: formula.kind,
+      description: formula.description,
+      targets: formula.targets,
+      dependencies: formula.dependencies,
+      commit: formula.commit,
+      ...(formula.deprecated === undefined ? {} : { deprecated: formula.deprecated })
+    }, null, 2));
     return 0;
   }
 

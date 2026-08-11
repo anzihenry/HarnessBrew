@@ -4,7 +4,7 @@ import { runCli } from "../src/cli.js";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createTapRepository } from "./helpers/git.js";
+import { addFormula, createTapRepository } from "./helpers/git.js";
 
 function captureIO(): {
   stdout: string[];
@@ -58,4 +58,18 @@ test("tap commands expose the Git source lifecycle", async () => {
   assert.equal(await runCli(["tap", "list"], output.io, { home }), 0);
   assert.match(output.stdout.join("\n"), /personal\/agents/);
   assert.equal(await runCli(["untap", "personal/agents"], output.io, { home }), 0);
+});
+
+test("search and info expose formulas from registered taps", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-cli-"));
+  const home = path.join(root, "home");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "skills", "code-review");
+  const output = captureIO();
+
+  assert.equal(await runCli(["tap", "add", "personal/agents", repository], output.io, { home }), 0);
+  assert.equal(await runCli(["search", "review"], output.io, { home }), 0);
+  assert.match(output.stdout.join("\n"), /personal\/agents\/code-review/);
+  assert.equal(await runCli(["info", "code-review"], output.io, { home }), 0);
+  assert.match(output.stdout.join("\n"), /"kind": "skill"/);
 });

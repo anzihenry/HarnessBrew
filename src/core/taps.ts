@@ -2,6 +2,7 @@ import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { HarnessBrewError } from "./errors.js";
 import { resolveGitCommit, runGit } from "./git.js";
+import { validateTapRepository } from "./formulas.js";
 import { assertTapName, resolveTapPath } from "./paths.js";
 import { readState, type TapRecord, writeState } from "./state.js";
 
@@ -44,6 +45,7 @@ export async function addTap(
     await runGit(["clone", "--quiet", "--", url, destination]);
     const commit = await resolveGitCommit(destination, options.ref);
     await runGit(["checkout", "--quiet", "--detach", commit], destination);
+    await validateTapRepository(destination);
     const timestamp = new Date().toISOString();
     const record: TapRecord = {
       name,
@@ -81,6 +83,7 @@ export async function updateTaps(home: string, requestedName?: string): Promise<
     await runGit(["fetch", "--quiet", "--prune", "--tags", "origin"], repositoryPath);
     const commit = await resolveGitCommit(repositoryPath, record.ref);
     await runGit(["checkout", "--quiet", "--detach", commit], repositoryPath);
+    await validateTapRepository(repositoryPath);
     const before = record.commit;
     record.commit = commit;
     record.updatedAt = new Date().toISOString();
