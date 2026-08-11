@@ -4,7 +4,7 @@
   "description": "A Git-native package manager for AI Agent assets.",
   "type": "module",
   "bin": {
-    "harnessbrew": "./dist/cli.js"
+    "harnessbrew": "./dist/bin.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -22,7 +22,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:test": "tsc -p tsconfig.test.json",
-    "start": "node ./dist/cli.js",
+    "start": "node ./dist/bin.js",
     "test": "npm run build:test && node --test .test-dist/tests/*.test.js",
     "test:package": "npm run build && node ./scripts/package-smoke.mjs",
     "check": "npm run build && npm test && npm run test:package && npm pack --dry-run --cache .npm-cache",

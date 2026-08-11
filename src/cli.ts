@@ -1,7 +1,4 @@
-#!/usr/bin/env node
-
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { HarnessBrewError } from "./core/errors.js";
 import { formulaKinds, getFormula, searchFormulas, type FormulaKind } from "./core/formulas.js";
 import { installFormula, listInstalled, uninstallFormula } from "./core/installations.js";
@@ -271,13 +268,4 @@ export async function runCli(
     }
     throw error;
   }
-}
-
-async function main(): Promise<void> {
-  process.exitCode = await runCli(process.argv.slice(2));
-}
-
-const entryUrl = process.argv[1] === undefined ? undefined : pathToFileURL(process.argv[1]).href;
-if (entryUrl === import.meta.url) {
-  await main();
 }
