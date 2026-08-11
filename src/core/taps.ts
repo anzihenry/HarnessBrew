@@ -107,3 +107,20 @@ export async function removeTap(home: string, name: string): Promise<TapRecord> 
   await writeState(home, state);
   return record;
 }
+
+export async function checkoutTap(home: string, name: string, commit: string): Promise<TapRecord> {
+  assertTapName(name);
+  if (!/^[0-9a-f]{40}$/u.test(commit)) throw new HarnessBrewError(`Invalid Git commit: ${commit}`);
+  const state = await readState(home);
+  const record = state.taps[name];
+  if (record === undefined) throw new HarnessBrewError(`Tap not found: ${name}`);
+  const repositoryPath = resolveTapPath(home, name);
+  await runGit(["fetch", "--quiet", "--prune", "--tags", "origin"], repositoryPath);
+  const resolved = await resolveGitCommit(repositoryPath, commit);
+  await runGit(["checkout", "--quiet", "--detach", resolved], repositoryPath);
+  await validateTapRepository(repositoryPath);
+  record.commit = resolved;
+  record.updatedAt = new Date().toISOString();
+  await writeState(home, state);
+  return record;
+}

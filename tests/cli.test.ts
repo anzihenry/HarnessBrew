@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { runCli } from "../src/cli.js";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { addFormula, createTapRepository } from "./helpers/git.js";
@@ -102,4 +102,23 @@ test("update, outdated, and upgrade expose the Git release lifecycle", async () 
   assert.equal(await runCli(["outdated"], output.io, { home }), 0);
   assert.equal(await runCli(["upgrade", "code-review"], output.io, { home }), 0);
   assert.match(output.stdout.join("\n"), /Upgraded personal\/agents\/code-review/);
+});
+
+test("bundle install rebuilds a declared environment", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-cli-"));
+  const home = path.join(root, "home");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "skills", "code-review");
+  const harnessfile = path.join(root, "Harnessfile");
+  await writeFile(harnessfile, `taps:
+  - name: personal/agents
+    git: ${JSON.stringify(repository)}
+assets:
+  - formula: personal/agents/code-review
+    targets: []
+`, "utf8");
+  const output = captureIO();
+
+  assert.equal(await runCli(["bundle", "install", "--file", harnessfile], output.io, { home }), 0);
+  assert.match(output.stdout.join("\n"), /Bundle installed 1 formulas/);
 });

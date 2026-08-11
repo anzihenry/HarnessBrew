@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 
+import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { HarnessBrewError } from "./core/errors.js";
 import { formulaKinds, getFormula, searchFormulas, type FormulaKind } from "./core/formulas.js";
 import { installFormula, listInstalled, uninstallFormula } from "./core/installations.js";
 import { builtinTargets, installForTarget, linkFormula, unlinkFormula, type BuiltinTarget } from "./core/targets.js";
 import { findOutdated, upgradeFormulas } from "./core/upgrades.js";
+import { bundleCleanup, bundleInstall } from "./core/bundle.js";
 import { resolveHarnessHome } from "./core/paths.js";
 import { addTap, listTaps, removeTap, updateTaps } from "./core/taps.js";
 import { VERSION } from "./version.js";
@@ -46,6 +48,7 @@ Commands:
   update     Fetch all registered taps
   outdated   List installed formulas with available changes
   upgrade    Upgrade formulas while preserving target links
+  bundle     Rebuild or clean an environment from Harnessfile
 `;
 
 function optionValue(args: readonly string[], name: string): string | undefined {
@@ -231,6 +234,22 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
       `Upgraded ${result.coordinate}: ${result.before.slice(0, 12)} -> ${result.after.slice(0, 12)}.`
     ));
     return 0;
+  }
+
+  if (command === "bundle") {
+    const action = args[1];
+    const filePath = optionValue(args, "--file") ?? path.resolve("Harnessfile");
+    if (action === "install") {
+      const lock = await bundleInstall(home, filePath);
+      io.stdout(`Bundle installed ${lock.assets.length} formulas from ${lock.taps.length} taps.`);
+      return 0;
+    }
+    if (action === "cleanup") {
+      const result = await bundleCleanup(home, filePath);
+      result.removed.forEach((coordinate) => io.stdout(`Removed ${coordinate}.`));
+      return 0;
+    }
+    throw new HarnessBrewError("Usage: harnessbrew bundle <install|cleanup> [--file <Harnessfile>]");
   }
 
   io.stderr(`Unknown command: ${command}`);

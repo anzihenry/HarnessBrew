@@ -8,5 +8,14 @@ export { builtinTargets, installForTarget, linkFormula, targetDestination, unlin
 export type { BuiltinTarget, LinkOptions } from "./core/targets.js";
 export { findOutdated, upgradeFormulas } from "./core/upgrades.js";
 export type { OutdatedFormula, UpgradeResult } from "./core/upgrades.js";
+export { bundleCleanup, bundleInstall, lockfilePath, readHarnessfile } from "./core/bundle.js";
+export type {
+  BundleCleanupResult,
+  BundleOptions,
+  HarnessAssetDeclaration,
+  HarnessLock,
+  HarnessTapDeclaration,
+  Harnessfile
+} from "./core/bundle.js";
 export type { TapRecord } from "./core/state.js";
 export { VERSION } from "./version.js";
