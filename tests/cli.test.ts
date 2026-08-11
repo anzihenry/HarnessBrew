@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { runCli } from "../src/cli.js";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { createTapRepository } from "./helpers/git.js";
 
 function captureIO(): {
   stdout: string[];
@@ -42,4 +46,16 @@ test("unknown commands fail with a useful error", async () => {
 
   assert.equal(exitCode, 1);
   assert.match(output.stderr.join("\n"), /Unknown command: missing/);
+});
+
+test("tap commands expose the Git source lifecycle", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-cli-"));
+  const home = path.join(root, "home");
+  const repository = await createTapRepository(root);
+  const output = captureIO();
+
+  assert.equal(await runCli(["tap", "add", "personal/agents", repository], output.io, { home }), 0);
+  assert.equal(await runCli(["tap", "list"], output.io, { home }), 0);
+  assert.match(output.stdout.join("\n"), /personal\/agents/);
+  assert.equal(await runCli(["untap", "personal/agents"], output.io, { home }), 0);
 });
