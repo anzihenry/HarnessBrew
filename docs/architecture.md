@@ -222,6 +222,12 @@ MCP Formula 使用统一 JSON 描述 stdio 或 HTTP transport。凭据字段只�
 
 Adapter Formula 在当前版本仅作为 Git/Cellar 资产保存，不允许投递到任何内置 Target。执行层必须根据能力矩阵返回明确的 `unsupported` 错误，不得退回通用目录或 `${kind}s` 路径。未来只有经过版本化插件接口加载的 Adapter 才能参与安装计划。
 
+#### Target Scope 与实例标识
+
+Target Context 明确区分 `user` 和 `project` scope。project scope 必须带规范化后的项目根目录；用户显式提供的 `target-root` 作为更高优先级的隔离覆盖。Codex 项目级目录为 `.agents/skills`、`.codex/agents`、项目根 `AGENTS.md` 与 `.codex/config.toml`；Claude Code 项目级目录为 `.claude/skills`、`.claude/agents`、`.claude/rules` 与项目根 `.mcp.json`。
+
+Target 实例的身份由 `target + destination` 决定，而不是仅由 Target 名称决定。Receipt 的每条 operation 记录 scope、显式 root 和 project root，因此同一 Formula 可以同时投递到 user/project，upgrade 会逐实例重建，unlink 只删除所选实例。如果调用方未指定 scope 且只有一个实例，为兼容旧 API 可以自动选择；存在多个实例时必须拒绝歧义操作。
+
 ## 6. 主要生命周期
 
 ### 6.1 注册资产源

@@ -4,6 +4,7 @@ import path from "node:path";
 import { HarnessBrewError } from "./errors.js";
 import { getFormula, loadCatalog, type CatalogFormula } from "./formulas.js";
 import { resolveCellarPath, resolveReceiptPath } from "./paths.js";
+import type { TargetScope } from "./targets/types.js";
 
 export interface InstalledFile {
   path: string;
@@ -34,6 +35,9 @@ export interface InstalledOperation {
   marker?: string;
   managedPrefix?: string;
   configFormat?: "json" | "toml-block";
+  scope?: TargetScope;
+  root?: string;
+  projectRoot?: string;
   createdDirectories: string[];
 }
 

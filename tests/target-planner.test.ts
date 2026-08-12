@@ -61,3 +61,28 @@ test("planner rejects unsupported and unknown formula kinds", () => {
   assert.throws(() => planTargetInstall(receipt("adapter"), "openai-codex"), /unsupported/);
   assert.throws(() => planTargetInstall(receipt("unknown"), "claude-code"), /Unsupported formula kind/);
 });
+
+test("planners distinguish user and project scope roots", () => {
+  const projectRoot = path.resolve("/workspace/project");
+  assert.equal(
+    planTargetInstall(receipt("skill", "SKILL.md"), "openai-codex", {
+      scope: "project",
+      projectRoot
+    }).operations[0]?.destination,
+    path.join(projectRoot, ".agents", "skills", "example")
+  );
+  assert.equal(
+    planTargetInstall(receipt("instruction"), "openai-codex", {
+      scope: "project",
+      projectRoot
+    }).operations[0]?.destination,
+    path.join(projectRoot, "AGENTS.md")
+  );
+  assert.equal(
+    planTargetInstall(receipt("mcp"), "claude-code", {
+      scope: "project",
+      projectRoot
+    }).operations[0]?.destination,
+    path.join(projectRoot, ".mcp.json")
+  );
+});

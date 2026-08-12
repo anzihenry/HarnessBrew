@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { listInstalled } from "../src/core/installations.js";
 import { addTap, updateTaps } from "../src/core/taps.js";
-import { installForTarget } from "../src/core/targets.js";
+import { installForTarget, linkFormula } from "../src/core/targets.js";
 import { findOutdated, upgradeFormulas } from "../src/core/upgrades.js";
 import { addFormula, commitFile, createTapRepository } from "./helpers/git.js";
 
@@ -122,4 +122,26 @@ test("MCP upgrades replace only the owned Claude config key", async () => {
   assert.equal(configuration.userSetting, true);
   assert.equal(configuration.mcpServers.docs?.command, "docs-v2");
   assert.deepEqual(configuration.mcpServers.docs?.args, ["serve"]);
+});
+
+test("upgrades preserve multiple scopes for the same target", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-upgrade-"));
+  const home = path.join(root, "home");
+  const userRoot = path.join(root, "user-codex");
+  const projectRoot = path.join(root, "project");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "skills", "review");
+  await addTap(home, "personal/agents", repository);
+  await installForTarget(home, "review", "openai-codex", { scope: "user", root: userRoot });
+  await linkFormula(home, "review", "openai-codex", { scope: "project", projectRoot });
+
+  await addFormula(repository, "skills", "review", { description: "Updated scoped review" });
+  await updateTaps(home);
+  await upgradeFormulas(home, "review");
+
+  assert.equal((await lstat(path.join(userRoot, "skills", "review"))).isSymbolicLink(), true);
+  assert.equal((await lstat(path.join(projectRoot, ".agents", "skills", "review"))).isSymbolicLink(), true);
+  const [receipt] = await listInstalled(home);
+  assert.equal(receipt?.operations.length, 2);
+  assert.deepEqual(receipt?.operations.map((operation) => operation.scope).sort(), ["project", "user"]);
 });

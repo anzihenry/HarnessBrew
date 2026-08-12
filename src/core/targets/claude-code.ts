@@ -6,8 +6,14 @@ import { parseCoordinate } from "../paths.js";
 import { targetCapability } from "../target-capabilities.js";
 import type { PlannedTargetOperation, TargetAdapter, TargetContext, TargetInstallPlan } from "./types.js";
 
-function root(context: TargetContext): string {
-  return path.resolve(context.root ?? path.join(homedir(), ".claude"));
+function roots(context: TargetContext): { target: string; project?: string } {
+  if (context.root !== undefined) return { target: path.resolve(context.root) };
+  if (context.scope === "project") {
+    if (context.projectRoot === undefined) throw new Error("Claude Code project scope requires a project root.");
+    const project = path.resolve(context.projectRoot);
+    return { target: path.join(project, ".claude"), project };
+  }
+  return { target: path.join(homedir(), ".claude") };
 }
 
 function operation(receipt: InstallReceipt, context: TargetContext): PlannedTargetOperation[] {
@@ -15,7 +21,8 @@ function operation(receipt: InstallReceipt, context: TargetContext): PlannedTarg
   const strategy = targetCapability("claude-code", kind);
   if (strategy === "unsupported") return [];
   const [, , name] = parseCoordinate(receipt.coordinate);
-  const targetRoot = root(context);
+  const targetRoots = roots(context);
+  const targetRoot = targetRoots.target;
   const source = strategy === "symlink-directory"
     ? receipt.cellarPath
     : path.join(receipt.cellarPath, receipt.entry);
@@ -30,9 +37,11 @@ function operation(receipt: InstallReceipt, context: TargetContext): PlannedTarg
       case "instruction":
         return path.join(targetRoot, "rules", `${name}.md`);
       case "mcp":
-        return context.root === undefined
-          ? path.join(homedir(), ".claude.json")
-          : path.join(targetRoot, ".mcp.json");
+        return targetRoots.project !== undefined
+          ? path.join(targetRoots.project, ".mcp.json")
+          : context.root === undefined
+            ? path.join(homedir(), ".claude.json")
+            : path.join(targetRoot, ".mcp.json");
       case "adapter":
         throw new Error("Unsupported adapter formula reached Claude Code planner.");
     }

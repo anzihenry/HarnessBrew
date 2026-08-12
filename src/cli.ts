@@ -2,7 +2,14 @@ import path from "node:path";
 import { HarnessBrewError } from "./core/errors.js";
 import { formulaKinds, getFormula, searchFormulas, type FormulaKind } from "./core/formulas.js";
 import { installFormula, listInstalled, uninstallFormula } from "./core/installations.js";
-import { builtinTargets, installForTarget, linkFormula, unlinkFormula, type BuiltinTarget } from "./core/targets.js";
+import {
+  builtinTargets,
+  installForTarget,
+  linkFormula,
+  unlinkFormula,
+  type BuiltinTarget,
+  type LinkOptions
+} from "./core/targets.js";
 import { findOutdated, upgradeFormulas } from "./core/upgrades.js";
 import { bundleCleanup, bundleInstall } from "./core/bundle.js";
 import { resolveHarnessHome } from "./core/paths.js";
@@ -46,6 +53,11 @@ Commands:
   outdated   List installed formulas with available changes
   upgrade    Upgrade formulas while preserving target links
   bundle     Rebuild or clean an environment from Harnessfile
+
+Target placement options:
+  --scope <user|project>  Select user or project installation scope
+  --project <path>        Project root (implies --scope project)
+  --target-root <path>    Override the target's native root
 `;
 
 function optionValue(args: readonly string[], name: string): string | undefined {
@@ -54,6 +66,24 @@ function optionValue(args: readonly string[], name: string): string | undefined 
   const value = args[index + 1];
   if (value === undefined) throw new HarnessBrewError(`Missing value for ${name}.`);
   return value;
+}
+
+function targetOptions(args: readonly string[]): LinkOptions {
+  const scopeValue = optionValue(args, "--scope");
+  const projectValue = optionValue(args, "--project");
+  if (scopeValue !== undefined && scopeValue !== "user" && scopeValue !== "project") {
+    throw new HarnessBrewError(`Unsupported target scope: ${scopeValue}`);
+  }
+  if (scopeValue === "user" && projectValue !== undefined) {
+    throw new HarnessBrewError("--project cannot be combined with --scope user.");
+  }
+  const scope = scopeValue ?? (projectValue === undefined ? "user" : "project");
+  const targetRoot = optionValue(args, "--target-root");
+  return {
+    scope,
+    ...(targetRoot === undefined ? {} : { root: targetRoot }),
+    ...(scope === "project" ? { projectRoot: path.resolve(projectValue ?? process.cwd()) } : {})
+  };
 }
 
 async function runTapCommand(args: readonly string[], home: string, io: CliIO): Promise<number> {
@@ -172,10 +202,9 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
     if (targetValue !== undefined && !builtinTargets.includes(targetValue as BuiltinTarget)) {
       throw new HarnessBrewError(`Unsupported built-in target: ${targetValue}`);
     }
-    const targetRoot = optionValue(args, "--target-root");
     const receipts = targetValue === undefined
       ? await installFormula(home, name)
-      : await installForTarget(home, name, targetValue as BuiltinTarget, targetRoot === undefined ? {} : { root: targetRoot });
+      : await installForTarget(home, name, targetValue as BuiltinTarget, targetOptions(args));
     receipts.forEach((receipt) => io.stdout(`Installed ${receipt.coordinate} at ${receipt.commit.slice(0, 12)}.`));
     return 0;
   }
@@ -198,18 +227,21 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
     const name = args[1];
     const targetValue = optionValue(args, "--target");
     if (name === undefined || targetValue === undefined) {
-      throw new HarnessBrewError(`Usage: harnessbrew ${command} <formula> --target <target> [--target-root <path>]`);
+      throw new HarnessBrewError(
+        `Usage: harnessbrew ${command} <formula> --target <target> [--scope <user|project>] [--project <path>]`
+      );
     }
     if (!builtinTargets.includes(targetValue as BuiltinTarget)) {
       throw new HarnessBrewError(`Unsupported built-in target: ${targetValue}`);
     }
     if (command === "link") {
-      await linkFormula(home, name, targetValue as BuiltinTarget, {
-        ...(optionValue(args, "--target-root") === undefined ? {} : { root: optionValue(args, "--target-root") as string })
-      });
+      await linkFormula(home, name, targetValue as BuiltinTarget, targetOptions(args));
       io.stdout(`Linked ${name} to ${targetValue}.`);
     } else {
-      await unlinkFormula(home, name, targetValue as BuiltinTarget, args.includes("--force"));
+      await unlinkFormula(home, name, targetValue as BuiltinTarget, {
+        ...targetOptions(args),
+        force: args.includes("--force")
+      });
       io.stdout(`Unlinked ${name} from ${targetValue}.`);
     }
     return 0;

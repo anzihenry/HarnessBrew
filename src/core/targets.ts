@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { homedir } from "node:os";
 import { lstat, readFile, readlink, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
@@ -19,54 +18,45 @@ import { builtinTargets, targetCapability, type BuiltinTarget } from "./target-c
 import { executeTargetOperations, removeTargetOperation, verifyTargetOperation } from "./targets/transaction.js";
 import { planTargetInstall } from "./targets/planner.js";
 import { renderAgent, renderMcpConfig, renderSkillProjection } from "./targets/renderers.js";
+import type { TargetContext, TargetScope } from "./targets/types.js";
 
 export { builtinTargets } from "./target-capabilities.js";
 export type { BuiltinTarget } from "./target-capabilities.js";
+export type { TargetScope } from "./targets/types.js";
 
 export interface LinkOptions {
   root?: string;
+  scope?: TargetScope;
+  projectRoot?: string;
 }
 
-function defaultRoot(target: BuiltinTarget): string {
-  return path.join(homedir(), target === "openai-codex" ? ".codex" : ".claude");
+export interface UnlinkOptions extends LinkOptions {
+  force?: boolean;
 }
 
-function extensionFor(entry: string): string {
-  return path.extname(entry) || ".md";
+function targetContext(options: LinkOptions): TargetContext {
+  const scope = options.scope ?? "user";
+  return {
+    scope,
+    ...(options.root === undefined ? {} : { root: path.resolve(options.root) }),
+    ...(scope === "project" ? { projectRoot: path.resolve(options.projectRoot ?? process.cwd()) } : {})
+  };
 }
 
-export function targetDestination(receipt: InstallReceipt, target: BuiltinTarget, root?: string): string {
+export function targetDestination(
+  receipt: InstallReceipt,
+  target: BuiltinTarget,
+  options: LinkOptions = {}
+): string {
   if (targetCapability(target, receipt.kind as FormulaKind) === "unsupported") {
     throw new HarnessBrewError(`Formula kind ${receipt.kind} cannot be linked to target ${target}.`);
   }
-  if (receipt.kind === "skill" || receipt.kind === "agent" || receipt.kind === "instruction"
-    || receipt.kind === "workflow" || receipt.kind === "prompt" || receipt.kind === "mcp") {
-    const plan = planTargetInstall(receipt, target, root === undefined ? {} : { root });
-    const operation = plan.operations[0];
-    if (operation === undefined) throw new HarnessBrewError(`No target operation planned for ${receipt.coordinate}.`);
-    return receipt.kind === "workflow" || receipt.kind === "prompt"
-      ? path.join(operation.destination, "SKILL.md")
-      : operation.destination;
-  }
-  const targetRoot = path.resolve(root ?? defaultRoot(target));
-  const [, , name] = parseCoordinate(receipt.coordinate);
-  const extension = extensionFor(receipt.entry);
-
-  if (target === "claude-code" && receipt.kind === "workflow") {
-    return path.join(targetRoot, "commands", `${name}${extension}`);
-  }
-  const directory = (() => {
-    switch (receipt.kind) {
-      case "agent": return "agents";
-      case "workflow": return "workflows";
-      case "instruction": return "rules";
-      case "prompt": return "prompts";
-      case "mcp": return "mcp";
-      case "adapter": return "adapters";
-      default: throw new HarnessBrewError(`Unsupported formula kind for target linking: ${receipt.kind}`);
-    }
-  })();
-  return path.join(targetRoot, directory, `${name}${extension}`);
+  const plan = planTargetInstall(receipt, target, targetContext(options));
+  const operation = plan.operations[0];
+  if (operation === undefined) throw new HarnessBrewError(`No target operation planned for ${receipt.coordinate}.`);
+  return receipt.kind === "workflow" || receipt.kind === "prompt"
+    ? path.join(operation.destination, "SKILL.md")
+    : operation.destination;
 }
 
 async function exists(filePath: string): Promise<boolean> {
@@ -150,7 +140,10 @@ export async function linkFormula(
     );
   }
   if (receipt.kind === "skill") await validateSkillDirectory(receipt);
-  const existingOperation = receipt.operations.find((operation) => operation.target === target);
+  const context = targetContext(options);
+  const destination = targetDestination(receipt, target, options);
+  const existingOperation = receipt.operations.find((operation) => operation.target === target
+    && operation.destination === destination);
   if (existingOperation !== undefined) {
     try {
       await verifyTargetOperation(existingOperation);
@@ -161,7 +154,6 @@ export async function linkFormula(
   }
 
   const source = receipt.kind === "skill" ? receipt.cellarPath : path.join(receipt.cellarPath, receipt.entry);
-  const destination = targetDestination(receipt, target, options.root);
   const type = receipt.kind === "skill"
     ? "symlink-directory"
     : receipt.kind === "agent" || receipt.kind === "workflow" || receipt.kind === "prompt"
@@ -177,6 +169,9 @@ export async function linkFormula(
     id: `${receipt.coordinate}:${target}:${destination}`,
     type,
     target,
+    ...(context.scope === undefined ? {} : { scope: context.scope }),
+    ...(context.root === undefined ? {} : { root: context.root }),
+    ...(context.projectRoot === undefined ? {} : { projectRoot: context.projectRoot }),
     ...(type === "render-file"
       ? { content: receipt.kind === "agent"
         ? await renderAgent(receipt, target)
@@ -213,14 +208,29 @@ export async function unlinkFormula(
   home: string,
   nameOrCoordinate: string,
   target: BuiltinTarget,
-  force = false
+  options: UnlinkOptions | boolean = {}
 ): Promise<InstallReceipt> {
+  const resolvedOptions: UnlinkOptions = typeof options === "boolean" ? { force: options } : options;
+  const force = resolvedOptions.force ?? false;
   const receipt = await readReceipt(home, nameOrCoordinate.split("/").length === 3
     ? nameOrCoordinate
     : (await listInstalled(home)).find((item) => item.coordinate.endsWith(`/${nameOrCoordinate}`))?.coordinate ?? nameOrCoordinate);
   if (receipt === undefined) throw new HarnessBrewError(`Formula is not installed: ${nameOrCoordinate}`);
-  const links = receipt.links.filter((link) => link.target === target);
-  const operations = receipt.operations.filter((operation) => operation.target === target);
+  const placementSpecified = resolvedOptions.root !== undefined
+    || resolvedOptions.scope !== undefined
+    || resolvedOptions.projectRoot !== undefined;
+  const targetOperations = receipt.operations.filter((operation) => operation.target === target);
+  if (!placementSpecified && targetOperations.length > 1) {
+    throw new HarnessBrewError(
+      `Formula has multiple ${target} installations; specify --scope and, for project scope, --project.`
+    );
+  }
+  const destination = !placementSpecified && targetOperations[0] !== undefined
+    ? targetOperations[0].destination
+    : targetDestination(receipt, target, resolvedOptions);
+  const links = receipt.links.filter((link) => link.target === target && link.path === destination);
+  const operations = receipt.operations.filter((operation) => operation.target === target
+    && operation.destination === destination);
   if (links.length === 0 && operations.length === 0) {
     throw new HarnessBrewError(`Formula is not linked to ${target}: ${receipt.coordinate}`);
   }
@@ -240,9 +250,12 @@ export async function unlinkFormula(
   } else {
     for (const link of links) await rm(link.path, { force: true });
   }
-  receipt.links = receipt.links.filter((link) => link.target !== target);
-  receipt.operations = receipt.operations.filter((operation) => operation.target !== target);
-  receipt.targets = receipt.targets.filter((installedTarget) => installedTarget !== target);
+  receipt.links = receipt.links.filter((link) => !links.includes(link));
+  receipt.operations = receipt.operations.filter((operation) => !operations.includes(operation));
+  if (!receipt.operations.some((operation) => operation.target === target)
+    && !receipt.links.some((link) => link.target === target)) {
+    receipt.targets = receipt.targets.filter((installedTarget) => installedTarget !== target);
+  }
   await writeReceipt(home, receipt);
   return receipt;
 }
@@ -263,7 +276,7 @@ export async function installForTarget(
     return linked;
   } catch (error) {
     for (const receipt of linked.reverse()) {
-      await unlinkFormula(home, receipt.coordinate, target, true);
+      await unlinkFormula(home, receipt.coordinate, target, { ...options, force: true });
     }
     for (const receipt of receipts.reverse()) {
       if (!before.has(receipt.coordinate)) await uninstallFormula(home, receipt.coordinate, { force: true });

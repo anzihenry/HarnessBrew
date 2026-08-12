@@ -2,8 +2,12 @@ import type { FormulaKind } from "../formulas.js";
 import type { InstallReceipt } from "../installations.js";
 import type { BuiltinTarget, TargetOperationKind } from "../target-capabilities.js";
 
+export type TargetScope = "user" | "project";
+
 export interface TargetContext {
   root?: string;
+  scope?: TargetScope;
+  projectRoot?: string;
 }
 
 export interface PlannedTargetOperation {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { runCli } from "../src/cli.js";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { addFormula, createTapRepository } from "./helpers/git.js";
@@ -121,4 +121,32 @@ assets:
 
   assert.equal(await runCli(["bundle", "install", "--file", harnessfile], output.io, { home }), 0);
   assert.match(output.stdout.join("\n"), /Bundle installed 1 formulas/);
+});
+
+test("link and unlink CLI commands select user or project scope", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-cli-"));
+  const home = path.join(root, "home");
+  const userRoot = path.join(root, "user-codex");
+  const projectRoot = path.join(root, "project");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "skills", "review");
+  const output = captureIO();
+  await runCli(["tap", "add", "personal/agents", repository], output.io, { home });
+
+  assert.equal(await runCli([
+    "install", "review", "--target", "openai-codex", "--scope", "user", "--target-root", userRoot
+  ], output.io, { home }), 0);
+  assert.equal(await runCli([
+    "link", "review", "--target", "openai-codex", "--scope", "project", "--project", projectRoot
+  ], output.io, { home }), 0);
+  const userDestination = path.join(userRoot, "skills", "review");
+  const projectDestination = path.join(projectRoot, ".agents", "skills", "review");
+  assert.equal((await lstat(userDestination)).isSymbolicLink(), true);
+  assert.equal((await lstat(projectDestination)).isSymbolicLink(), true);
+
+  assert.equal(await runCli([
+    "unlink", "review", "--target", "openai-codex", "--scope", "project", "--project", projectRoot
+  ], output.io, { home }), 0);
+  await assert.rejects(lstat(projectDestination), /ENOENT/);
+  assert.equal((await lstat(userDestination)).isSymbolicLink(), true);
 });

@@ -12,7 +12,7 @@ import {
   type InstalledLink
 } from "./installations.js";
 import { resolveReceiptPath } from "./paths.js";
-import { linkFormula, type BuiltinTarget } from "./targets.js";
+import { linkFormula, type BuiltinTarget, type LinkOptions } from "./targets.js";
 import { removeTargetOperation } from "./targets/transaction.js";
 
 export interface OutdatedFormula {
@@ -60,42 +60,51 @@ function targetRootFromLink(receipt: InstallReceipt, link: InstalledLink): strin
 
 interface TargetPlacement {
   target: BuiltinTarget;
-  root?: string;
+  options: LinkOptions;
 }
 
 function targetPlacements(receipt: InstallReceipt): TargetPlacement[] {
-  return receipt.targets.map((targetValue) => {
-    const target = targetValue as BuiltinTarget;
-    const operation = receipt.operations.find((candidate) => candidate.target === target);
-    if (operation !== undefined) {
+  if (receipt.operations.length > 0) {
+    return receipt.operations.map((operation) => {
+      const target = operation.target as BuiltinTarget;
+      if (operation.scope !== undefined) {
+        return {
+          target,
+          options: {
+            scope: operation.scope,
+            ...(operation.root === undefined ? {} : { root: operation.root }),
+            ...(operation.projectRoot === undefined ? {} : { projectRoot: operation.projectRoot })
+          }
+        };
+      }
       if (receipt.kind === "workflow" || receipt.kind === "prompt") {
-        return { target, root: path.dirname(path.dirname(path.dirname(operation.destination))) };
+        return { target, options: { root: path.dirname(path.dirname(path.dirname(operation.destination))) } };
       }
       if (receipt.kind === "skill" || receipt.kind === "agent") {
-        return { target, root: path.dirname(path.dirname(operation.destination)) };
+        return { target, options: { root: path.dirname(path.dirname(operation.destination)) } };
       }
       if (receipt.kind === "instruction" && target === "claude-code") {
-        return { target, root: path.dirname(path.dirname(operation.destination)) };
+        return { target, options: { root: path.dirname(path.dirname(operation.destination)) } };
       }
       if (receipt.kind === "mcp" && target === "claude-code") {
         return path.basename(operation.destination) === ".claude.json"
-          ? { target }
-          : { target, root: path.dirname(operation.destination) };
+          ? { target, options: {} }
+          : { target, options: { root: path.dirname(operation.destination) } };
       }
-      return { target, root: path.dirname(operation.destination) };
-    }
-    const link = receipt.links.find((candidate) => candidate.target === target);
-    if (link === undefined) throw new HarnessBrewError(`Missing target operation for ${receipt.coordinate}: ${target}`);
-    return { target, root: targetRootFromLink(receipt, link) };
-  });
+      return { target, options: { root: path.dirname(operation.destination) } };
+    });
+  }
+  return receipt.links.map((link) => ({
+    target: link.target as BuiltinTarget,
+    options: { root: targetRootFromLink(receipt, link) }
+  }));
 }
 
 async function restoreReceipt(home: string, receipt: InstallReceipt, placements: TargetPlacement[]): Promise<void> {
   const restored: InstallReceipt = { ...receipt, targets: [], links: [], operations: [] };
   await writeReceipt(home, restored);
   for (const placement of placements) {
-    await linkFormula(home, restored.coordinate, placement.target,
-      placement.root === undefined ? {} : { root: placement.root });
+    await linkFormula(home, restored.coordinate, placement.target, placement.options);
   }
 }
 
@@ -114,8 +123,7 @@ async function upgradeOne(home: string, receipt: InstallReceipt, formula: Catalo
   try {
     replacement = await installCatalogFormula(home, formula, receipt.requested);
     for (const placement of placements) {
-      await linkFormula(home, replacement.coordinate, placement.target,
-        placement.root === undefined ? {} : { root: placement.root });
+      await linkFormula(home, replacement.coordinate, placement.target, placement.options);
     }
     await rm(receipt.cellarPath, { recursive: true, force: true });
     return { coordinate: receipt.coordinate, before: receipt.commit, after: formula.commit };

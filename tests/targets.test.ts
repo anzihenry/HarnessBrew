@@ -262,3 +262,36 @@ test("adapter formulas install to the Cellar but cannot link to Agent targets", 
   );
   assert.equal((await listInstalled(home))[0]?.operations.length, 0);
 });
+
+test("one formula can link to user and project scopes independently", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
+  const home = path.join(root, "home");
+  const userRoot = path.join(root, "user-codex");
+  const projectRoot = path.join(root, "project");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "skills", "review");
+  await addTap(home, "personal/agents", repository);
+  await installFormula(home, "review");
+
+  await linkFormula(home, "review", "openai-codex", { scope: "user", root: userRoot });
+  const linked = await linkFormula(home, "review", "openai-codex", { scope: "project", projectRoot });
+  const userDestination = path.join(userRoot, "skills", "review");
+  const projectDestination = path.join(projectRoot, ".agents", "skills", "review");
+  assert.equal((await lstat(userDestination)).isSymbolicLink(), true);
+  assert.equal((await lstat(projectDestination)).isSymbolicLink(), true);
+  assert.equal(linked.operations.length, 2);
+  assert.deepEqual(linked.operations.map((operation) => operation.scope).sort(), ["project", "user"]);
+  await assert.rejects(
+    unlinkFormula(home, "review", "openai-codex"),
+    /multiple openai-codex installations.*specify --scope/u
+  );
+
+  const afterProjectUnlink = await unlinkFormula(home, "review", "openai-codex", {
+    scope: "project",
+    projectRoot
+  });
+  await assert.rejects(lstat(projectDestination), /ENOENT/);
+  assert.equal((await lstat(userDestination)).isSymbolicLink(), true);
+  assert.equal(afterProjectUnlink.operations.length, 1);
+  assert.deepEqual(afterProjectUnlink.targets, ["openai-codex"]);
+});

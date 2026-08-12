@@ -3,6 +3,7 @@ import { lstat, mkdir, readFile, readlink, rename, rm, rmdir, stat, symlink, wri
 import path from "node:path";
 import { HarnessBrewError } from "../errors.js";
 import type { InstalledOperation, InstalledOperationType } from "../installations.js";
+import type { TargetScope } from "./types.js";
 
 export interface TargetOperationInput {
   id: string;
@@ -14,6 +15,17 @@ export interface TargetOperationInput {
   ownedKeys?: string[];
   marker?: string;
   configFormat?: "json" | "toml-block";
+  scope?: TargetScope;
+  root?: string;
+  projectRoot?: string;
+}
+
+function placementMetadata(input: TargetOperationInput): Pick<InstalledOperation, "scope" | "root" | "projectRoot"> {
+  return {
+    ...(input.scope === undefined ? {} : { scope: input.scope }),
+    ...(input.root === undefined ? {} : { root: path.resolve(input.root) }),
+    ...(input.projectRoot === undefined ? {} : { projectRoot: path.resolve(input.projectRoot) })
+  };
 }
 
 async function pathMetadata(filePath: string): Promise<Awaited<ReturnType<typeof lstat>> | undefined> {
@@ -173,6 +185,7 @@ async function applyOperation(input: TargetOperationInput): Promise<InstalledOpe
         id: input.id,
         type: input.type,
         target: input.target,
+        ...placementMetadata(input),
         destination,
         source,
         ...(input.type === "symlink-file" ? { installedDigest: await digestFile(source) } : {}),
@@ -189,6 +202,7 @@ async function applyOperation(input: TargetOperationInput): Promise<InstalledOpe
         id: input.id,
         type: input.type,
         target: input.target,
+        ...placementMetadata(input),
         destination,
         installedDigest: await digestFile(destination),
         createdDirectories: directories
@@ -218,6 +232,7 @@ async function applyOperation(input: TargetOperationInput): Promise<InstalledOpe
         id: input.id,
         type: input.type,
         target: input.target,
+        ...placementMetadata(input),
         destination,
         ...(metadata === undefined ? {} : { beforeDigest: digestContent(before) }),
         installedDigest: digestContent(block),
@@ -275,6 +290,7 @@ async function applyOperation(input: TargetOperationInput): Promise<InstalledOpe
         id: input.id,
         type: input.type,
         target: input.target,
+        ...placementMetadata(input),
         destination,
         ...(metadata === undefined ? {} : { beforeDigest: digestContent(before) }),
         installedDigest,

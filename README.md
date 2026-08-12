@@ -160,6 +160,16 @@ harnessbrew install code-review \
   --target-root /path/to/sandbox/.codex
 ```
 
+Target 支持用户级与项目级 scope；`--project` 会隐式选择 project scope。同一 Formula 可以同时存在于两个 scope，Receipt 会按实际目标路径分别记录操作：
+
+```bash
+harnessbrew link code-review --target openai-codex --scope user
+harnessbrew link code-review --target openai-codex --scope project --project /path/to/repo
+harnessbrew unlink code-review --target openai-codex --scope project --project /path/to/repo
+```
+
+项目级 Codex 资产使用项目中的 `.agents/skills`、`.codex/agents`、根 `AGENTS.md` 和 `.codex/config.toml`；Claude Code 使用 `.claude/skills`、`.claude/agents`、`.claude/rules` 和根 `.mcp.json`。当同一 Target 有多个实例时，unlink 必须指定 scope。
+
 也可以单独管理链接：
 
 ```bash
@@ -215,10 +225,10 @@ harnessbrew tap remove <owner/name>
 harnessbrew untap <owner/name>
 harnessbrew search [query] [--kind <kind>] [--target <target>]
 harnessbrew info <formula>
-harnessbrew install <formula> [--target <target>] [--target-root <path>]
+harnessbrew install <formula> [--target <target>] [--scope <user|project>] [--project <path>] [--target-root <path>]
 harnessbrew list
-harnessbrew link <formula> --target <target> [--target-root <path>]
-harnessbrew unlink <formula> --target <target> [--force]
+harnessbrew link <formula> --target <target> [--scope <user|project>] [--project <path>] [--target-root <path>]
+harnessbrew unlink <formula> --target <target> [--scope <user|project>] [--project <path>] [--force]
 harnessbrew update
 harnessbrew outdated
 harnessbrew upgrade [formula]
