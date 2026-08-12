@@ -47,4 +47,4 @@ The expected version output is `0.5.0`.
 
 ## Recovery
 
-Do not move or overwrite a published tag. If publication fails before npm accepts the package, fix the workflow and rerun it for the same GitHub Release. If a defect is found after npm publication, prepare a new patch release; npm package versions and published Git tags remain immutable.
+Do not move or overwrite a published tag. If publication fails before npm accepts the package, fix the workflow without moving the published tag, verify the exact tagged package locally, and complete publication from an authenticated npm session. If a defect is found after npm publication, prepare a new patch release; npm package versions and published Git tags remain immutable.

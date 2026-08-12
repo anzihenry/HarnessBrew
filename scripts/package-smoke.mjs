@@ -30,7 +30,6 @@ try {
     path.join(packageRoot, tarballs[0]),
     "--ignore-scripts",
     "--package-lock=false",
-    "--offline",
     "--cache",
     path.join(projectRoot.pathname, ".npm-cache")
   ], { encoding: "utf8" });
