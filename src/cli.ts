@@ -16,6 +16,12 @@ import { resolveHarnessHome } from "./core/paths.js";
 import { addTap, listTaps, removeTap, setTapTrust, updateTaps } from "./core/taps.js";
 import { VERSION } from "./version.js";
 import { doctor, relinkFormula } from "./core/doctor.js";
+import {
+  addAdapterPlugin,
+  listAdapterPlugins,
+  loadAdapterPlugins,
+  removeAdapterPlugin
+} from "./core/adapter-plugins.js";
 import { withHomeLock } from "./core/locks.js";
 import {
   withJournalPreview,
@@ -88,6 +94,7 @@ Commands:
   outdated   List installed formulas with available changes
   upgrade    Upgrade formulas while preserving target links
   bundle     Rebuild or clean an environment from Harnessfile
+  adapter    Add, list, or remove trusted Target Adapter modules
 
 Target placement options:
   --scope <user|project>  Select user or project installation scope
@@ -187,6 +194,35 @@ async function runTapCommand(args: readonly string[], home: string, io: CliIO): 
   throw new HarnessBrewError(`Unknown tap action: ${action}`);
 }
 
+async function runAdapterCommand(args: readonly string[], home: string, io: CliIO): Promise<number> {
+  const [action = "list", ...rest] = args;
+  if (action === "list") {
+    const records = await listAdapterPlugins(home);
+    records.forEach((record) => io.stdout(`${record.name}\t${record.version}\t${record.module}`));
+    setResult(io, records);
+    return 0;
+  }
+  if (action === "add") {
+    const [moduleSpecifier] = rest;
+    if (moduleSpecifier === undefined) {
+      throw new HarnessBrewError("Usage: harnessbrew adapter add <npm-package|absolute-path|file-url>");
+    }
+    const record = await addAdapterPlugin(home, moduleSpecifier);
+    io.stdout(`Added trusted Adapter ${record.name}@${record.version} from ${record.module}.`);
+    setResult(io, record);
+    return 0;
+  }
+  if (action === "remove") {
+    const [name] = rest;
+    if (name === undefined) throw new HarnessBrewError("Usage: harnessbrew adapter remove <target>");
+    const record = await removeAdapterPlugin(home, name);
+    io.stdout(`Removed Adapter ${record.name}@${record.version}.`);
+    setResult(io, record);
+    return 0;
+  }
+  throw new HarnessBrewError(`Unknown adapter action: ${action}`);
+}
+
 async function execute(args: readonly string[], io: CliIO, options: CliOptions): Promise<number> {
   const [command] = args;
 
@@ -203,6 +239,9 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
   }
 
   const home = resolveHarnessHome(options.home);
+  if (command === "adapter") {
+    return runAdapterCommand(args.slice(1), home, io);
+  }
   if (command === "tap") {
     return runTapCommand(args.slice(1), home, io);
   }
@@ -415,10 +454,12 @@ export async function runCli(
     : io;
   const command = commandArgs[0];
   const tapAction = command === "tap" ? (commandArgs[1] ?? "list") : undefined;
+  const adapterAction = command === "adapter" ? (commandArgs[1] ?? "list") : undefined;
   const mutates = command === "update" || command === "untap" || command === "install"
     || command === "uninstall" || command === "link" || command === "unlink" || command === "relink"
     || command === "upgrade" || command === "bundle"
-    || (command === "tap" && tapAction !== "list");
+    || (command === "tap" && tapAction !== "list")
+    || (command === "adapter" && adapterAction !== "list");
   const emitJson = (exitCode: number, changes: TransactionChange[] = [], errorCode?: CliJsonError["code"]): void => {
     const envelope: CliJsonEnvelope = {
       schemaVersion: 1,
@@ -442,13 +483,24 @@ export async function runCli(
   try {
     const home = resolveHarnessHome(options.home);
     if (dryRun && !mutates) throw new HarnessBrewError("--dry-run requires a mutating command.");
+    const invoke = async (): Promise<number> => {
+      const unload = command !== undefined
+        && ["install", "link", "unlink", "relink", "upgrade", "bundle"].includes(command)
+        ? await loadAdapterPlugins(home)
+        : (): void => {};
+      try {
+        return await execute(commandArgs, commandIO, options);
+      } finally {
+        unload();
+      }
+    };
     let exitCode: number;
     let changes: TransactionChange[] = [];
     if (dryRun) {
       const preview = await withHomeLock(home, () => withJournalPreview(
         home,
         `preview:${command ?? "unknown"}`,
-        () => execute(commandArgs, commandIO, options)
+        invoke
       ));
       exitCode = preview.result;
       changes = preview.changes;
@@ -463,9 +515,9 @@ export async function runCli(
         ? await withHomeLock(home, () => withJournalTransaction(
           home,
           `cli:${command ?? "unknown"}`,
-          () => execute(commandArgs, commandIO, options)
+          invoke
         ))
-        : await execute(commandArgs, commandIO, options);
+        : await invoke();
     }
     if (json) emitJson(exitCode, changes);
     return exitCode;

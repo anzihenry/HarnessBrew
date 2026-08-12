@@ -24,6 +24,10 @@ export function resolveStatePath(home: string): string {
   return path.join(home, "state.json");
 }
 
+export function resolveAdapterPluginsPath(home: string): string {
+  return path.join(home, "adapters.json");
+}
+
 export function parseCoordinate(coordinate: string): [string, string, string] {
   const parts = coordinate.split("/");
   if (parts.length !== 3 || parts.some((part) => !/^[a-z0-9][a-z0-9-]*$/u.test(part))) {

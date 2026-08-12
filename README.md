@@ -339,8 +339,22 @@ const unregister = registerTargetAdapter(adapter);
 
 SDK 会校验 API 版本、名称、版本、完整能力矩阵、计划身份、绝对目标路径和 Cellar source 边界。v1 的第三方 Adapter 计划只允许
 `symlink-file`、`symlink-directory` 和 `unsupported`，不提供直接写文件或生成共享配置的操作。注册是显式、进程内操作；HarnessBrew 不会从 Tap
-自动执行 Adapter Formula 或任意 npm 模块。第三方 Adapter 本身是具有宿主进程权限的可信代码，只应加载经过审查的 npm 包。Harnessfile v2
-可以使用已注册 Target，并把第三方 Adapter 的名称和版本写入 lockfile 签名。
+自动执行 Adapter Formula。第三方 Adapter 本身是具有宿主进程权限的可信代码，只应加载经过审查的 npm 包。
+
+独立 CLI 可以持久化管理可信 Adapter 模块。模块需已通过 npm 安装并可被 `harnessbrew` 解析，也可以使用绝对路径或 `file://` URL；它必须默认导出
+一个 Adapter，或提供名为 `adapter` 的导出：
+
+```bash
+harnessbrew adapter add @harnessbrew/adapter-cursor
+harnessbrew adapter list
+harnessbrew install review --target cursor
+harnessbrew adapter remove cursor
+```
+
+`adapter add` 是一次显式的代码执行授权。HarnessBrew 将模块标识及审核时的 name、version、API version 写入
+`~/.harnessbrew/adapters.json`；后续只在 install/link/unlink/relink/upgrade/bundle 需要 Target 时加载，并在每次加载时核对身份。
+如果包升级改变身份，命令会关闭失败，要求先 remove、审查后再 add。`adapter list/remove` 本身不执行插件，HarnessBrew 也不会自动运行 `npm install`。
+CLI 加载的 Target 同样进入 Harnessfile v2 lock 的 Adapter 签名。
 
 ## 架构
 

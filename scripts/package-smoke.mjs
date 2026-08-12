@@ -49,9 +49,9 @@ try {
   const apiResult = await execFileAsync(process.execPath, [
     "--input-type=module",
     "--eval",
-    'import { TARGET_ADAPTER_API_VERSION, registerTargetAdapter } from "harnessbrew"; console.log(`${TARGET_ADAPTER_API_VERSION}:${typeof registerTargetAdapter}`);'
+    'import { TARGET_ADAPTER_API_VERSION, addAdapterPlugin, registerTargetAdapter } from "harnessbrew"; console.log(`${TARGET_ADAPTER_API_VERSION}:${typeof registerTargetAdapter}:${typeof addAdapterPlugin}`);'
   ], { cwd: installRoot, encoding: "utf8" });
-  assert.equal(apiResult.stdout.trim(), "1:function");
+  assert.equal(apiResult.stdout.trim(), "1:function:function");
   assert.equal(packageJson.devDependencies.typescript, "^7.0.2");
   console.log(`Package smoke test passed for harnessbrew@${packageJson.version}.`);
 } finally {

@@ -26,6 +26,13 @@ export type {
   TargetInstallPlan
 } from "./core/targets/types.js";
 export { TARGET_ADAPTER_API_VERSION } from "./core/targets/types.js";
+export {
+  addAdapterPlugin,
+  listAdapterPlugins,
+  loadAdapterPlugins,
+  removeAdapterPlugin
+} from "./core/adapter-plugins.js";
+export type { AdapterPluginRecord } from "./core/adapter-plugins.js";
 export { findOutdated, upgradeFormulas } from "./core/upgrades.js";
 export type { OutdatedFormula, UpgradeResult } from "./core/upgrades.js";
 export { doctor, relinkFormula } from "./core/doctor.js";

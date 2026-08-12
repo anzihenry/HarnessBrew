@@ -392,8 +392,12 @@ Agent 平台变化应与核心包管理能力解耦。Adapter 最终以插件形
 Harnessfile v2 lock 的 Adapter 签名。
 
 Adapter API v1 是最小安全接口：第三方只可声明单个 `symlink-file` 或 `symlink-directory` 操作（或 `unsupported`），由核心 transaction layer
-执行、记账、诊断和回滚；渲染、受管区块和配置合并仍保留给内置 Adapter。SDK 不向插件提供写入回调，独立 CLI 也不会自动加载 Tap 或任意 npm 包
-中的 JavaScript。由于进程内插件本身拥有 Node.js 宿主权限，加载第三方 Adapter 必须是可信 TypeScript/Node.js 宿主对已审查代码的显式行为。
+执行、记账、诊断和回滚；渲染、受管区块和配置合并仍保留给内置 Adapter。SDK 不向插件提供写入回调，也不会从 Tap 加载 JavaScript。
+
+独立 CLI 通过 `adapter add/list/remove` 管理已安装的可信 npm 模块（也接受显式绝对路径或 `file://` URL）。`adapter add` 是代码执行授权：导入模块、
+执行 SDK 注册校验，然后将 module specifier 与 name/version/API version 的审核快照写入独立的 `adapters.json`。后续仅在需要 Target 计划的命令中加载，
+且实际导出身份必须与快照完全相同；变化时 fail closed，要求 remove 后审查并重新 add。list/remove 不导入模块，CLI 不负责运行 npm install。由于插件
+拥有 Node.js 宿主权限，这个信任清单不能替代代码审查；它只确保加载行为显式、可见且身份漂移可检测。
 
 ## 11. HarnessBrew 的边界
 
