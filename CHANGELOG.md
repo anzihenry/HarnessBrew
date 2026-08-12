@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- upgrade GitHub CI and release workflows to `actions/checkout@v6` and `actions/setup-node@v6` while keeping HarnessBrew builds on Node.js 22
+
 ## 0.6.0 - 2026-08-13
 
 ### Added
