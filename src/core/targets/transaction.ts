@@ -4,6 +4,7 @@ import path from "node:path";
 import { HarnessBrewError } from "../errors.js";
 import type { InstalledOperation, InstalledOperationType } from "../installations.js";
 import type { TargetScope } from "./types.js";
+import { withTargetLock } from "../locks.js";
 
 export interface TargetOperationInput {
   id: string;
@@ -167,7 +168,7 @@ async function assertDestinationAvailable(destination: string): Promise<void> {
   }
 }
 
-async function applyOperation(input: TargetOperationInput): Promise<InstalledOperation> {
+async function applyOperationUnlocked(input: TargetOperationInput): Promise<InstalledOperation> {
   const destination = path.resolve(input.destination);
   if (input.type !== "managed-block" && input.type !== "merge-config") await assertDestinationAvailable(destination);
   const directories = await createdParents(destination);
@@ -376,7 +377,7 @@ export async function verifyTargetOperation(operation: InstalledOperation): Prom
   }
 }
 
-export async function removeTargetOperation(operation: InstalledOperation, force = false): Promise<void> {
+async function removeTargetOperationUnlocked(operation: InstalledOperation, force = false): Promise<void> {
   if (!force) await verifyTargetOperation(operation);
   if (operation.type === "merge-config") {
     const current = await readFile(operation.destination, "utf8").catch((error: NodeJS.ErrnoException) => {
@@ -468,10 +469,16 @@ export async function removeTargetOperation(operation: InstalledOperation, force
   await cleanupParents(operation);
 }
 
+export function removeTargetOperation(operation: InstalledOperation, force = false): Promise<void> {
+  return withTargetLock(operation.destination, () => removeTargetOperationUnlocked(operation, force));
+}
+
 export async function executeTargetOperations(inputs: readonly TargetOperationInput[]): Promise<InstalledOperation[]> {
   const installed: InstalledOperation[] = [];
   try {
-    for (const input of inputs) installed.push(await applyOperation(input));
+    for (const input of inputs) {
+      installed.push(await withTargetLock(input.destination, () => applyOperationUnlocked(input)));
+    }
     return installed;
   } catch (error) {
     for (const operation of installed.reverse()) await removeTargetOperation(operation, true);

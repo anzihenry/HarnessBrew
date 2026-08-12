@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - validate complete Receipt structures, canonical Cellar locations, operation metadata, owned keys, and all destructive paths before use
 - detect added, removed, modified, unsupported, and permission-changed Cellar files through exact inventory comparison
 - prevent forced cleanup from recursively deleting a real directory that replaced a managed directory symlink
+- serialize CLI mutations per HarnessBrew home and protect shared Target configuration updates across processes
 
 ## 0.5.2 - 2026-08-13
 

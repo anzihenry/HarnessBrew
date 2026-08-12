@@ -124,6 +124,29 @@ test("merge-config operations own only their TOML block or JSON key", async () =
   assert.deepEqual(Object.keys(remainingJson.mcpServers), ["user"]);
 });
 
+test("concurrent target config merges preserve updates from separate transactions", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-transaction-"));
+  const destination = path.join(root, ".mcp.json");
+  const operation = (name: string) => executeTargetOperations([{
+    id: name,
+    type: "merge-config" as const,
+    target: "claude-code",
+    destination,
+    configFormat: "json" as const,
+    ownedKeys: ["mcpServers", name],
+    content: JSON.stringify({ type: "stdio", command: `${name}-server` })
+  }]);
+
+  const [[docs], [search]] = await Promise.all([operation("docs"), operation("search")]);
+  assert.ok(docs && search);
+  const configuration = JSON.parse(await readFile(destination, "utf8")) as {
+    mcpServers: Record<string, { command: string }>;
+  };
+  assert.deepEqual(Object.keys(configuration.mcpServers).sort(), ["docs", "search"]);
+  assert.equal(configuration.mcpServers.docs?.command, "docs-server");
+  assert.equal(configuration.mcpServers.search?.command, "search-server");
+});
+
 test("version one receipts are normalized to version two operations", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-receipt-"));
   const coordinate = "personal/agents/example";
