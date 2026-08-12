@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.5.2 - 2026-08-13
+
+### Fixed
+
+- automated publication now passes npm an explicit local tarball path instead of a Git dependency specifier
+- release tests guard the exact artifact handoff between `npm pack` and `npm publish`
+
 ## 0.5.1 - 2026-08-13
 
 ### Fixed

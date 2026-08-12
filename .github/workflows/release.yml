@@ -37,6 +37,6 @@ jobs:
         run: |
           mkdir release-artifacts
           tarball="$(npm pack --pack-destination release-artifacts --silent)"
-          echo "tarball=release-artifacts/${tarball}" >> "${GITHUB_OUTPUT}"
+          echo "tarball=./release-artifacts/${tarball}" >> "${GITHUB_OUTPUT}"
       - name: Publish the verified tarball with npm provenance
         run: npm publish "${{ steps.pack.outputs.tarball }}" --provenance --access public
