@@ -9,6 +9,7 @@ function receipt(kind: string, entry = "content.md"): InstallReceipt {
     schemaVersion: 2,
     coordinate: `personal/agents/example`,
     kind,
+    description: "Example formula",
     tap: "personal/agents",
     commit: "a".repeat(40),
     cellarPath: "/cellar/personal/agents/example/commit",

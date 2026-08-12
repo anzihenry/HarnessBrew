@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { installFormula, listInstalled, uninstallFormula } from "../src/core/installations.js";
 import { addTap } from "../src/core/taps.js";
-import { installForTarget, linkFormula } from "../src/core/targets.js";
+import { installForTarget, linkFormula, unlinkFormula } from "../src/core/targets.js";
 import { addFormula, createTapRepository, git } from "./helpers/git.js";
 
 test("Codex adapter links skill entries and uninstall removes owned links", async () => {
@@ -77,6 +77,31 @@ test("skill linking validates the canonical SKILL.md metadata", async () => {
     linkFormula(home, "invalid-skill", "openai-codex", { root: targetRoot }),
     /YAML frontmatter/
   );
+});
+
+test("agent formulas render native Codex TOML and Claude Code Markdown", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
+  const home = path.join(root, "home");
+  const codexRoot = path.join(root, ".codex");
+  const claudeRoot = path.join(root, ".claude");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "agents", "reviewer", {
+    description: "Reviews risky changes",
+    targets: ["openai-codex", "claude-code"]
+  });
+  await addTap(home, "personal/agents", repository);
+
+  await installForTarget(home, "reviewer", "openai-codex", { root: codexRoot });
+  await linkFormula(home, "reviewer", "claude-code", { root: claudeRoot });
+  const codexAgent = path.join(codexRoot, "agents", "reviewer.toml");
+  const claudeAgent = path.join(claudeRoot, "agents", "reviewer.md");
+  assert.equal((await lstat(codexAgent)).isSymbolicLink(), false);
+  assert.match(await readFile(codexAgent, "utf8"), /description = "Reviews risky changes"/);
+  assert.match(await readFile(codexAgent, "utf8"), /developer_instructions = "# reviewer\\n"/);
+  assert.match(await readFile(claudeAgent, "utf8"), /^---\nname: reviewer\ndescription: Reviews risky changes\n---/u);
+
+  await writeFile(codexAgent, "user replacement\n");
+  await assert.rejects(unlinkFormula(home, "reviewer", "openai-codex"), /modified/);
 });
 
 test("linking rejects unowned target files and uninstall detects link replacement", async () => {

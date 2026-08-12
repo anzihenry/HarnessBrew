@@ -15,8 +15,9 @@ import {
 } from "./installations.js";
 import { parseCoordinate } from "./paths.js";
 import { builtinTargets, type BuiltinTarget } from "./target-capabilities.js";
-import { executeTargetOperations, removeTargetOperation } from "./targets/transaction.js";
+import { executeTargetOperations, removeTargetOperation, verifyTargetOperation } from "./targets/transaction.js";
 import { planTargetInstall } from "./targets/planner.js";
+import { renderAgent } from "./targets/renderers.js";
 
 export { builtinTargets } from "./target-capabilities.js";
 export type { BuiltinTarget } from "./target-capabilities.js";
@@ -34,7 +35,7 @@ function extensionFor(entry: string): string {
 }
 
 export function targetDestination(receipt: InstallReceipt, target: BuiltinTarget, root?: string): string {
-  if (receipt.kind === "skill") {
+  if (receipt.kind === "skill" || receipt.kind === "agent") {
     const plan = planTargetInstall(receipt, target, root === undefined ? {} : { root });
     const operation = plan.operations[0];
     if (operation === undefined) throw new HarnessBrewError(`No target operation planned for ${receipt.coordinate}.`);
@@ -107,7 +108,8 @@ async function assertDestinationAvailable(
   destination: string
 ): Promise<void> {
   const installed = await listInstalled(home);
-  const owner = installed.find((candidate) => candidate.links.some((link) => link.path === destination));
+  const owner = installed.find((candidate) => candidate.operations.some((operation) => operation.destination === destination)
+    || candidate.links.some((link) => link.path === destination));
   if (owner !== undefined && owner.coordinate !== receipt.coordinate) {
     throw new HarnessBrewError(`Target path is owned by ${owner.coordinate}: ${destination}`);
   }
@@ -136,35 +138,37 @@ export async function linkFormula(
     throw new HarnessBrewError(`Formula ${receipt.coordinate} does not support target ${target}.`);
   }
   if (receipt.kind === "skill") await validateSkillDirectory(receipt);
-  const existing = receipt.links.find((link) => link.target === target);
-  if (existing !== undefined) {
+  const existingOperation = receipt.operations.find((operation) => operation.target === target);
+  if (existingOperation !== undefined) {
     try {
-      if ((await lstat(existing.path)).isSymbolicLink() && path.resolve(path.dirname(existing.path), await readlink(existing.path)) === existing.source) {
-        return receipt;
-      }
+      await verifyTargetOperation(existingOperation);
+      return receipt;
     } catch {
-      // Report the broken managed destination through the standard conflict check.
+      throw new HarnessBrewError(`Installed target was modified for ${receipt.coordinate}: ${existingOperation.destination}`);
     }
   }
 
   const source = receipt.kind === "skill" ? receipt.cellarPath : path.join(receipt.cellarPath, receipt.entry);
   const destination = targetDestination(receipt, target, options.root);
   await assertDestinationAvailable(home, receipt, destination);
+  const type = receipt.kind === "skill" ? "symlink-directory" : receipt.kind === "agent" ? "render-file" : "symlink-file";
   const [operation] = await executeTargetOperations([{
     id: `${receipt.coordinate}:${target}:${destination}`,
-    type: receipt.kind === "skill" ? "symlink-directory" : "symlink-file",
+    type,
     target,
-    source,
+    ...(type === "render-file" ? { content: await renderAgent(receipt, target) } : { source }),
     destination
   }]);
   if (operation === undefined) throw new HarnessBrewError(`Target operation was not created: ${destination}`);
-  const link: InstalledLink = {
-    path: destination,
-    source,
-    target,
-    sha256: operation.installedDigest ?? await sha256(path.join(receipt.cellarPath, receipt.entry))
-  };
-  receipt.links.push(link);
+  if (type !== "render-file") {
+    const link: InstalledLink = {
+      path: destination,
+      source,
+      target,
+      sha256: operation.installedDigest ?? await sha256(path.join(receipt.cellarPath, receipt.entry))
+    };
+    receipt.links.push(link);
+  }
   receipt.operations.push(operation);
   if (!receipt.targets.includes(target)) receipt.targets.push(target);
   try {
@@ -187,8 +191,10 @@ export async function unlinkFormula(
     : (await listInstalled(home)).find((item) => item.coordinate.endsWith(`/${nameOrCoordinate}`))?.coordinate ?? nameOrCoordinate);
   if (receipt === undefined) throw new HarnessBrewError(`Formula is not installed: ${nameOrCoordinate}`);
   const links = receipt.links.filter((link) => link.target === target);
-  if (links.length === 0) throw new HarnessBrewError(`Formula is not linked to ${target}: ${receipt.coordinate}`);
   const operations = receipt.operations.filter((operation) => operation.target === target);
+  if (links.length === 0 && operations.length === 0) {
+    throw new HarnessBrewError(`Formula is not linked to ${target}: ${receipt.coordinate}`);
+  }
   for (const link of links) {
     if (!force) {
       try {

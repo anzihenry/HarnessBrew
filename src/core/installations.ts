@@ -39,6 +39,7 @@ export interface InstallReceipt {
   schemaVersion: 2;
   coordinate: string;
   kind: string;
+  description: string;
   tap: string;
   commit: string;
   cellarPath: string;
@@ -115,7 +116,10 @@ function normalizeReceipt(value: unknown, receiptPath: string, expectedCoordinat
       installedDigest: link.sha256,
       createdDirectories: []
     }));
-  return { ...receipt, schemaVersion: 2, operations } as InstallReceipt;
+  const description = typeof receipt.description === "string" && receipt.description.trim() !== ""
+    ? receipt.description
+    : receipt.coordinate.split("/").at(-1) ?? receipt.coordinate;
+  return { ...receipt, description, schemaVersion: 2, operations } as InstallReceipt;
 }
 
 export async function readReceipt(home: string, coordinate: string): Promise<InstallReceipt | undefined> {
@@ -224,6 +228,7 @@ export async function installCatalogFormula(
       schemaVersion: 2,
       coordinate: formula.coordinate,
       kind: formula.kind,
+      description: formula.description,
       tap: formula.tap,
       commit: formula.commit,
       cellarPath,

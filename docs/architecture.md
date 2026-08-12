@@ -212,6 +212,8 @@ Target Adapter 必须为每一种 Formula 类型声明确定的安装策略。�
 
 Skill 必须使用以 `SKILL.md` 为入口的标准目录结构。Codex 用户级 Skill 投递到 `~/.agents/skills/<name>`，Claude Code 用户级 Skill 投递到 `~/.claude/skills/<name>`；两者都链接完整 Cellar 目录，而不是只链接入口文件，以保留 `scripts/`、`references/` 和 `assets/` 等相对资源。
 
+Agent Formula 使用统一 Markdown 入口作为可移植源码。Adapter 读取 Formula 的名称、描述与正文，确定性生成 Target 原生文件：Codex 写入 `~/.codex/agents/<name>.toml`，Claude Code 写入 `~/.claude/agents/<name>.md`。渲染文件的摘要与操作所有权记录在 Receipt 中；重复 link 会验证摘要，upgrade 会从新版本源码重新生成，检测到用户修改时默认拒绝覆盖或删除。
+
 ## 6. 主要生命周期
 
 ### 6.1 注册资产源

@@ -37,3 +37,22 @@ test("update and upgrade replace Cellar content while preserving target links", 
   assert.match(await readFile(path.join(current.cellarPath, "formula.json"), "utf8"), /updated review formula/);
   assert.deepEqual(await findOutdated(home), []);
 });
+
+test("agent upgrades regenerate target-native files", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-upgrade-"));
+  const home = path.join(root, "home");
+  const targetRoot = path.join(root, ".codex");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "agents", "reviewer", { description: "Original reviewer" });
+  await addTap(home, "personal/agents", repository);
+  await installForTarget(home, "reviewer", "openai-codex", { root: targetRoot });
+
+  await addFormula(repository, "agents", "reviewer", { description: "Updated reviewer" });
+  await updateTaps(home);
+  await upgradeFormulas(home, "reviewer");
+
+  const destination = path.join(targetRoot, "agents", "reviewer.toml");
+  assert.match(await readFile(destination, "utf8"), /description = "Updated reviewer"/);
+  const [receipt] = await listInstalled(home);
+  assert.equal(receipt?.operations[0]?.type, "render-file");
+});

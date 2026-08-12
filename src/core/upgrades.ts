@@ -1,4 +1,4 @@
-import { mkdir, rm, symlink } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import path from "node:path";
 import { HarnessBrewError } from "./errors.js";
 import { loadCatalog, type CatalogFormula } from "./formulas.js";
@@ -13,6 +13,7 @@ import {
 } from "./installations.js";
 import { resolveReceiptPath } from "./paths.js";
 import { linkFormula, type BuiltinTarget } from "./targets.js";
+import { removeTargetOperation } from "./targets/transaction.js";
 
 export interface OutdatedFormula {
   coordinate: string;
@@ -57,29 +58,51 @@ function targetRootFromLink(receipt: InstallReceipt, link: InstalledLink): strin
   return path.dirname(path.dirname(link.path));
 }
 
-async function restoreReceipt(home: string, receipt: InstallReceipt): Promise<void> {
-  for (const link of receipt.links) {
-    await mkdir(path.dirname(link.path), { recursive: true });
-    await rm(link.path, { force: true });
-    await symlink(link.source, link.path, link.source === receipt.cellarPath ? "dir" : "file");
+interface TargetPlacement {
+  target: BuiltinTarget;
+  root: string;
+}
+
+function targetPlacements(receipt: InstallReceipt): TargetPlacement[] {
+  return receipt.targets.map((targetValue) => {
+    const target = targetValue as BuiltinTarget;
+    const operation = receipt.operations.find((candidate) => candidate.target === target);
+    if (operation !== undefined) {
+      if (receipt.kind === "skill" || receipt.kind === "agent" || receipt.kind === "workflow" || receipt.kind === "prompt") {
+        return { target, root: path.dirname(path.dirname(operation.destination)) };
+      }
+      return { target, root: path.dirname(operation.destination) };
+    }
+    const link = receipt.links.find((candidate) => candidate.target === target);
+    if (link === undefined) throw new HarnessBrewError(`Missing target operation for ${receipt.coordinate}: ${target}`);
+    return { target, root: targetRootFromLink(receipt, link) };
+  });
+}
+
+async function restoreReceipt(home: string, receipt: InstallReceipt, placements: TargetPlacement[]): Promise<void> {
+  const restored: InstallReceipt = { ...receipt, targets: [], links: [], operations: [] };
+  await writeReceipt(home, restored);
+  for (const placement of placements) {
+    await linkFormula(home, restored.coordinate, placement.target, { root: placement.root });
   }
-  await writeReceipt(home, receipt);
 }
 
 async function upgradeOne(home: string, receipt: InstallReceipt, formula: CatalogFormula): Promise<UpgradeResult> {
   await verifyReceiptIntegrity(receipt);
-  const originalLinks = [...receipt.links];
+  const placements = targetPlacements(receipt);
 
-  for (const link of originalLinks) await rm(link.path, { force: true });
+  if (receipt.operations.length > 0) {
+    for (const operation of [...receipt.operations].reverse()) await removeTargetOperation(operation, true);
+  } else {
+    for (const link of receipt.links) await rm(link.path, { force: true });
+  }
   await rm(resolveReceiptPath(home, receipt.coordinate), { force: true });
 
   let replacement: InstallReceipt | undefined;
   try {
     replacement = await installCatalogFormula(home, formula, receipt.requested);
-    for (const link of originalLinks) {
-      await linkFormula(home, replacement.coordinate, link.target as BuiltinTarget, {
-        root: targetRootFromLink(receipt, link)
-      });
+    for (const placement of placements) {
+      await linkFormula(home, replacement.coordinate, placement.target, { root: placement.root });
     }
     await rm(receipt.cellarPath, { recursive: true, force: true });
     return { coordinate: receipt.coordinate, before: receipt.commit, after: formula.commit };
@@ -87,7 +110,7 @@ async function upgradeOne(home: string, receipt: InstallReceipt, formula: Catalo
     if (replacement !== undefined) {
       await uninstallFormula(home, replacement.coordinate, { force: true }).catch(() => undefined);
     }
-    await restoreReceipt(home, receipt);
+    await restoreReceipt(home, receipt, placements);
     throw error;
   }
 }

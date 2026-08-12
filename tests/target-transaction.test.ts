@@ -62,6 +62,7 @@ test("version one receipts are normalized to version two operations", async () =
     schemaVersion: 1,
     coordinate,
     kind: "skill",
+    description: "Example skill",
     tap: "personal/agents",
     commit: "a".repeat(40),
     cellarPath: "/cellar/example",
