@@ -239,3 +239,26 @@ test("linking rejects unowned target files and uninstall detects link replacemen
   await assert.rejects(uninstallFormula(home, "code-review"), /Installed target was modified/);
   assert.equal((await listInstalled(home)).length, 1);
 });
+
+test("adapter formulas install to the Cellar but cannot link to Agent targets", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
+  const home = path.join(root, "home");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "adapters", "custom-target", {
+    targets: ["openai-codex", "claude-code"]
+  });
+  await addTap(home, "personal/agents", repository);
+
+  const [receipt] = await installFormula(home, "custom-target");
+  assert.equal(receipt?.kind, "adapter");
+  assert.equal((await listInstalled(home)).length, 1);
+  await assert.rejects(
+    linkFormula(home, "custom-target", "openai-codex", { root: path.join(root, ".codex") }),
+    /cannot be linked.*install it to the Cellar without --target/u
+  );
+  await assert.rejects(
+    linkFormula(home, "custom-target", "claude-code", { root: path.join(root, ".claude") }),
+    /cannot be linked/u
+  );
+  assert.equal((await listInstalled(home))[0]?.operations.length, 0);
+});

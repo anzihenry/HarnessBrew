@@ -137,6 +137,8 @@ Git commit 是安装版本的唯一事实来源；Formula 不维护 `.snapshots`
 
 MCP Formula 的入口是统一 JSON。stdio 配置使用 `command`、可选 `args` 和只包含环境变量名称的 `envVars`；HTTP 配置使用 `transport: "http"`、`url`、可选 `bearerTokenEnvVar` 与 `headersFromEnv`。HarnessBrew 不接受入口中的明文 `env` 密钥值。
 
+`adapter` Formula 当前是可由 Git/Cellar 管理的扩展包，但内置 Target 不执行它。请使用不带 `--target` 的 `install` 保存；`link` 或 `install --target` 会明确拒绝，直到插件运行时接口开放。
+
 ## Target
 
 当前内置：

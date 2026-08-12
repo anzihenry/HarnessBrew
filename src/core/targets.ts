@@ -4,6 +4,7 @@ import { lstat, readFile, readlink, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
 import { HarnessBrewError } from "./errors.js";
+import type { FormulaKind } from "./formulas.js";
 import {
   installFormula,
   listInstalled,
@@ -14,7 +15,7 @@ import {
   type InstalledLink
 } from "./installations.js";
 import { parseCoordinate } from "./paths.js";
-import { builtinTargets, type BuiltinTarget } from "./target-capabilities.js";
+import { builtinTargets, targetCapability, type BuiltinTarget } from "./target-capabilities.js";
 import { executeTargetOperations, removeTargetOperation, verifyTargetOperation } from "./targets/transaction.js";
 import { planTargetInstall } from "./targets/planner.js";
 import { renderAgent, renderMcpConfig, renderSkillProjection } from "./targets/renderers.js";
@@ -35,6 +36,9 @@ function extensionFor(entry: string): string {
 }
 
 export function targetDestination(receipt: InstallReceipt, target: BuiltinTarget, root?: string): string {
+  if (targetCapability(target, receipt.kind as FormulaKind) === "unsupported") {
+    throw new HarnessBrewError(`Formula kind ${receipt.kind} cannot be linked to target ${target}.`);
+  }
   if (receipt.kind === "skill" || receipt.kind === "agent" || receipt.kind === "instruction"
     || receipt.kind === "workflow" || receipt.kind === "prompt" || receipt.kind === "mcp") {
     const plan = planTargetInstall(receipt, target, root === undefined ? {} : { root });
@@ -139,6 +143,11 @@ export async function linkFormula(
   const receipt = matches[0] as InstallReceipt;
   if (!receipt.supportedTargets.includes(target)) {
     throw new HarnessBrewError(`Formula ${receipt.coordinate} does not support target ${target}.`);
+  }
+  if (targetCapability(target, receipt.kind as FormulaKind) === "unsupported") {
+    throw new HarnessBrewError(
+      `Formula kind ${receipt.kind} cannot be linked to target ${target}; install it to the Cellar without --target.`
+    );
   }
   if (receipt.kind === "skill") await validateSkillDirectory(receipt);
   const existingOperation = receipt.operations.find((operation) => operation.target === target);

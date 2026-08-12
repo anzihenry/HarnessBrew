@@ -220,6 +220,8 @@ Workflow 与 Prompt Formula 通过 `render-skill` 统一投影为 `<target-skill
 
 MCP Formula 使用统一 JSON 描述 stdio 或 HTTP transport。凭据字段只能引用环境变量名称：stdio 使用 `envVars`，HTTP 使用 `bearerTokenEnvVar` 和 `headersFromEnv`，不允许 Formula 保存明文密钥。Codex Adapter 在 `config.toml` 中生成带坐标标记的 `[mcp_servers.<name>]` 区块；Claude Code Adapter 合并 `.claude.json` 或项目 `.mcp.json` 的 `mcpServers.<name>` 键。Receipt 保存区块/键所有权及值摘要，冲突键、拥有值篡改和无效配置都会中止操作，卸载只移除对应键或区块。
 
+Adapter Formula 在当前版本仅作为 Git/Cellar 资产保存，不允许投递到任何内置 Target。执行层必须根据能力矩阵返回明确的 `unsupported` 错误，不得退回通用目录或 `${kind}s` 路径。未来只有经过版本化插件接口加载的 Adapter 才能参与安装计划。
+
 ## 6. 主要生命周期
 
 ### 6.1 注册资产源
