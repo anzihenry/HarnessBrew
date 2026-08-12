@@ -148,7 +148,7 @@ Git commit 是安装版本的唯一事实来源；Formula 不维护 `.snapshots`
 harnessbrew install code-review --target openai-codex
 ```
 
-Codex Skill 默认安装到 `~/.agents/skills`，其他 Codex 配置使用 `~/.codex`；Claude Code 使用 `~/.claude`。Skill 以完整目录软链安装，因此 `scripts/`、`references/` 和 `assets/` 等相对资源会与 `SKILL.md` 一起生效。Agent 则以统一 Markdown 作为源码：投递到 Codex 时确定性渲染为 `.codex/agents/<name>.toml`，投递到 Claude Code 时渲染为 `.claude/agents/<name>.md`。Instruction 在 Codex 的 `AGENTS.md` 中使用带所有权标记的受管区块，在 Claude Code 中链接为 `.claude/rules/<name>.md`；卸载不会覆盖共享文件中的用户内容。需要隔离安装时可使用：
+Codex Skill 默认安装到 `~/.agents/skills`，其他 Codex 配置使用 `~/.codex`；Claude Code 使用 `~/.claude`。Skill 以完整目录软链安装，因此 `scripts/`、`references/` 和 `assets/` 等相对资源会与 `SKILL.md` 一起生效。Workflow 和 Prompt 会被投影为带标准 frontmatter 的 Target Skill。Agent 则以统一 Markdown 作为源码：投递到 Codex 时确定性渲染为 `.codex/agents/<name>.toml`，投递到 Claude Code 时渲染为 `.claude/agents/<name>.md`。Instruction 在 Codex 的 `AGENTS.md` 中使用带所有权标记的受管区块，在 Claude Code 中链接为 `.claude/rules/<name>.md`；卸载不会覆盖共享文件中的用户内容。需要隔离安装时可使用：
 
 ```bash
 harnessbrew install code-review \

@@ -78,3 +78,22 @@ test("instruction upgrades replace only their managed Codex block", async () => 
   assert.match(content, /Updated policy\./u);
   assert.equal(content.match(/harnessbrew:start personal\/agents\/policies/gu)?.length, 1);
 });
+
+test("workflow upgrades regenerate their projected skill", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-upgrade-"));
+  const home = path.join(root, "home");
+  const targetRoot = path.join(root, ".claude");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "workflows", "release", { targets: ["claude-code"] });
+  await addTap(home, "personal/agents", repository);
+  await installForTarget(home, "release", "claude-code", { root: targetRoot });
+
+  await commitFile(repository, "workflows/release/content.md", "# release\nRun updated checks.\n");
+  await updateTaps(home);
+  await upgradeFormulas(home, "release");
+
+  const destination = path.join(targetRoot, "skills", "release", "SKILL.md");
+  assert.match(await readFile(destination, "utf8"), /Run updated checks\./u);
+  const [receipt] = await listInstalled(home);
+  assert.equal(receipt?.operations[0]?.type, "render-file");
+});

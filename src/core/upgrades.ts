@@ -68,7 +68,10 @@ function targetPlacements(receipt: InstallReceipt): TargetPlacement[] {
     const target = targetValue as BuiltinTarget;
     const operation = receipt.operations.find((candidate) => candidate.target === target);
     if (operation !== undefined) {
-      if (receipt.kind === "skill" || receipt.kind === "agent" || receipt.kind === "workflow" || receipt.kind === "prompt") {
+      if (receipt.kind === "workflow" || receipt.kind === "prompt") {
+        return { target, root: path.dirname(path.dirname(path.dirname(operation.destination))) };
+      }
+      if (receipt.kind === "skill" || receipt.kind === "agent") {
         return { target, root: path.dirname(path.dirname(operation.destination)) };
       }
       if (receipt.kind === "instruction" && target === "claude-code") {

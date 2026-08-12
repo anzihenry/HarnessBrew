@@ -216,6 +216,8 @@ Agent Formula 使用统一 Markdown 入口作为可移植源码。Adapter 读取
 
 Instruction Formula 同样使用 Markdown 入口。Codex Adapter 将内容写入 `~/.codex/AGENTS.md` 中以 Formula 坐标命名的受管区块，允许多个资产和用户原有内容安全共存；Claude Code Adapter 将入口软链到 `~/.claude/rules/<name>.md`。Receipt 记录区块标记和内容摘要，因而 unlink、uninstall 和 upgrade 只处理 HarnessBrew 拥有的区块，并在区块被修改时默认中止。
 
+Workflow 与 Prompt Formula 通过 `render-skill` 统一投影为 `<target-skill-root>/<name>/SKILL.md`。生成文件包含标准的 `name`、`description` frontmatter，以及记录原始 Formula 类型和坐标的 HarnessBrew metadata；正文保持为 Formula 的 Markdown 入口。Codex 和 Claude Code 使用相同的可移植投影模型，不依赖某个平台专有且可能废弃的 commands 目录。
+
 ## 6. 主要生命周期
 
 ### 6.1 注册资产源

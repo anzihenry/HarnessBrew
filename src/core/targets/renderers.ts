@@ -23,3 +23,19 @@ export async function renderAgent(receipt: InstallReceipt, target: BuiltinTarget
   const frontmatter = stringify({ name, description: receipt.description }).trimEnd();
   return `---\n${frontmatter}\n---\n\n${body}`;
 }
+
+export async function renderSkillProjection(receipt: InstallReceipt): Promise<string> {
+  const [, , name] = parseCoordinate(receipt.coordinate);
+  const body = normalizedBody(await readFile(path.join(receipt.cellarPath, receipt.entry), "utf8"));
+  const frontmatter = stringify({
+    name,
+    description: receipt.description,
+    metadata: {
+      harnessbrew: {
+        kind: receipt.kind,
+        coordinate: receipt.coordinate
+      }
+    }
+  }).trimEnd();
+  return `---\n${frontmatter}\n---\n\n${body}`;
+}

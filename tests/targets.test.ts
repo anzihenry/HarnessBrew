@@ -30,16 +30,23 @@ test("Codex adapter links skill entries and uninstall removes owned links", asyn
   await assert.rejects(lstat(destination), /ENOENT/);
 });
 
-test("Claude adapter maps workflows to commands", async () => {
+test("workflow and prompt formulas project to target-native skills", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
   const home = path.join(root, "home");
-  const targetRoot = path.join(root, ".claude");
+  const claudeRoot = path.join(root, ".claude");
+  const codexRoot = path.join(root, ".codex");
   const repository = await createTapRepository(root);
   await addFormula(repository, "workflows", "release", { targets: ["claude-code"] });
+  await addFormula(repository, "prompts", "summarize", { targets: ["openai-codex"] });
   await addTap(home, "personal/agents", repository);
 
-  await installForTarget(home, "release", "claude-code", { root: targetRoot });
-  assert.equal((await lstat(path.join(targetRoot, "commands", "release.md"))).isSymbolicLink(), true);
+  await installForTarget(home, "release", "claude-code", { root: claudeRoot });
+  await installForTarget(home, "summarize", "openai-codex", { root: codexRoot });
+  const workflowSkill = path.join(claudeRoot, "skills", "release", "SKILL.md");
+  const promptSkill = path.join(codexRoot, "skills", "summarize", "SKILL.md");
+  assert.equal((await lstat(workflowSkill)).isSymbolicLink(), false);
+  assert.match(await readFile(workflowSkill, "utf8"), /name: release[\s\S]*kind: workflow/u);
+  assert.match(await readFile(promptSkill, "utf8"), /name: summarize[\s\S]*kind: prompt/u);
 });
 
 test("Claude adapter links complete skill directories", async () => {

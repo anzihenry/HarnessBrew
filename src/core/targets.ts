@@ -17,7 +17,7 @@ import { parseCoordinate } from "./paths.js";
 import { builtinTargets, type BuiltinTarget } from "./target-capabilities.js";
 import { executeTargetOperations, removeTargetOperation, verifyTargetOperation } from "./targets/transaction.js";
 import { planTargetInstall } from "./targets/planner.js";
-import { renderAgent } from "./targets/renderers.js";
+import { renderAgent, renderSkillProjection } from "./targets/renderers.js";
 
 export { builtinTargets } from "./target-capabilities.js";
 export type { BuiltinTarget } from "./target-capabilities.js";
@@ -35,11 +35,14 @@ function extensionFor(entry: string): string {
 }
 
 export function targetDestination(receipt: InstallReceipt, target: BuiltinTarget, root?: string): string {
-  if (receipt.kind === "skill" || receipt.kind === "agent" || receipt.kind === "instruction") {
+  if (receipt.kind === "skill" || receipt.kind === "agent" || receipt.kind === "instruction"
+    || receipt.kind === "workflow" || receipt.kind === "prompt") {
     const plan = planTargetInstall(receipt, target, root === undefined ? {} : { root });
     const operation = plan.operations[0];
     if (operation === undefined) throw new HarnessBrewError(`No target operation planned for ${receipt.coordinate}.`);
-    return operation.destination;
+    return receipt.kind === "workflow" || receipt.kind === "prompt"
+      ? path.join(operation.destination, "SKILL.md")
+      : operation.destination;
   }
   const targetRoot = path.resolve(root ?? defaultRoot(target));
   const [, , name] = parseCoordinate(receipt.coordinate);
@@ -152,7 +155,7 @@ export async function linkFormula(
   const destination = targetDestination(receipt, target, options.root);
   const type = receipt.kind === "skill"
     ? "symlink-directory"
-    : receipt.kind === "agent"
+    : receipt.kind === "agent" || receipt.kind === "workflow" || receipt.kind === "prompt"
       ? "render-file"
       : receipt.kind === "instruction" && target === "openai-codex"
         ? "managed-block"
@@ -163,7 +166,9 @@ export async function linkFormula(
     type,
     target,
     ...(type === "render-file"
-      ? { content: await renderAgent(receipt, target) }
+      ? { content: receipt.kind === "agent"
+        ? await renderAgent(receipt, target)
+        : await renderSkillProjection(receipt) }
       : type === "managed-block"
         ? { content: await readFile(source, "utf8"), marker: receipt.coordinate }
         : { source }),
