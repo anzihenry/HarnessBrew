@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { installFormula, listInstalled, uninstallFormula } from "../src/core/installations.js";
+import { installFormula, listInstalled, readReceipt, uninstallFormula, verifyCellarIntegrity } from "../src/core/installations.js";
+import { resolveReceiptPath } from "../src/core/paths.js";
 import { addTap } from "../src/core/taps.js";
 import { addFormula, createTapRepository } from "./helpers/git.js";
 
@@ -56,4 +57,54 @@ test("install rejects declared conflicts", async () => {
 
   await installFormula(home, "first");
   await assert.rejects(installFormula(home, "second"), /Formula conflict/);
+});
+
+test("Cellar integrity rejects added files and unsupported entries", async () => {
+  const { home } = await setupDependencyTap();
+  const receipts = await installFormula(home, "code-review");
+  const receipt = receipts.at(-1);
+  assert.ok(receipt);
+  await writeFile(path.join(receipt.cellarPath, "injected.sh"), "echo injected\n");
+  await assert.rejects(verifyCellarIntegrity(receipt), /injected\.sh/);
+});
+
+test("Cellar integrity detects permission changes for new receipts", async () => {
+  const { home } = await setupDependencyTap();
+  const receipts = await installFormula(home, "code-review");
+  const receipt = receipts.at(-1);
+  assert.ok(receipt);
+  const entry = path.join(receipt.cellarPath, receipt.entry);
+  const recordedMode = receipt.files.find((file) => file.path === receipt.entry)?.mode;
+  assert.notEqual(recordedMode, undefined);
+  await chmod(entry, recordedMode === 0o600 ? 0o644 : 0o600);
+  await assert.rejects(verifyCellarIntegrity(receipt), new RegExp(receipt.entry));
+});
+
+test("receipt loading rejects unsafe paths and malformed operations", async () => {
+  const { home } = await setupDependencyTap();
+  const [receipt] = await installFormula(home, "guardrails");
+  assert.ok(receipt);
+  const receiptPath = resolveReceiptPath(home, receipt.coordinate);
+  const stored = JSON.parse(await readFile(receiptPath, "utf8")) as Record<string, unknown>;
+  stored.operations = [{
+    id: "malicious",
+    type: "symlink-directory",
+    target: "openai-codex",
+    destination: path.parse(home).root,
+    source: receipt.cellarPath,
+    createdDirectories: [path.parse(home).root]
+  }];
+  await writeFile(receiptPath, `${JSON.stringify(stored)}\n`);
+  await assert.rejects(readReceipt(home, receipt.coordinate), /Invalid install receipt/);
+
+  await mkdir(path.dirname(receiptPath), { recursive: true });
+  stored.operations = [];
+  stored.files = [{ path: "../outside", sha256: "a".repeat(64) }];
+  await writeFile(receiptPath, `${JSON.stringify(stored)}\n`);
+  await assert.rejects(readReceipt(home, receipt.coordinate), /Invalid install receipt/);
+
+  stored.files = [];
+  stored.cellarPath = path.parse(home).root;
+  await writeFile(receiptPath, `${JSON.stringify(stored)}\n`);
+  await assert.rejects(readReceipt(home, receipt.coordinate), /Invalid install receipt/);
 });

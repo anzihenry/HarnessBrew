@@ -9,6 +9,7 @@ import type { TargetScope } from "./targets/types.js";
 export interface InstalledFile {
   path: string;
   sha256: string;
+  mode?: number;
 }
 
 export interface InstalledLink extends InstalledFile {
@@ -83,10 +84,14 @@ async function digestFile(filePath: string): Promise<string> {
 
 async function inventory(root: string): Promise<InstalledFile[]> {
   const files = await walkFiles(root);
-  return Promise.all(files.map(async (relativePath) => ({
-    path: relativePath,
-    sha256: await digestFile(path.join(root, relativePath))
-  })));
+  return Promise.all(files.map(async (relativePath) => {
+    const filePath = path.join(root, relativePath);
+    return {
+      path: relativePath,
+      sha256: await digestFile(filePath),
+      mode: (await lstat(filePath)).mode & 0o777
+    };
+  }));
 }
 
 async function pathExists(filePath: string): Promise<boolean> {
@@ -99,7 +104,7 @@ async function pathExists(filePath: string): Promise<boolean> {
   }
 }
 
-function normalizeReceipt(value: unknown, receiptPath: string, expectedCoordinate?: string): InstallReceipt {
+function normalizeReceipt(value: unknown, receiptPath: string, home: string, expectedCoordinate?: string): InstallReceipt {
   if (typeof value !== "object" || value === null) throw new HarnessBrewError(`Invalid install receipt: ${receiptPath}`);
   const receipt = value as Omit<InstallReceipt, "schemaVersion" | "operations"> & {
     schemaVersion?: unknown;
@@ -122,6 +127,77 @@ function normalizeReceipt(value: unknown, receiptPath: string, expectedCoordinat
       installedDigest: link.sha256,
       createdDirectories: []
     }));
+  const isStringArray = (candidate: unknown): candidate is string[] => Array.isArray(candidate)
+    && candidate.every((item) => typeof item === "string");
+  const isDigest = (candidate: unknown): candidate is string => typeof candidate === "string"
+    && /^[0-9a-f]{64}$/u.test(candidate);
+  const isAbsolutePath = (candidate: unknown): candidate is string => typeof candidate === "string"
+    && path.isAbsolute(candidate);
+  const isWithin = (root: string, candidate: string): boolean => {
+    const relative = path.relative(root, candidate);
+    return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+  };
+  const safeKey = (key: string): boolean => key !== "__proto__" && key !== "prototype" && key !== "constructor";
+  const validFile = (file: unknown): file is InstalledFile => typeof file === "object" && file !== null
+    && typeof (file as InstalledFile).path === "string"
+    && (file as InstalledFile).path !== ""
+    && !path.isAbsolute((file as InstalledFile).path)
+    && !((file as InstalledFile).path.split(/[\\/]/u).includes(".."))
+    && isDigest((file as InstalledFile).sha256)
+    && ((file as InstalledFile).mode === undefined
+      || (Number.isInteger((file as InstalledFile).mode) && ((file as InstalledFile).mode as number) >= 0
+        && ((file as InstalledFile).mode as number) <= 0o777));
+  const validLink = (link: unknown): link is InstalledLink => typeof link === "object" && link !== null
+    && isAbsolutePath((link as InstalledLink).path)
+    && isAbsolutePath((link as InstalledLink).source)
+    && isWithin(receipt.cellarPath, (link as InstalledLink).source)
+    && typeof (link as InstalledLink).target === "string"
+    && (link as InstalledLink).target !== ""
+    && isDigest((link as InstalledLink).sha256);
+  const validOperation = (operation: unknown): operation is InstalledOperation => {
+    if (typeof operation !== "object" || operation === null) return false;
+    const item = operation as InstalledOperation;
+    if (typeof item.id !== "string" || item.id === "" || typeof item.target !== "string" || item.target === ""
+      || !["symlink-directory", "symlink-file", "render-file", "merge-config", "managed-block"].includes(item.type)
+      || !isAbsolutePath(item.destination) || !Array.isArray(item.createdDirectories)
+      || !item.createdDirectories.every((directory) => isAbsolutePath(directory)
+        && directory !== item.destination
+        && path.relative(directory, item.destination) !== ""
+        && !path.relative(directory, item.destination).startsWith(`..${path.sep}`)
+        && path.relative(directory, item.destination) !== "..")) return false;
+    if (item.source !== undefined && !isAbsolutePath(item.source)) return false;
+    if (item.beforeDigest !== undefined && !isDigest(item.beforeDigest)) return false;
+    if (item.installedDigest !== undefined && !isDigest(item.installedDigest)) return false;
+    if (item.root !== undefined && !isAbsolutePath(item.root)) return false;
+    if (item.projectRoot !== undefined && !isAbsolutePath(item.projectRoot)) return false;
+    if (item.scope !== undefined && item.scope !== "user" && item.scope !== "project") return false;
+    if (item.ownedKeys !== undefined && (!isStringArray(item.ownedKeys)
+      || item.ownedKeys.length === 0 || item.ownedKeys.some((key) => key === "" || !safeKey(key)))) return false;
+    if (item.marker !== undefined && (typeof item.marker !== "string" || item.marker.trim() === ""
+      || item.marker.includes("\n") || item.marker.includes("-->"))) return false;
+    if (item.managedPrefix !== undefined && typeof item.managedPrefix !== "string") return false;
+    if (item.configFormat !== undefined && item.configFormat !== "json" && item.configFormat !== "toml-block") return false;
+    if ((item.type === "symlink-file" || item.type === "symlink-directory")
+      && (item.source === undefined || !isWithin(receipt.cellarPath, item.source))) return false;
+    if (item.type === "render-file" && item.installedDigest === undefined) return false;
+    if (item.type === "managed-block" && (item.marker === undefined || item.installedDigest === undefined)) return false;
+    if (item.type === "merge-config" && (item.installedDigest === undefined || item.configFormat === undefined
+      || item.ownedKeys === undefined || (item.configFormat === "toml-block" && item.marker === undefined))) return false;
+    return true;
+  };
+  if (typeof receipt.kind !== "string" || typeof receipt.tap !== "string" || typeof receipt.commit !== "string"
+    || !/^[0-9a-f]{40}$/u.test(receipt.commit) || !isAbsolutePath(receipt.cellarPath)
+    || receipt.cellarPath !== resolveCellarPath(home, receipt.coordinate, receipt.commit)
+    || receiptPath !== resolveReceiptPath(home, receipt.coordinate)
+    || typeof receipt.entry !== "string" || receipt.entry === "" || path.isAbsolute(receipt.entry)
+    || receipt.entry.split(/[\\/]/u).includes("..") || typeof receipt.requested !== "boolean"
+    || !isStringArray(receipt.dependencies) || !isStringArray(receipt.conflicts)
+    || !Array.isArray(receipt.files) || !receipt.files.every(validFile)
+    || !isStringArray(receipt.supportedTargets) || !isStringArray(receipt.targets)
+    || !receipt.links.every(validLink) || !operations.every(validOperation)
+    || typeof receipt.installedAt !== "string" || Number.isNaN(Date.parse(receipt.installedAt))) {
+    throw new HarnessBrewError(`Invalid install receipt: ${receiptPath}`);
+  }
   const description = typeof receipt.description === "string" && receipt.description.trim() !== ""
     ? receipt.description
     : receipt.coordinate.split("/").at(-1) ?? receipt.coordinate;
@@ -138,7 +214,7 @@ export async function readReceipt(home: string, coordinate: string): Promise<Ins
     throw error;
   }
   try {
-    return normalizeReceipt(JSON.parse(content), receiptPath, coordinate);
+    return normalizeReceipt(JSON.parse(content), receiptPath, home, coordinate);
   } catch {
     throw new HarnessBrewError(`Invalid install receipt: ${receiptPath}`);
   }
@@ -159,7 +235,7 @@ export async function listInstalled(home: string): Promise<InstallReceipt[]> {
   const receipts: InstallReceipt[] = [];
   for (const relativePath of receiptPaths) {
     const content = await readFile(path.join(receiptsRoot, relativePath), "utf8");
-    receipts.push(normalizeReceipt(JSON.parse(content), path.join(receiptsRoot, relativePath)));
+    receipts.push(normalizeReceipt(JSON.parse(content), path.join(receiptsRoot, relativePath), home));
   }
   return receipts.sort((left, right) => left.coordinate.localeCompare(right.coordinate));
 }
@@ -287,11 +363,28 @@ export async function installFormula(home: string, nameOrCoordinate: string): Pr
 }
 
 async function verifyReceiptFiles(receipt: InstallReceipt): Promise<void> {
-  for (const file of receipt.files) {
-    const filePath = path.join(receipt.cellarPath, file.path);
-    if (!(await pathExists(filePath)) || await digestFile(filePath) !== file.sha256) {
-      throw new HarnessBrewError(`Installed files were modified for ${receipt.coordinate}: ${file.path}`);
-    }
+  let current: InstalledFile[];
+  try {
+    current = await inventory(receipt.cellarPath);
+  } catch {
+    throw new HarnessBrewError(`Installed files were modified for ${receipt.coordinate}: inventory changed`);
+  }
+  const recorded = new Map(receipt.files.map((file) => [file.path, file]));
+  const actual = new Map(current.map((file) => [file.path, file]));
+  const differs = recorded.size !== actual.size || [...recorded].some(([filePath, file]) => {
+    const currentFile = actual.get(filePath);
+    return currentFile === undefined || currentFile.sha256 !== file.sha256
+      || (file.mode !== undefined && currentFile.mode !== file.mode);
+  });
+  if (differs) {
+    const changed = [...new Set([...recorded.keys(), ...actual.keys()])]
+      .find((filePath) => {
+        const expected = recorded.get(filePath);
+        const found = actual.get(filePath);
+        return expected === undefined || found === undefined || expected.sha256 !== found.sha256
+          || (expected.mode !== undefined && expected.mode !== found.mode);
+      }) ?? "inventory changed";
+    throw new HarnessBrewError(`Installed files were modified for ${receipt.coordinate}: ${changed}`);
   }
 }
 

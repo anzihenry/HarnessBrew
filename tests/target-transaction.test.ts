@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { lstat, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -136,7 +136,7 @@ test("version one receipts are normalized to version two operations", async () =
     description: "Example skill",
     tap: "personal/agents",
     commit: "a".repeat(40),
-    cellarPath: "/cellar/example",
+    cellarPath: path.join(root, "cellar", "personal", "agents", "example", "a".repeat(40)),
     entry: "SKILL.md",
     dependencies: [],
     conflicts: [],
@@ -144,7 +144,12 @@ test("version one receipts are normalized to version two operations", async () =
     files: [],
     supportedTargets: ["openai-codex"],
     targets: ["openai-codex"],
-    links: [{ path: "/target/SKILL.md", source: "/cellar/example/SKILL.md", target: "openai-codex", sha256: "abc" }],
+    links: [{
+      path: "/target/SKILL.md",
+      source: path.join(root, "cellar", "personal", "agents", "example", "a".repeat(40), "SKILL.md"),
+      target: "openai-codex",
+      sha256: "a".repeat(64)
+    }],
     installedAt: "2026-08-12T00:00:00.000Z"
   })}\n`);
 
@@ -152,4 +157,25 @@ test("version one receipts are normalized to version two operations", async () =
   assert.equal(receipt?.schemaVersion, 2);
   assert.equal(receipt?.operations[0]?.type, "symlink-file");
   assert.equal(receipt?.operations[0]?.destination, "/target/SKILL.md");
+});
+
+test("forced symlink removal never deletes a replacement directory", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-transaction-"));
+  const source = path.join(root, "source");
+  const destination = path.join(root, "target", "skill");
+  await mkdir(source);
+  const [operation] = await executeTargetOperations([{
+    id: "skill",
+    type: "symlink-directory",
+    target: "openai-codex",
+    source,
+    destination
+  }]);
+  assert.ok(operation);
+  await rm(destination);
+  await mkdir(destination);
+  await writeFile(path.join(destination, "user.txt"), "keep\n");
+
+  await removeTargetOperation(operation, true);
+  assert.equal(await readFile(path.join(destination, "user.txt"), "utf8"), "keep\n");
 });

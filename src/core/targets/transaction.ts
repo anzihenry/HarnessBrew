@@ -148,6 +148,10 @@ async function createdParents(destination: string): Promise<string[]> {
 
 async function cleanupParents(operation: InstalledOperation): Promise<void> {
   for (const directory of operation.createdDirectories) {
+    const relative = path.relative(directory, operation.destination);
+    if (!path.isAbsolute(directory) || relative === "" || relative === ".." || relative.startsWith(`..${path.sep}`)) {
+      throw new HarnessBrewError(`Unsafe created directory in operation ${operation.id}: ${directory}`);
+    }
     try {
       await rmdir(directory);
     } catch (error) {
@@ -450,7 +454,17 @@ export async function removeTargetOperation(operation: InstalledOperation, force
     await cleanupParents(operation);
     return;
   }
-  await rm(operation.destination, { recursive: operation.type === "symlink-directory", force: true });
+  if (operation.type === "symlink-file" || operation.type === "symlink-directory") {
+    const metadata = await pathMetadata(operation.destination);
+    if (metadata === undefined) return;
+    if (!metadata.isSymbolicLink()) {
+      if (force) return;
+      throw new HarnessBrewError(`Installed target was modified: ${operation.destination}`);
+    }
+    await rm(operation.destination, { force: true });
+  } else {
+    await rm(operation.destination, { force: true });
+  }
   await cleanupParents(operation);
 }
 
