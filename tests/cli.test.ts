@@ -37,7 +37,7 @@ test("version prints the package version", async () => {
   const exitCode = await runCli(["--version"], output.io);
 
   assert.equal(exitCode, 0);
-  assert.deepEqual(output.stdout, ["0.5.0"]);
+  assert.deepEqual(output.stdout, ["0.5.1"]);
 });
 
 test("unknown commands fail with a useful error", async () => {

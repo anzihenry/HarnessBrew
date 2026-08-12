@@ -8,18 +8,35 @@ permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: npm-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
           cache: npm
+      - name: Use the repository npm version
+        run: npm install --global npm@11.17.0
       - run: npm ci
+      - name: Verify the tagged release source
+        run: npm run release:verify -- "${GITHUB_REF_NAME}"
       - run: npm run check
-      - name: Verify tag matches package version
-        run: test "${GITHUB_REF_NAME}" = "v$(node -p "require('./package.json').version")"
-      - run: npm publish --provenance --access public
+      - name: Build the immutable release tarball
+        id: pack
+        shell: bash
+        run: |
+          mkdir release-artifacts
+          tarball="$(npm pack --pack-destination release-artifacts --silent)"
+          echo "tarball=release-artifacts/${tarball}" >> "${GITHUB_OUTPUT}"
+      - name: Publish the verified tarball with npm provenance
+        run: npm publish "${{ steps.pack.outputs.tarball }}" --provenance --access public

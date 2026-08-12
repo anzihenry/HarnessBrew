@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.5.1 - 2026-08-13
+
+### Fixed
+
+- npm package metadata now preserves the `harnessbrew` executable mapping in the published tarball
+- package smoke tests run in clean CI environments without requiring an already-populated offline cache
+- release automation checks out and validates the exact release tag, builds one immutable tarball, and publishes that same artifact with provenance
+- release version consistency is now covered by an automated check across package metadata, source, changelog, and Git tags
+
 ## 0.5.0 - 2026-08-13
 
 ### Added
