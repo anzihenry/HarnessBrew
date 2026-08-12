@@ -4,7 +4,7 @@
   "description": "A Git-native package manager for AI Agent assets.",
   "type": "module",
   "bin": {
-    "harnessbrew": "./dist/bin.js"
+    "harnessbrew": "dist/bin.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
