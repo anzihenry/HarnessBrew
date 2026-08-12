@@ -2,6 +2,11 @@
 
 English | [简体中文](README.zh-CN.md)
 
+[![CI](https://github.com/anzihenry/HarnessBrew/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/anzihenry/HarnessBrew/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/harnessbrew.svg?logo=npm)](https://www.npmjs.com/package/harnessbrew)
+[![Node.js](https://img.shields.io/node/v/harnessbrew.svg?logo=nodedotjs)](https://www.npmjs.com/package/harnessbrew)
+[![License](https://img.shields.io/github/license/anzihenry/HarnessBrew.svg)](https://github.com/anzihenry/HarnessBrew/blob/main/LICENSE)
+
 HarnessBrew is a Git package manager for AI agent assets. Like Homebrew, it discovers assets through Git Taps, describes them with Formulae, and uses a Cellar and Receipts to install, upgrade, and safely uninstall them.
 
 HarnessBrew does not host assets. Personal, team, and third-party assets remain in their own Git repositories and use the same installation mechanism.

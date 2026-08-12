@@ -2,6 +2,11 @@
 
 [English](README.md) | 简体中文
 
+[![CI](https://github.com/anzihenry/HarnessBrew/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/anzihenry/HarnessBrew/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/harnessbrew.svg?logo=npm)](https://www.npmjs.com/package/harnessbrew)
+[![Node.js](https://img.shields.io/node/v/harnessbrew.svg?logo=nodedotjs)](https://www.npmjs.com/package/harnessbrew)
+[![License](https://img.shields.io/github/license/anzihenry/HarnessBrew.svg)](https://github.com/anzihenry/HarnessBrew/blob/main/LICENSE)
+
 HarnessBrew 是面向 AI Agent 资产的 Git 包管理器。它的定位类似 Homebrew：通过 Git Tap 发现资产，通过 Formula 描述资产，通过 Cellar 与 Receipt 安装、升级和安全卸载资产。
 
 HarnessBrew 不托管资产。个人、团队和第三方资产都保存在各自的 Git 仓库中，并使用完全相同的安装机制。
