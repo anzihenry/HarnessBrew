@@ -28,7 +28,7 @@ HarnessBrew 不托管资产。个人、团队和第三方资产都保存在各�
 
 ## 安装
 
-要求：Node.js 20 或更高版本，系统中可用 Git。
+要求：Node.js 22 或更高版本，系统中可用 Git。
 
 ```bash
 npm install --global harnessbrew

@@ -28,7 +28,7 @@ HarnessBrew does not host assets. Personal, team, and third-party assets remain 
 
 ## Installation
 
-Requirements: Node.js 20 or later and Git available on the system.
+Requirements: Node.js 22 or later and Git available on the system.
 
 ```bash
 npm install --global harnessbrew

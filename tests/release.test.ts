@@ -36,11 +36,11 @@ test("release workflow publishes an explicit local tarball path", async () => {
   assert.match(workflow, /npm publish "\$\{\{ steps\.pack\.outputs\.tarball \}\}"/);
 });
 
-test("CI uses current Node-based Actions while covering the supported Node versions", async () => {
+test("CI uses current Node-based Actions on the supported Node version", async () => {
   const workflow = await readFile(path.resolve(".github/workflows/ci.yml"), "utf8");
 
   assert.match(workflow, /uses: actions\/checkout@v6/u);
   assert.match(workflow, /uses: actions\/setup-node@v6/u);
-  assert.match(workflow, /node-version: \[20, 22\]/u);
+  assert.match(workflow, /node-version: 22/u);
   assert.doesNotMatch(workflow, /actions\/(?:checkout|setup-node)@v4/u);
 });
