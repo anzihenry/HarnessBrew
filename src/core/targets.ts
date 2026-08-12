@@ -13,9 +13,10 @@ import {
   type InstalledLink
 } from "./installations.js";
 import { parseCoordinate } from "./paths.js";
+import { builtinTargets, type BuiltinTarget } from "./target-capabilities.js";
 
-export const builtinTargets = ["openai-codex", "claude-code"] as const;
-export type BuiltinTarget = (typeof builtinTargets)[number];
+export { builtinTargets } from "./target-capabilities.js";
+export type { BuiltinTarget } from "./target-capabilities.js";
 
 export interface LinkOptions {
   root?: string;
@@ -38,15 +39,17 @@ export function targetDestination(receipt: InstallReceipt, target: BuiltinTarget
   if (target === "claude-code" && receipt.kind === "workflow") {
     return path.join(targetRoot, "commands", `${name}${extension}`);
   }
-  const directories: Record<string, string> = {
-    agent: "agents",
-    workflow: "workflows",
-    instruction: "rules",
-    prompt: "prompts",
-    mcp: "mcp",
-    adapter: "adapters"
-  };
-  const directory = directories[receipt.kind] ?? `${receipt.kind}s`;
+  const directory = (() => {
+    switch (receipt.kind) {
+      case "agent": return "agents";
+      case "workflow": return "workflows";
+      case "instruction": return "rules";
+      case "prompt": return "prompts";
+      case "mcp": return "mcp";
+      case "adapter": return "adapters";
+      default: throw new HarnessBrewError(`Unsupported formula kind for target linking: ${receipt.kind}`);
+    }
+  })();
   return path.join(targetRoot, directory, `${name}${extension}`);
 }
 

@@ -184,6 +184,30 @@ Target 表示具体 Agent 环境，例如 `openai-codex`、`claude-code` 或 `cu
 
 Adapter 只处理平台差异，不负责 Git 版本管理或依赖求解。
 
+#### Target 能力矩阵
+
+Target Adapter 必须为每一种 Formula 类型声明确定的安装策略。不允许通过 `${kind}s` 猜测目标目录；没有平台依据的组合必须明确标记为 `unsupported`。
+
+| Formula | OpenAI Codex | Claude Code |
+| --- | --- | --- |
+| `skill` | `symlink-directory` | `symlink-directory` |
+| `workflow` | `render-skill` | `render-skill` |
+| `agent` | `render-file` | `render-file` |
+| `instruction` | `managed-block` | `symlink-file` |
+| `prompt` | `render-skill` | `render-skill` |
+| `mcp` | `merge-config` | `merge-config` |
+| `adapter` | `unsupported` | `unsupported` |
+
+策略含义：
+
+- `symlink-directory`：将完整资产目录链接到 Target，保留脚本、引用和模板等相对资源。
+- `symlink-file`：链接单个 Target 原生文件。
+- `render-file`：由 Adapter 生成 Target 原生格式。
+- `render-skill`：将统一 Workflow 或 Prompt 投影为 Target Skill。
+- `managed-block`：在共享配置文件中维护带所有权标记的内容区块。
+- `merge-config`：按配置键合并，并在 Receipt 中记录键级所有权。
+- `unsupported`：拒绝投递；资产仍可保存在 Cellar 中。
+
 ## 6. 主要生命周期
 
 ### 6.1 注册资产源
