@@ -14,6 +14,7 @@ import {
 import { resolveReceiptPath } from "./paths.js";
 import { linkFormula, type BuiltinTarget, type LinkOptions } from "./targets.js";
 import { removeTargetOperation } from "./targets/transaction.js";
+import { captureTransactionPath, markTransactionPath } from "./journal.js";
 
 export interface OutdatedFormula {
   coordinate: string;
@@ -115,8 +116,13 @@ async function upgradeOne(home: string, receipt: InstallReceipt, formula: Catalo
   if (receipt.operations.length > 0) {
     for (const operation of [...receipt.operations].reverse()) await removeTargetOperation(operation, true);
   } else {
-    for (const link of receipt.links) await rm(link.path, { force: true });
+    for (const link of receipt.links) {
+      await captureTransactionPath(link.path);
+      await rm(link.path, { force: true });
+      await markTransactionPath(link.path);
+    }
   }
+  await captureTransactionPath(resolveReceiptPath(home, receipt.coordinate));
   await rm(resolveReceiptPath(home, receipt.coordinate), { force: true });
 
   let replacement: InstallReceipt | undefined;
@@ -125,6 +131,7 @@ async function upgradeOne(home: string, receipt: InstallReceipt, formula: Catalo
     for (const placement of placements) {
       await linkFormula(home, replacement.coordinate, placement.target, placement.options);
     }
+    await captureTransactionPath(receipt.cellarPath);
     await rm(receipt.cellarPath, { recursive: true, force: true });
     return { coordinate: receipt.coordinate, before: receipt.commit, after: formula.commit };
   } catch (error) {

@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { HarnessBrewError } from "./errors.js";
 import { resolveStatePath } from "./paths.js";
+import { captureMissingParents, captureTransactionPath } from "./journal.js";
 
 export interface TapRecord {
   name: string;
@@ -55,8 +56,11 @@ export async function readState(home: string): Promise<HarnessState> {
 
 export async function writeState(home: string, state: HarnessState): Promise<void> {
   const statePath = resolveStatePath(home);
-  await mkdir(path.dirname(statePath), { recursive: true });
   const temporaryPath = `${statePath}.${process.pid}.tmp`;
+  await captureMissingParents(statePath);
+  await captureTransactionPath(statePath);
+  await captureTransactionPath(temporaryPath);
+  await mkdir(path.dirname(statePath), { recursive: true });
   await writeFile(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
   await rename(temporaryPath, statePath);
 }

@@ -17,6 +17,37 @@ interface LockOwner {
 
 const delay = (milliseconds: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+function processIsAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== "ESRCH";
+  }
+}
+
+async function reclaimAbandonedLock(lockPath: string): Promise<boolean> {
+  const reclaimPath = `${lockPath}.reclaim`;
+  try {
+    await mkdir(reclaimPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw error;
+  }
+  try {
+    const owner = await readFile(path.join(lockPath, "owner.json"), "utf8")
+      .then((content) => JSON.parse(content) as LockOwner)
+      .catch(() => undefined);
+    if (owner !== undefined && Number.isInteger(owner.pid) && owner.pid > 0 && !processIsAlive(owner.pid)) {
+      await rm(lockPath, { recursive: true, force: true });
+      return true;
+    }
+    return false;
+  } finally {
+    await rm(reclaimPath, { recursive: true, force: true });
+  }
+}
+
 export async function withFileLock<T>(
   lockPath: string,
   action: () => Promise<T>,
@@ -38,6 +69,7 @@ export async function withFileLock<T>(
         await rm(resolvedLock, { recursive: true, force: true }).catch(() => undefined);
         throw error;
       }
+      if (await reclaimAbandonedLock(resolvedLock)) continue;
       if (Date.now() - startedAt >= timeoutMs) {
         throw new HarnessBrewError(`Timed out waiting for lock: ${resolvedLock}`);
       }

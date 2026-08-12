@@ -19,6 +19,7 @@ import { executeTargetOperations, removeTargetOperation, verifyTargetOperation }
 import { planTargetInstall } from "./targets/planner.js";
 import { renderAgent, renderMcpConfig, renderSkillProjection } from "./targets/renderers.js";
 import type { TargetContext, TargetScope } from "./targets/types.js";
+import { captureTransactionPath, markTransactionPath } from "./journal.js";
 
 export { builtinTargets } from "./target-capabilities.js";
 export type { BuiltinTarget } from "./target-capabilities.js";
@@ -248,7 +249,11 @@ export async function unlinkFormula(
   if (operations.length > 0) {
     for (const operation of operations) await removeTargetOperation(operation, force);
   } else {
-    for (const link of links) await rm(link.path, { force: true });
+    for (const link of links) {
+      await captureTransactionPath(link.path);
+      await rm(link.path, { force: true });
+      await markTransactionPath(link.path);
+    }
   }
   receipt.links = receipt.links.filter((link) => !links.includes(link));
   receipt.operations = receipt.operations.filter((operation) => !operations.includes(operation));

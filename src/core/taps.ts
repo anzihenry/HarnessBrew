@@ -5,6 +5,7 @@ import { resolveGitCommit, runGit } from "./git.js";
 import { validateTapRepository } from "./formulas.js";
 import { assertTapName, resolveTapPath } from "./paths.js";
 import { readState, type TapRecord, writeState } from "./state.js";
+import { captureMissingParents, captureTransactionPath } from "./journal.js";
 
 export interface AddTapOptions {
   ref?: string;
@@ -39,6 +40,8 @@ export async function addTap(
   }
 
   const destination = resolveTapPath(home, name);
+  await captureMissingParents(destination);
+  await captureTransactionPath(destination);
   await mkdir(path.dirname(destination), { recursive: true });
 
   try {
@@ -80,6 +83,7 @@ export async function updateTaps(home: string, requestedName?: string): Promise<
   const updates: TapUpdate[] = [];
   for (const record of records.sort((left, right) => left.name.localeCompare(right.name))) {
     const repositoryPath = resolveTapPath(home, record.name);
+    await captureTransactionPath(repositoryPath);
     await runGit(["fetch", "--quiet", "--prune", "--tags", "origin"], repositoryPath);
     const commit = await resolveGitCommit(repositoryPath, record.ref);
     await runGit(["checkout", "--quiet", "--detach", commit], repositoryPath);
@@ -102,7 +106,9 @@ export async function removeTap(home: string, name: string): Promise<TapRecord> 
     throw new HarnessBrewError(`Tap not found: ${name}`);
   }
 
-  await rm(resolveTapPath(home, name), { recursive: true, force: true });
+  const repositoryPath = resolveTapPath(home, name);
+  await captureTransactionPath(repositoryPath);
+  await rm(repositoryPath, { recursive: true, force: true });
   delete state.taps[name];
   await writeState(home, state);
   return record;
@@ -115,6 +121,7 @@ export async function checkoutTap(home: string, name: string, commit: string): P
   const record = state.taps[name];
   if (record === undefined) throw new HarnessBrewError(`Tap not found: ${name}`);
   const repositoryPath = resolveTapPath(home, name);
+  await captureTransactionPath(repositoryPath);
   await runGit(["fetch", "--quiet", "--prune", "--tags", "origin"], repositoryPath);
   const resolved = await resolveGitCommit(repositoryPath, commit);
   await runGit(["checkout", "--quiet", "--detach", resolved], repositoryPath);

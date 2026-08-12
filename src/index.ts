@@ -21,6 +21,15 @@ export type { OutdatedFormula, UpgradeResult } from "./core/upgrades.js";
 export { doctor, relinkFormula } from "./core/doctor.js";
 export { homeLockPath, targetLockPath, withFileLock, withHomeLock, withTargetLock } from "./core/locks.js";
 export type { LockOptions } from "./core/locks.js";
+export {
+  captureMissingParents,
+  captureTransactionPath,
+  markTransactionPath,
+  recoverTransactions,
+  transactionsRoot,
+  withJournalTransaction
+} from "./core/journal.js";
+export type { RecoveryResult } from "./core/journal.js";
 export type { DoctorFinding, DoctorFindingKind, DoctorReport, RelinkOptions } from "./core/doctor.js";
 export { bundleCleanup, bundleInstall, lockfilePath, readHarnessfile } from "./core/bundle.js";
 export type {

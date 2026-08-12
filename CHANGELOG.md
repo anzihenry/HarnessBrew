@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - detect added, removed, modified, unsupported, and permission-changed Cellar files through exact inventory comparison
 - prevent forced cleanup from recursively deleting a real directory that replaced a managed directory symlink
 - serialize CLI mutations per HarnessBrew home and protect shared Target configuration updates across processes
+- recover interrupted mutations from durable write-ahead journals, including abandoned process locks and external Target files
 
 ## 0.5.2 - 2026-08-13
 

@@ -5,6 +5,7 @@ import { HarnessBrewError } from "./errors.js";
 import { getFormula, loadCatalog, type CatalogFormula } from "./formulas.js";
 import { resolveCellarPath, resolveReceiptPath } from "./paths.js";
 import type { TargetScope } from "./targets/types.js";
+import { captureMissingParents, captureTransactionPath, markTransactionPath } from "./journal.js";
 
 export interface InstalledFile {
   path: string;
@@ -222,8 +223,11 @@ export async function readReceipt(home: string, coordinate: string): Promise<Ins
 
 export async function writeReceipt(home: string, receipt: InstallReceipt): Promise<void> {
   const receiptPath = resolveReceiptPath(home, receipt.coordinate);
-  await mkdir(path.dirname(receiptPath), { recursive: true });
   const temporaryPath = `${receiptPath}.${process.pid}.tmp`;
+  await captureMissingParents(receiptPath);
+  await captureTransactionPath(receiptPath);
+  await captureTransactionPath(temporaryPath);
+  await mkdir(path.dirname(receiptPath), { recursive: true });
   await writeFile(temporaryPath, `${JSON.stringify(receipt, null, 2)}\n`, "utf8");
   await rename(temporaryPath, receiptPath);
 }
@@ -301,6 +305,9 @@ export async function installCatalogFormula(
 
   const cellarPath = resolveCellarPath(home, formula.coordinate, formula.commit);
   const temporaryPath = `${cellarPath}.${process.pid}.tmp`;
+  await captureMissingParents(cellarPath);
+  await captureTransactionPath(cellarPath);
+  await captureTransactionPath(temporaryPath);
   await mkdir(path.dirname(cellarPath), { recursive: true });
   await rm(temporaryPath, { recursive: true, force: true });
   try {
@@ -441,8 +448,14 @@ export async function uninstallFormula(
     const { removeTargetOperation } = await import("./targets/transaction.js");
     for (const operation of [...receipt.operations].reverse()) await removeTargetOperation(operation, true);
   } else {
-    for (const link of receipt.links) await rm(link.path, { force: true });
+    for (const link of receipt.links) {
+      await captureTransactionPath(link.path);
+      await rm(link.path, { force: true });
+      await markTransactionPath(link.path);
+    }
   }
+  await captureTransactionPath(receipt.cellarPath);
+  await captureTransactionPath(resolveReceiptPath(home, receipt.coordinate));
   await rm(receipt.cellarPath, { recursive: true, force: true });
   await rm(resolveReceiptPath(home, receipt.coordinate), { force: true });
   return receipt;

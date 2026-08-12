@@ -7,6 +7,7 @@ import { installFormula, listInstalled, resolveDependencies, uninstallFormula, t
 import { addTap, checkoutTap, listTaps, updateTaps } from "./taps.js";
 import { builtinTargets, installForTarget, linkFormula, type BuiltinTarget } from "./targets.js";
 import { upgradeFormulas } from "./upgrades.js";
+import { captureMissingParents, captureTransactionPath, markTransactionPath } from "./journal.js";
 
 export interface HarnessTapDeclaration {
   name: string;
@@ -106,10 +107,15 @@ async function readLock(filePath: string): Promise<HarnessLock | undefined> {
 }
 
 async function writeLock(filePath: string, lock: HarnessLock): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true });
   const temporaryPath = `${filePath}.${process.pid}.tmp`;
+  await captureMissingParents(filePath);
+  await captureTransactionPath(filePath);
+  await captureTransactionPath(temporaryPath);
+  await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(temporaryPath, `${JSON.stringify(lock, null, 2)}\n`, "utf8");
   await rename(temporaryPath, filePath);
+  await markTransactionPath(filePath);
+  await markTransactionPath(temporaryPath);
 }
 
 async function syncTaps(home: string, manifest: Harnessfile, lock: HarnessLock | undefined): Promise<void> {
@@ -236,5 +242,8 @@ export async function bundleCleanup(home: string, harnessfilePath: string): Prom
 }
 
 export async function removeLock(harnessfilePath: string): Promise<void> {
-  await rm(lockfilePath(harnessfilePath), { force: true });
+  const filePath = lockfilePath(harnessfilePath);
+  await captureTransactionPath(filePath);
+  await rm(filePath, { force: true });
+  await markTransactionPath(filePath);
 }

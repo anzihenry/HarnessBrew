@@ -17,6 +17,7 @@ import { addTap, listTaps, removeTap, updateTaps } from "./core/taps.js";
 import { VERSION } from "./version.js";
 import { doctor, relinkFormula } from "./core/doctor.js";
 import { withHomeLock } from "./core/locks.js";
+import { withJournalTransaction } from "./core/journal.js";
 
 export interface CliIO {
   stdout: (message: string) => void;
@@ -337,8 +338,9 @@ export async function runCli(
       || command === "uninstall" || command === "link" || command === "unlink" || command === "relink"
       || command === "upgrade" || command === "bundle"
       || (command === "tap" && tapAction !== "list");
+    const home = resolveHarnessHome(options.home);
     return mutates
-      ? await withHomeLock(resolveHarnessHome(options.home), () => execute(args, io, options))
+      ? await withHomeLock(home, () => withJournalTransaction(home, `cli:${command ?? "unknown"}`, () => execute(args, io, options)))
       : await execute(args, io, options);
   } catch (error) {
     if (error instanceof HarnessBrewError) {

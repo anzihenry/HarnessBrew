@@ -5,6 +5,7 @@ import { HarnessBrewError } from "../errors.js";
 import type { InstalledOperation, InstalledOperationType } from "../installations.js";
 import type { TargetScope } from "./types.js";
 import { withTargetLock } from "../locks.js";
+import { captureMissingParents, captureTransactionPath, markTransactionPath } from "../journal.js";
 
 export interface TargetOperationInput {
   id: string;
@@ -170,6 +171,10 @@ async function assertDestinationAvailable(destination: string): Promise<void> {
 
 async function applyOperationUnlocked(input: TargetOperationInput): Promise<InstalledOperation> {
   const destination = path.resolve(input.destination);
+  const temporaryPath = `${destination}.${process.pid}.tmp`;
+  await captureMissingParents(destination);
+  await captureTransactionPath(destination);
+  await captureTransactionPath(temporaryPath);
   if (input.type !== "managed-block" && input.type !== "merge-config") await assertDestinationAvailable(destination);
   const directories = await createdParents(destination);
   let sharedDestinationExisted = false;
@@ -200,7 +205,6 @@ async function applyOperationUnlocked(input: TargetOperationInput): Promise<Inst
 
     if (input.type === "render-file") {
       if (input.content === undefined) throw new HarnessBrewError(`Missing content for render-file: ${input.id}`);
-      const temporaryPath = `${destination}.${process.pid}.tmp`;
       await writeFile(temporaryPath, input.content, "utf8");
       await rename(temporaryPath, destination);
       return {
@@ -230,7 +234,6 @@ async function applyOperationUnlocked(input: TargetOperationInput): Promise<Inst
       }
       const block = managedBlock(input.marker, input.content);
       const prefix = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
-      const temporaryPath = `${destination}.${process.pid}.tmp`;
       await writeFile(temporaryPath, `${before}${prefix}${block}\n`, "utf8");
       await rename(temporaryPath, destination);
       return {
@@ -288,7 +291,6 @@ async function applyOperationUnlocked(input: TargetOperationInput): Promise<Inst
         installedDigest = digestContent(block);
         marker = input.marker;
       }
-      const temporaryPath = `${destination}.${process.pid}.tmp`;
       await writeFile(temporaryPath, after, "utf8");
       await rename(temporaryPath, destination);
       return {
@@ -378,6 +380,9 @@ export async function verifyTargetOperation(operation: InstalledOperation): Prom
 }
 
 async function removeTargetOperationUnlocked(operation: InstalledOperation, force = false): Promise<void> {
+  const temporaryPath = `${operation.destination}.${process.pid}.tmp`;
+  await captureTransactionPath(operation.destination);
+  await captureTransactionPath(temporaryPath);
   if (!force) await verifyTargetOperation(operation);
   if (operation.type === "merge-config") {
     const current = await readFile(operation.destination, "utf8").catch((error: NodeJS.ErrnoException) => {
@@ -416,7 +421,6 @@ async function removeTargetOperationUnlocked(operation: InstalledOperation, forc
     if (operation.beforeDigest === undefined && createdConfigIsEmpty) {
       await rm(operation.destination, { force: true });
     } else {
-      const temporaryPath = `${operation.destination}.${process.pid}.tmp`;
       await writeFile(temporaryPath, remaining, "utf8");
       await rename(temporaryPath, operation.destination);
     }
@@ -448,7 +452,6 @@ async function removeTargetOperationUnlocked(operation: InstalledOperation, forc
     if (operation.beforeDigest === undefined && remaining === "") {
       await rm(operation.destination, { force: true });
     } else {
-      const temporaryPath = `${operation.destination}.${process.pid}.tmp`;
       await writeFile(temporaryPath, remaining, "utf8");
       await rename(temporaryPath, operation.destination);
     }
@@ -470,14 +473,24 @@ async function removeTargetOperationUnlocked(operation: InstalledOperation, forc
 }
 
 export function removeTargetOperation(operation: InstalledOperation, force = false): Promise<void> {
-  return withTargetLock(operation.destination, () => removeTargetOperationUnlocked(operation, force));
+  return withTargetLock(operation.destination, async () => {
+    await removeTargetOperationUnlocked(operation, force);
+    await markTransactionPath(operation.destination);
+    await markTransactionPath(`${operation.destination}.${process.pid}.tmp`);
+  });
 }
 
 export async function executeTargetOperations(inputs: readonly TargetOperationInput[]): Promise<InstalledOperation[]> {
   const installed: InstalledOperation[] = [];
   try {
     for (const input of inputs) {
-      installed.push(await withTargetLock(input.destination, () => applyOperationUnlocked(input)));
+      installed.push(await withTargetLock(input.destination, async () => {
+        const operation = await applyOperationUnlocked(input);
+        await markTransactionPath(operation.destination);
+        await markTransactionPath(`${operation.destination}.${process.pid}.tmp`);
+        for (const directory of operation.createdDirectories) await markTransactionPath(directory);
+        return operation;
+      }));
     }
     return installed;
   } catch (error) {
