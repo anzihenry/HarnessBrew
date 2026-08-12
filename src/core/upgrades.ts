@@ -49,7 +49,11 @@ export async function findOutdated(home: string): Promise<OutdatedFormula[]> {
 }
 
 function targetRootFromLink(receipt: InstallReceipt, link: InstalledLink): string {
-  if (receipt.kind === "skill") return path.dirname(path.dirname(path.dirname(link.path)));
+  if (receipt.kind === "skill") {
+    return link.source === receipt.cellarPath
+      ? path.dirname(path.dirname(link.path))
+      : path.dirname(path.dirname(path.dirname(link.path)));
+  }
   return path.dirname(path.dirname(link.path));
 }
 
@@ -57,7 +61,7 @@ async function restoreReceipt(home: string, receipt: InstallReceipt): Promise<vo
   for (const link of receipt.links) {
     await mkdir(path.dirname(link.path), { recursive: true });
     await rm(link.path, { force: true });
-    await symlink(link.source, link.path, "file");
+    await symlink(link.source, link.path, link.source === receipt.cellarPath ? "dir" : "file");
   }
   await writeReceipt(home, receipt);
 }

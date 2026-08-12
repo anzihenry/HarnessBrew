@@ -148,7 +148,7 @@ Git commit 是安装版本的唯一事实来源；Formula 不维护 `.snapshots`
 harnessbrew install code-review --target openai-codex
 ```
 
-默认 target 根目录分别是 `~/.codex` 和 `~/.claude`。需要隔离安装时可使用：
+Codex Skill 默认安装到 `~/.agents/skills`，其他 Codex 配置使用 `~/.codex`；Claude Code 使用 `~/.claude`。Skill 以完整目录软链安装，因此 `scripts/`、`references/` 和 `assets/` 等相对资源会与 `SKILL.md` 一起生效。需要隔离安装时可使用：
 
 ```bash
 harnessbrew install code-review \

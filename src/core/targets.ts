@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { lstat, readFile, readlink, rm, stat } from "node:fs/promises";
 import path from "node:path";
+import { parse } from "yaml";
 import { HarnessBrewError } from "./errors.js";
 import {
   installFormula,
@@ -15,6 +16,7 @@ import {
 import { parseCoordinate } from "./paths.js";
 import { builtinTargets, type BuiltinTarget } from "./target-capabilities.js";
 import { executeTargetOperations, removeTargetOperation } from "./targets/transaction.js";
+import { planTargetInstall } from "./targets/planner.js";
 
 export { builtinTargets } from "./target-capabilities.js";
 export type { BuiltinTarget } from "./target-capabilities.js";
@@ -32,11 +34,16 @@ function extensionFor(entry: string): string {
 }
 
 export function targetDestination(receipt: InstallReceipt, target: BuiltinTarget, root?: string): string {
+  if (receipt.kind === "skill") {
+    const plan = planTargetInstall(receipt, target, root === undefined ? {} : { root });
+    const operation = plan.operations[0];
+    if (operation === undefined) throw new HarnessBrewError(`No target operation planned for ${receipt.coordinate}.`);
+    return operation.destination;
+  }
   const targetRoot = path.resolve(root ?? defaultRoot(target));
   const [, , name] = parseCoordinate(receipt.coordinate);
   const extension = extensionFor(receipt.entry);
 
-  if (receipt.kind === "skill") return path.join(targetRoot, "skills", name, path.basename(receipt.entry));
   if (target === "claude-code" && receipt.kind === "workflow") {
     return path.join(targetRoot, "commands", `${name}${extension}`);
   }
@@ -66,6 +73,32 @@ async function exists(filePath: string): Promise<boolean> {
 
 async function sha256(filePath: string): Promise<string> {
   return createHash("sha256").update(await readFile(filePath)).digest("hex");
+}
+
+async function validateSkillDirectory(receipt: InstallReceipt): Promise<void> {
+  if (receipt.entry !== "SKILL.md") {
+    throw new HarnessBrewError(`Skill entry must be SKILL.md: ${receipt.coordinate}`);
+  }
+  const content = await readFile(path.join(receipt.cellarPath, "SKILL.md"), "utf8");
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u.exec(content);
+  if (match?.[1] === undefined) {
+    throw new HarnessBrewError(`Skill SKILL.md must contain YAML frontmatter: ${receipt.coordinate}`);
+  }
+  let frontmatter: unknown;
+  try {
+    frontmatter = parse(match[1]);
+  } catch {
+    throw new HarnessBrewError(`Skill SKILL.md contains invalid YAML frontmatter: ${receipt.coordinate}`);
+  }
+  if (typeof frontmatter !== "object" || frontmatter === null) {
+    throw new HarnessBrewError(`Skill SKILL.md frontmatter must be an object: ${receipt.coordinate}`);
+  }
+  const metadata = frontmatter as Record<string, unknown>;
+  if (metadata.name !== parseCoordinate(receipt.coordinate)[2]
+    || typeof metadata.description !== "string"
+    || metadata.description.trim() === "") {
+    throw new HarnessBrewError(`Skill SKILL.md must declare matching name and description: ${receipt.coordinate}`);
+  }
 }
 
 async function assertDestinationAvailable(
@@ -102,6 +135,7 @@ export async function linkFormula(
   if (!receipt.supportedTargets.includes(target)) {
     throw new HarnessBrewError(`Formula ${receipt.coordinate} does not support target ${target}.`);
   }
+  if (receipt.kind === "skill") await validateSkillDirectory(receipt);
   const existing = receipt.links.find((link) => link.target === target);
   if (existing !== undefined) {
     try {
@@ -113,18 +147,23 @@ export async function linkFormula(
     }
   }
 
-  const source = path.join(receipt.cellarPath, receipt.entry);
+  const source = receipt.kind === "skill" ? receipt.cellarPath : path.join(receipt.cellarPath, receipt.entry);
   const destination = targetDestination(receipt, target, options.root);
   await assertDestinationAvailable(home, receipt, destination);
   const [operation] = await executeTargetOperations([{
     id: `${receipt.coordinate}:${target}:${destination}`,
-    type: "symlink-file",
+    type: receipt.kind === "skill" ? "symlink-directory" : "symlink-file",
     target,
     source,
     destination
   }]);
   if (operation === undefined) throw new HarnessBrewError(`Target operation was not created: ${destination}`);
-  const link: InstalledLink = { path: destination, source, target, sha256: operation.installedDigest ?? await sha256(source) };
+  const link: InstalledLink = {
+    path: destination,
+    source,
+    target,
+    sha256: operation.installedDigest ?? await sha256(path.join(receipt.cellarPath, receipt.entry))
+  };
   receipt.links.push(link);
   receipt.operations.push(operation);
   if (!receipt.targets.includes(target)) receipt.targets.push(target);

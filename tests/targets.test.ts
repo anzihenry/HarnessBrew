@@ -6,7 +6,7 @@ import test from "node:test";
 import { installFormula, listInstalled, uninstallFormula } from "../src/core/installations.js";
 import { addTap } from "../src/core/taps.js";
 import { installForTarget, linkFormula } from "../src/core/targets.js";
-import { addFormula, createTapRepository } from "./helpers/git.js";
+import { addFormula, createTapRepository, git } from "./helpers/git.js";
 
 test("Codex adapter links skill entries and uninstall removes owned links", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
@@ -14,13 +14,17 @@ test("Codex adapter links skill entries and uninstall removes owned links", asyn
   const targetRoot = path.join(root, ".codex");
   const repository = await createTapRepository(root);
   await addFormula(repository, "skills", "code-review");
+  await writeFile(path.join(repository, "skills", "code-review", "reference.md"), "reference material\n");
+  await git(repository, "add", "skills/code-review/reference.md");
+  await git(repository, "commit", "-m", "add skill reference");
   await addTap(home, "personal/agents", repository);
 
   const [receipt] = await installForTarget(home, "code-review", "openai-codex", { root: targetRoot });
   assert.ok(receipt);
-  const destination = path.join(targetRoot, "skills", "code-review", "content.md");
+  const destination = path.join(targetRoot, "skills", "code-review");
   assert.equal((await lstat(destination)).isSymbolicLink(), true);
-  assert.match(await readFile(destination, "utf8"), /code-review/);
+  assert.match(await readFile(path.join(destination, "SKILL.md"), "utf8"), /code-review/);
+  assert.equal(await readFile(path.join(destination, "reference.md"), "utf8"), "reference material\n");
 
   await uninstallFormula(home, "code-review");
   await assert.rejects(lstat(destination), /ENOENT/);
@@ -38,6 +42,43 @@ test("Claude adapter maps workflows to commands", async () => {
   assert.equal((await lstat(path.join(targetRoot, "commands", "release.md"))).isSymbolicLink(), true);
 });
 
+test("Claude adapter links complete skill directories", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
+  const home = path.join(root, "home");
+  const targetRoot = path.join(root, ".claude");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "skills", "review", { targets: ["claude-code"], entry: "SKILL.md" });
+  await writeFile(path.join(repository, "skills", "review", "SKILL.md"), "---\nname: review\ndescription: Review changes\n---\n");
+  await mkdir(path.join(repository, "skills", "review", "scripts"));
+  await writeFile(path.join(repository, "skills", "review", "scripts", "check.sh"), "echo checked\n");
+  await git(repository, "add", "skills/review");
+  await git(repository, "commit", "-m", "complete review skill");
+  await addTap(home, "personal/agents", repository);
+
+  await installForTarget(home, "review", "claude-code", { root: targetRoot });
+  const destination = path.join(targetRoot, "skills", "review");
+  assert.equal((await lstat(destination)).isSymbolicLink(), true);
+  assert.equal(await readFile(path.join(destination, "scripts", "check.sh"), "utf8"), "echo checked\n");
+});
+
+test("skill linking validates the canonical SKILL.md metadata", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
+  const home = path.join(root, "home");
+  const targetRoot = path.join(root, ".codex");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "skills", "invalid-skill");
+  await writeFile(path.join(repository, "skills", "invalid-skill", "SKILL.md"), "# Missing frontmatter\n");
+  await git(repository, "add", "skills/invalid-skill/SKILL.md");
+  await git(repository, "commit", "-m", "break skill metadata");
+  await addTap(home, "personal/agents", repository);
+  await installFormula(home, "invalid-skill");
+
+  await assert.rejects(
+    linkFormula(home, "invalid-skill", "openai-codex", { root: targetRoot }),
+    /YAML frontmatter/
+  );
+});
+
 test("linking rejects unowned target files and uninstall detects link replacement", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
   const home = path.join(root, "home");
@@ -47,15 +88,16 @@ test("linking rejects unowned target files and uninstall detects link replacemen
   await addTap(home, "personal/agents", repository);
   await installFormula(home, "code-review");
 
-  const destination = path.join(targetRoot, "skills", "code-review", "content.md");
-  await mkdir(path.dirname(destination), { recursive: true });
-  await writeFile(destination, "user content\n", "utf8");
+  const destination = path.join(targetRoot, "skills", "code-review");
+  await mkdir(destination, { recursive: true });
+  await writeFile(path.join(destination, "SKILL.md"), "user content\n", "utf8");
   await assert.rejects(linkFormula(home, "code-review", "openai-codex", { root: targetRoot }), /not managed/);
 
-  await rm(destination);
+  await rm(destination, { recursive: true });
   await linkFormula(home, "code-review", "openai-codex", { root: targetRoot });
   await rm(destination);
-  await writeFile(destination, "replacement\n", "utf8");
+  await mkdir(destination);
+  await writeFile(path.join(destination, "replacement.md"), "replacement\n", "utf8");
   await assert.rejects(uninstallFormula(home, "code-review"), /Installed target was modified/);
   assert.equal((await listInstalled(home)).length, 1);
 });

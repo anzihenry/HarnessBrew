@@ -210,6 +210,8 @@ Target Adapter 必须为每一种 Formula 类型声明确定的安装策略。�
 - `merge-config`：按配置键合并，并在 Receipt 中记录键级所有权。
 - `unsupported`：拒绝投递；资产仍可保存在 Cellar 中。
 
+Skill 必须使用以 `SKILL.md` 为入口的标准目录结构。Codex 用户级 Skill 投递到 `~/.agents/skills/<name>`，Claude Code 用户级 Skill 投递到 `~/.claude/skills/<name>`；两者都链接完整 Cellar 目录，而不是只链接入口文件，以保留 `scripts/`、`references/` 和 `assets/` 等相对资源。
+
 ## 6. 主要生命周期
 
 ### 6.1 注册资产源

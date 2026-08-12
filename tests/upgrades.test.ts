@@ -31,8 +31,9 @@ test("update and upgrade replace Cellar content while preserving target links", 
   assert.ok(current);
   assert.equal(current.commit, upgrade.after);
   assert.notEqual(current.cellarPath, original.cellarPath);
-  const destination = path.join(targetRoot, "skills", "code-review", "content.md");
+  const destination = path.join(targetRoot, "skills", "code-review");
   assert.equal((await lstat(destination)).isSymbolicLink(), true);
+  assert.match(await readFile(path.join(destination, "SKILL.md"), "utf8"), /code-review/);
   assert.match(await readFile(path.join(current.cellarPath, "formula.json"), "utf8"), /updated review formula/);
   assert.deepEqual(await findOutdated(home), []);
 });

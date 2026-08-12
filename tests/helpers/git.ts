@@ -40,19 +40,22 @@ export async function addFormula(
   const directory = path.join(repository, kindDirectory, name);
   await mkdir(directory, { recursive: true });
   const kind = kindDirectory === "mcp" ? "mcp" : kindDirectory.replace(/s$/u, "");
+  const defaultEntry = kind === "skill" ? "SKILL.md" : "content.md";
   const formula = {
     schemaVersion: 1,
     name,
     kind,
     description: `${name} test formula`,
-    entry: "content.md",
+    entry: defaultEntry,
     targets: ["openai-codex"],
     dependencies: [],
     tags: ["test"],
     ...overrides
   };
   await writeFile(path.join(directory, "formula.json"), `${JSON.stringify(formula, null, 2)}\n`, "utf8");
-  await writeFile(path.join(directory, "content.md"), `# ${name}\n`, "utf8");
+  await writeFile(path.join(directory, defaultEntry), kind === "skill"
+    ? `---\nname: ${name}\ndescription: ${name} test skill\n---\n\n# ${name}\n`
+    : `# ${name}\n`, "utf8");
   await git(repository, "add", kindDirectory);
   await git(repository, "commit", "-m", `add ${name}`);
   return git(repository, "rev-parse", "HEAD");
