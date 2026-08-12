@@ -11,7 +11,10 @@ HarnessBrew 不托管资产。个人、团队和第三方资产都保存在各�
 - 解析依赖、循环、缺失项与冲突
 - 按 Git commit 将不可变内容安装到 Cellar
 - 链接到 OpenAI Codex 和 Claude Code
-- 通过 Receipt 跟踪文件所有权和 SHA-256 摘要
+- 以原生格式投递 Skill、Agent、Workflow、Prompt、Instruction 和 MCP
+- 支持 user/project scope，以及同一 Target 的多实例
+- 通过 Receipt 跟踪文件、配置键、受管区块所有权和 SHA-256 摘要
+- 使用 `doctor` 诊断并通过 `relink` 修复 Target 漂移
 - 检测可用升级，并在升级后保留 Agent target 链接
 - 使用 `Harnessfile` 和 lockfile 在不同设备上复现环境
 - 从 npm 安装并通过 GitHub Release 发布

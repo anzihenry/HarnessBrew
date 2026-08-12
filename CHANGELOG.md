@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.5.0 - 2026-08-13
+
+### Added
+
+- explicit capability matrix and pure installation planners for OpenAI Codex and Claude Code
+- receipt schema v2 with transactional `symlink-directory`, `symlink-file`, `render-file`, `managed-block`, and `merge-config` operations
+- target-native Agent rendering, Workflow/Prompt-to-Skill projection, managed Instruction installation, and key-owned MCP configuration merging
+- user and project target scopes, including multiple placements of the same Formula on one Target
+- `doctor` integrity diagnostics and `relink` repair commands
+- end-to-end integration coverage across every supported Formula, Target, and scope combination
+
+### Changed
+
+- Skill installation now links the complete directory so scripts, references, and other relative resources remain available
+- Target identity is now based on Target plus destination instead of Target name alone
+- upgrades regenerate every recorded Target placement and preserve unrelated user configuration
+- MCP Formula entries use a portable JSON model whose credentials reference environment variable names only
+
+### Fixed
+
+- shared `AGENTS.md`, Codex TOML, and Claude JSON updates preserve user-owned content during link, upgrade, unlink, and rollback
+- modified or missing rendered files, links, managed blocks, and configuration keys are detected before destructive operations
+- Adapter Formula linking now fails explicitly instead of falling back to guessed `${kind}s` directories
+
 ## 0.4.0 - 2026-08-12
 
 ### Added
