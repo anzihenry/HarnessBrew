@@ -187,7 +187,7 @@ harnessbrew unlink code-review --target openai-codex
 `Harnessfile` 适合提交到个人 dotfiles 或项目仓库：
 
 ```yaml
-schemaVersion: 1
+schemaVersion: 2
 taps:
   - name: xiejinheng/agents
     git: git@github.com:xiejinheng/agent-assets.git
@@ -195,8 +195,16 @@ taps:
 
 assets:
   - formula: xiejinheng/agents/code-review
-    targets: [openai-codex]
+    targets:
+      - target: openai-codex
+        scope: user
+      - target: claude-code
+        scope: project
+        project: .
 ```
+
+v2 的 Target placement 可以声明 `user` 或 `project` scope，并可使用相对于 `Harnessfile` 的 `project` 和 `root` 路径。
+schema v1 的 `targets: [openai-codex]` 仍然兼容，并按 user scope 解释。
 
 安装并生成 `Harnessfile.lock`：
 
@@ -204,9 +212,15 @@ assets:
 harnessbrew bundle install
 ```
 
-lockfile 会记录每个 Tap 的准确 commit、依赖闭包和 target，应与 `Harnessfile` 一起提交到 Git。
+v2 lockfile 会记录 Manifest 摘要、HarnessBrew Adapter 版本、每个 Tap 的准确 commit、Formula 内容摘要、依赖闭包和完整 Target placement，
+应与 `Harnessfile` 一起提交到 Git。
 
 在其他设备运行同一命令时，HarnessBrew 会检出 lockfile 固定的 commit，而不是未经确认地使用 Tap 最新版本。
+修改 v2 Harnessfile 后需要显式更新 lockfile：
+
+```bash
+harnessbrew bundle install --update-lock
+```
 
 清理清单之外的受管资产：
 
@@ -240,7 +254,7 @@ harnessbrew update
 harnessbrew outdated
 harnessbrew upgrade [formula]
 harnessbrew uninstall <formula> [--force]
-harnessbrew bundle install [--file <path>]
+harnessbrew bundle install [--file <path>] [--update-lock]
 harnessbrew bundle cleanup [--file <path>]
 ```
 

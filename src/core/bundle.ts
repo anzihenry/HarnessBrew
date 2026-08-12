@@ -1,13 +1,23 @@
+import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
 import { HarnessBrewError } from "./errors.js";
 import { getFormula } from "./formulas.js";
-import { installFormula, listInstalled, resolveDependencies, uninstallFormula, type InstallReceipt } from "./installations.js";
+import {
+  installFormula,
+  listInstalled,
+  resolveDependencies,
+  uninstallFormula,
+  writeReceipt,
+  type InstallReceipt
+} from "./installations.js";
 import { addTap, checkoutTap, listTaps, updateTaps } from "./taps.js";
-import { builtinTargets, installForTarget, linkFormula, type BuiltinTarget } from "./targets.js";
+import { builtinTargets, linkFormula, targetDestination, type BuiltinTarget, type LinkOptions } from "./targets.js";
+import { removeTargetOperation } from "./targets/transaction.js";
+import { TARGET_ADAPTER_VERSION } from "./targets/registry.js";
 import { upgradeFormulas } from "./upgrades.js";
-import { captureMissingParents, captureTransactionPath, markTransactionPath } from "./journal.js";
+import { captureMissingParents, captureTransactionPath, markTransactionPath, withJournalTransaction } from "./journal.js";
 
 export interface HarnessTapDeclaration {
   name: string;
@@ -17,16 +27,23 @@ export interface HarnessTapDeclaration {
 
 export interface HarnessAssetDeclaration {
   formula: string;
-  targets: BuiltinTarget[];
+  targets: HarnessTargetDeclaration[];
+}
+
+export interface HarnessTargetDeclaration {
+  target: BuiltinTarget;
+  scope: "user" | "project";
+  project?: string;
+  root?: string;
 }
 
 export interface Harnessfile {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   taps: HarnessTapDeclaration[];
   assets: HarnessAssetDeclaration[];
 }
 
-export interface HarnessLock {
+export interface HarnessLockV1 {
   schemaVersion: 1;
   taps: Array<{ name: string; git: string; commit: string; ref?: string }>;
   assets: Array<{
@@ -37,8 +54,26 @@ export interface HarnessLock {
   }>;
 }
 
+export interface HarnessLockV2 {
+  schemaVersion: 2;
+  manifestDigest: string;
+  adapterVersion: string;
+  taps: Array<{ name: string; git: string; commit: string; ref?: string }>;
+  assets: Array<{
+    formula: string;
+    commit: string;
+    digest: string;
+    dependencies: string[];
+    requested: boolean;
+    targets: HarnessTargetDeclaration[];
+  }>;
+}
+
+export type HarnessLock = HarnessLockV1 | HarnessLockV2;
+
 export interface BundleOptions {
   targetRoots?: Partial<Record<BuiltinTarget, string>>;
+  updateLock?: boolean;
 }
 
 export interface BundleCleanupResult {
@@ -50,6 +85,44 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function assertKeys(value: Record<string, unknown>, allowed: readonly string[], context: string): void {
+  const unknown = Object.keys(value).find((key) => !allowed.includes(key));
+  if (unknown !== undefined) throw new HarnessBrewError(`Unknown ${context} field: ${unknown}`);
+}
+
+function targetDeclaration(value: unknown, context: string): HarnessTargetDeclaration {
+  if (!isRecord(value)) throw new HarnessBrewError(`Invalid Target declaration for ${context}`);
+  assertKeys(value, ["target", "scope", "project", "root"], `Target declaration for ${context}`);
+  if (typeof value.target !== "string" || !builtinTargets.includes(value.target as BuiltinTarget)) {
+    throw new HarnessBrewError(`Invalid Target in ${context}`);
+  }
+  if (value.scope !== "user" && value.scope !== "project") {
+    throw new HarnessBrewError(`Target scope must be user or project in ${context}`);
+  }
+  if (value.project !== undefined && (typeof value.project !== "string" || value.project.trim() === "")) {
+    throw new HarnessBrewError(`Invalid Target project path in ${context}`);
+  }
+  if (value.root !== undefined && (typeof value.root !== "string" || value.root.trim() === "")) {
+    throw new HarnessBrewError(`Invalid Target root path in ${context}`);
+  }
+  if (value.scope === "user" && value.project !== undefined) {
+    throw new HarnessBrewError(`User Target cannot declare project in ${context}`);
+  }
+  if (value.scope === "project" && value.project === undefined) {
+    throw new HarnessBrewError(`Project Target must declare project in ${context}`);
+  }
+  return {
+    target: value.target as BuiltinTarget,
+    scope: value.scope,
+    ...(value.project === undefined ? {} : { project: path.posix.normalize(value.project) }),
+    ...(value.root === undefined ? {} : { root: path.posix.normalize(value.root) })
+  };
+}
+
+function targetKey(target: HarnessTargetDeclaration): string {
+  return JSON.stringify([target.target, target.scope, target.project ?? "", target.root ?? ""]);
+}
+
 export async function readHarnessfile(filePath: string): Promise<Harnessfile> {
   let raw: unknown;
   try {
@@ -57,9 +130,11 @@ export async function readHarnessfile(filePath: string): Promise<Harnessfile> {
   } catch (error) {
     throw new HarnessBrewError(`Invalid Harnessfile ${filePath}: ${(error as Error).message}`);
   }
-  if (!isRecord(raw) || (raw.schemaVersion ?? 1) !== 1) {
+  if (!isRecord(raw) || ((raw.schemaVersion ?? 1) !== 1 && raw.schemaVersion !== 2)) {
     throw new HarnessBrewError(`Unsupported Harnessfile schema: ${filePath}`);
   }
+  const schemaVersion = (raw.schemaVersion ?? 1) as 1 | 2;
+  if (schemaVersion === 2) assertKeys(raw, ["schemaVersion", "taps", "assets"], "Harnessfile");
   if (!Array.isArray(raw.taps) || !Array.isArray(raw.assets)) {
     throw new HarnessBrewError(`Harnessfile must contain taps and assets arrays: ${filePath}`);
   }
@@ -67,7 +142,9 @@ export async function readHarnessfile(filePath: string): Promise<Harnessfile> {
     if (!isRecord(item) || typeof item.name !== "string" || typeof item.git !== "string") {
       throw new HarnessBrewError(`Invalid tap declaration in ${filePath}`);
     }
-    if (item.ref !== undefined && typeof item.ref !== "string") {
+    if (schemaVersion === 2) assertKeys(item, ["name", "git", "ref"], `Tap ${item.name}`);
+    if (item.git.trim() === "") throw new HarnessBrewError(`Invalid tap Git URL in ${filePath}`);
+    if (item.ref !== undefined && (typeof item.ref !== "string" || item.ref.trim() === "")) {
       throw new HarnessBrewError(`Invalid tap ref in ${filePath}`);
     }
     return { name: item.name, git: item.git, ...(item.ref === undefined ? {} : { ref: item.ref }) };
@@ -76,11 +153,24 @@ export async function readHarnessfile(filePath: string): Promise<Harnessfile> {
     if (!isRecord(item) || typeof item.formula !== "string") {
       throw new HarnessBrewError(`Invalid asset declaration in ${filePath}`);
     }
-    const targets = item.targets ?? [];
-    if (!Array.isArray(targets) || targets.some((target) => !builtinTargets.includes(target as BuiltinTarget))) {
-      throw new HarnessBrewError(`Invalid asset targets for ${item.formula}`);
+    const formula = item.formula;
+    if (schemaVersion === 2) assertKeys(item, ["formula", "targets"], `Asset ${formula}`);
+    const declaredTargets = item.targets ?? [];
+    if (!Array.isArray(declaredTargets)) {
+      throw new HarnessBrewError(`Invalid asset targets for ${formula}`);
     }
-    return { formula: item.formula, targets: [...new Set(targets as BuiltinTarget[])] };
+    const targets = schemaVersion === 1
+      ? declaredTargets.map((target): HarnessTargetDeclaration => {
+        if (typeof target !== "string" || !builtinTargets.includes(target as BuiltinTarget)) {
+          throw new HarnessBrewError(`Invalid asset targets for ${formula}`);
+        }
+        return { target: target as BuiltinTarget, scope: "user" };
+      })
+      : declaredTargets.map((target) => targetDeclaration(target, formula));
+    if (new Set(targets.map(targetKey)).size !== targets.length) {
+      throw new HarnessBrewError(`Harnessfile contains duplicate Target placements for ${formula}.`);
+    }
+    return { formula, targets };
   });
   if (new Set(taps.map((tap) => tap.name)).size !== taps.length) {
     throw new HarnessBrewError("Harnessfile contains duplicate taps.");
@@ -88,7 +178,7 @@ export async function readHarnessfile(filePath: string): Promise<Harnessfile> {
   if (new Set(assets.map((asset) => asset.formula)).size !== assets.length) {
     throw new HarnessBrewError("Harnessfile contains duplicate assets.");
   }
-  return { schemaVersion: 1, taps, assets };
+  return { schemaVersion, taps, assets };
 }
 
 export function lockfilePath(harnessfilePath: string): string {
@@ -97,9 +187,64 @@ export function lockfilePath(harnessfilePath: string): string {
 
 async function readLock(filePath: string): Promise<HarnessLock | undefined> {
   try {
-    const parsed = JSON.parse(await readFile(filePath, "utf8")) as HarnessLock;
-    if (parsed.schemaVersion !== 1 || !Array.isArray(parsed.taps) || !Array.isArray(parsed.assets)) throw new Error("shape");
-    return parsed;
+    const value: unknown = JSON.parse(await readFile(filePath, "utf8"));
+    if (!isRecord(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2)
+      || !Array.isArray(value.taps) || !Array.isArray(value.assets)) throw new Error("shape");
+    const validCommit = (commit: unknown): commit is string => typeof commit === "string" && /^[0-9a-f]{40}$/u.test(commit);
+    const validDigest = (digest: unknown): digest is string => typeof digest === "string" && /^[0-9a-f]{64}$/u.test(digest);
+    const validStrings = (items: unknown): items is string[] => Array.isArray(items)
+      && items.every((item) => typeof item === "string");
+    const taps = value.taps.map((item) => {
+      if (!isRecord(item) || typeof item.name !== "string" || typeof item.git !== "string" || !validCommit(item.commit)
+        || (item.ref !== undefined && typeof item.ref !== "string")) throw new Error("tap");
+      if (value.schemaVersion === 2) assertKeys(item, ["name", "git", "commit", "ref"], `Lock Tap ${item.name}`);
+      return {
+        name: item.name,
+        git: item.git,
+        commit: item.commit,
+        ...(item.ref === undefined ? {} : { ref: item.ref })
+      };
+    });
+    if (new Set(taps.map((tap) => tap.name)).size !== taps.length) throw new Error("duplicate tap");
+    if (value.schemaVersion === 1) {
+      const assets = value.assets.map((item) => {
+        if (!isRecord(item) || typeof item.formula !== "string" || !validCommit(item.commit)
+          || !validStrings(item.dependencies) || !validStrings(item.targets)) throw new Error("asset");
+        return { formula: item.formula, commit: item.commit, dependencies: item.dependencies, targets: item.targets };
+      });
+      return { schemaVersion: 1, taps, assets };
+    }
+    assertKeys(value, ["schemaVersion", "manifestDigest", "adapterVersion", "taps", "assets"], "Harnessfile lock");
+    if (!validDigest(value.manifestDigest) || typeof value.adapterVersion !== "string" || value.adapterVersion === "") {
+      throw new Error("metadata");
+    }
+    const assets = value.assets.map((item) => {
+      if (!isRecord(item)) throw new Error("asset");
+      assertKeys(item, ["formula", "commit", "digest", "dependencies", "requested", "targets"], "Lock asset");
+      if (typeof item.formula !== "string" || !validCommit(item.commit) || !validDigest(item.digest)
+        || !validStrings(item.dependencies) || typeof item.requested !== "boolean" || !Array.isArray(item.targets)) {
+        throw new Error("asset");
+      }
+      const formula = item.formula;
+      const targets = item.targets.map((target) => targetDeclaration(target, formula));
+      if (new Set(targets.map(targetKey)).size !== targets.length) throw new Error("duplicate target");
+      return {
+        formula,
+        commit: item.commit,
+        digest: item.digest,
+        dependencies: item.dependencies,
+        requested: item.requested,
+        targets
+      };
+    });
+    if (new Set(assets.map((asset) => asset.formula)).size !== assets.length) throw new Error("duplicate asset");
+    return {
+      schemaVersion: 2,
+      manifestDigest: value.manifestDigest,
+      adapterVersion: value.adapterVersion,
+      taps,
+      assets
+    };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw new HarnessBrewError(`Invalid Harnessfile lock: ${filePath}`);
@@ -130,8 +275,7 @@ async function syncTaps(home: string, manifest: Harnessfile, lock: HarnessLock |
       throw new HarnessBrewError(`Lockfile Tap URL mismatch for ${declaration.name}`);
     }
     if (existing === undefined) {
-      const ref = locked?.commit ?? declaration.ref;
-      await addTap(home, declaration.name, declaration.git, ref === undefined ? {} : { ref });
+      await addTap(home, declaration.name, declaration.git, declaration.ref === undefined ? {} : { ref: declaration.ref });
     } else if (locked === undefined) {
       if (existing.ref !== declaration.ref) {
         throw new HarnessBrewError(`Tap ref mismatch for ${declaration.name}; remove and re-add the tap.`);
@@ -142,64 +286,208 @@ async function syncTaps(home: string, manifest: Harnessfile, lock: HarnessLock |
   }
 }
 
-function rootOptions(target: BuiltinTarget, options: BundleOptions): { root?: string } {
-  const root = options.targetRoots?.[target];
-  return root === undefined ? {} : { root };
+function canonicalTargets(targets: readonly HarnessTargetDeclaration[]): HarnessTargetDeclaration[] {
+  return [...targets].sort((left, right) => targetKey(left).localeCompare(targetKey(right)));
 }
 
-export async function bundleInstall(
+function manifestDigest(manifest: Harnessfile): string {
+  const normalized = {
+    schemaVersion: manifest.schemaVersion,
+    taps: [...manifest.taps].sort((left, right) => left.name.localeCompare(right.name)),
+    assets: [...manifest.assets]
+      .sort((left, right) => left.formula.localeCompare(right.formula))
+      .map((asset) => ({ formula: asset.formula, targets: canonicalTargets(asset.targets) }))
+  };
+  return createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
+}
+
+function formulaDigest(receipt: InstallReceipt): string {
+  const inventory = [...receipt.files]
+    .sort((left, right) => left.path.localeCompare(right.path))
+    .map((file) => [file.path, file.sha256, file.mode ?? null]);
+  return createHash("sha256").update(JSON.stringify(inventory)).digest("hex");
+}
+
+function resolveDeclaredPath(harnessfilePath: string, declared: string): string {
+  const resolved = path.resolve(path.dirname(harnessfilePath), declared);
+  if (resolved === path.parse(resolved).root) {
+    throw new HarnessBrewError(`Unsafe Harnessfile Target path: ${declared}`);
+  }
+  return resolved;
+}
+
+function placementOptions(
+  harnessfilePath: string,
+  declaration: HarnessTargetDeclaration,
+  options: BundleOptions
+): LinkOptions {
+  const override = options.targetRoots?.[declaration.target];
+  const resolvedOverride = override === undefined ? undefined : path.resolve(override);
+  if (resolvedOverride !== undefined && resolvedOverride === path.parse(resolvedOverride).root) {
+    throw new HarnessBrewError(`Unsafe Target root override: ${override}`);
+  }
+  return {
+    scope: declaration.scope,
+    ...(resolvedOverride !== undefined
+      ? { root: resolvedOverride }
+      : declaration.root === undefined ? {} : { root: resolveDeclaredPath(harnessfilePath, declaration.root) }),
+    ...(declaration.project === undefined
+      ? {} : { projectRoot: resolveDeclaredPath(harnessfilePath, declaration.project) })
+  };
+}
+
+interface DesiredFormula {
+  requested: boolean;
+  targets: Map<string, HarnessTargetDeclaration>;
+}
+
+async function desiredFormulas(home: string, manifest: Harnessfile): Promise<Map<string, DesiredFormula>> {
+  const desired = new Map<string, DesiredFormula>();
+  for (const asset of manifest.assets) {
+    const root = await getFormula(home, asset.formula);
+    for (const formula of await resolveDependencies(home, root)) {
+      const current = desired.get(formula.coordinate) ?? { requested: false, targets: new Map() };
+      if (formula.coordinate === root.coordinate) current.requested = true;
+      for (const target of asset.targets) current.targets.set(targetKey(target), target);
+      desired.set(formula.coordinate, current);
+    }
+  }
+  return desired;
+}
+
+async function reconcileTargets(
   home: string,
   harnessfilePath: string,
-  options: BundleOptions = {}
+  receipt: InstallReceipt,
+  desired: DesiredFormula,
+  options: BundleOptions
+): Promise<void> {
+  const placements = [...desired.targets.values()].map((declaration) => ({
+    declaration,
+    options: placementOptions(harnessfilePath, declaration, options),
+    destination: targetDestination(receipt, declaration.target, placementOptions(harnessfilePath, declaration, options))
+  }));
+  const destinations = new Set(placements.map((placement) => placement.destination));
+  const removed = receipt.operations.filter((operation) => !destinations.has(operation.destination));
+  for (const operation of [...removed].reverse()) await removeTargetOperation(operation);
+  if (removed.length > 0 || receipt.requested !== desired.requested) {
+    receipt.operations = receipt.operations.filter((operation) => !removed.includes(operation));
+    receipt.links = receipt.links.filter((link) => destinations.has(link.path));
+    receipt.targets = [...new Set(receipt.operations.map((operation) => operation.target))];
+    receipt.requested = desired.requested;
+    await writeReceipt(home, receipt);
+  }
+  for (const placement of placements) {
+    await linkFormula(home, receipt.coordinate, placement.declaration.target, placement.options);
+  }
+}
+
+function sameLock(left: HarnessLock, right: HarnessLock): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+async function bundleInstallInternal(
+  home: string,
+  harnessfilePath: string,
+  options: BundleOptions
 ): Promise<HarnessLock> {
   const manifest = await readHarnessfile(harnessfilePath);
   const targetLockPath = lockfilePath(harnessfilePath);
   const existingLock = await readLock(targetLockPath);
-  await syncTaps(home, manifest, existingLock);
+  const digest = manifestDigest(manifest);
+  if (options.updateLock !== true && existingLock !== undefined) {
+    if (existingLock.schemaVersion !== manifest.schemaVersion) {
+      throw new HarnessBrewError("Harnessfile and lockfile schema versions differ; use --update-lock.");
+    }
+    if (existingLock.schemaVersion === 2 && existingLock.manifestDigest !== digest) {
+      throw new HarnessBrewError("Harnessfile changed since the lockfile was created; use --update-lock.");
+    }
+    if (existingLock.schemaVersion === 2 && existingLock.adapterVersion !== TARGET_ADAPTER_VERSION) {
+      throw new HarnessBrewError(
+        `Harnessfile lock requires adapter version ${existingLock.adapterVersion}; installed version is ${TARGET_ADAPTER_VERSION}. Use --update-lock.`
+      );
+    }
+  }
+  const resolutionLock = options.updateLock === true ? undefined : existingLock;
+  await syncTaps(home, manifest, resolutionLock);
 
-  const resolved = new Map<string, InstallReceipt>();
   for (const asset of manifest.assets) {
     await upgradeFormulas(home, asset.formula);
-    const receipts = asset.targets.length === 0
-      ? await installFormula(home, asset.formula)
-      : await installForTarget(home, asset.formula, asset.targets[0] as BuiltinTarget, rootOptions(asset.targets[0] as BuiltinTarget, options));
-    for (const target of asset.targets.slice(1)) {
-      for (const receipt of receipts) await linkFormula(home, receipt.coordinate, target, rootOptions(target, options));
-    }
-    receipts.forEach((receipt) => resolved.set(receipt.coordinate, receipt));
+    await installFormula(home, asset.formula);
   }
+  const desired = await desiredFormulas(home, manifest);
+  let installed = new Map((await listInstalled(home)).map((receipt) => [receipt.coordinate, receipt]));
+  for (const [coordinate, declaration] of [...desired].sort(([left], [right]) => left.localeCompare(right))) {
+    const receipt = installed.get(coordinate);
+    if (receipt === undefined) throw new HarnessBrewError(`Bundle formula was not installed: ${coordinate}`);
+    await reconcileTargets(home, harnessfilePath, receipt, declaration, options);
+  }
+  installed = new Map((await listInstalled(home)).map((receipt) => [receipt.coordinate, receipt]));
+  const resolved = [...desired.keys()].sort().map((coordinate) => {
+    const receipt = installed.get(coordinate);
+    if (receipt === undefined) throw new HarnessBrewError(`Bundle formula was not installed: ${coordinate}`);
+    return receipt;
+  });
 
-  if (existingLock !== undefined) {
-    for (const asset of existingLock.assets) {
-      const receipt = resolved.get(asset.formula);
-      if (receipt !== undefined && receipt.commit !== asset.commit) {
-        throw new HarnessBrewError(`Locked commit mismatch for ${asset.formula}`);
+  const taps = await listTaps(home);
+  const lockedTaps = [...manifest.taps].sort((left, right) => left.name.localeCompare(right.name)).map((declaration) => {
+    const tap = taps.find((candidate) => candidate.name === declaration.name);
+    if (tap === undefined) throw new HarnessBrewError(`Tap was not synchronized: ${declaration.name}`);
+    return {
+      name: tap.name,
+      git: tap.url,
+      commit: tap.commit,
+      ...(declaration.ref === undefined ? {} : { ref: declaration.ref })
+    };
+  });
+  const lock: HarnessLock = manifest.schemaVersion === 1
+    ? {
+      schemaVersion: 1,
+      taps: lockedTaps,
+      assets: resolved.map((receipt) => ({
+        formula: receipt.coordinate,
+        commit: receipt.commit,
+        dependencies: receipt.dependencies,
+        targets: [...receipt.targets].sort()
+      }))
+    }
+    : {
+      schemaVersion: 2,
+      manifestDigest: digest,
+      adapterVersion: TARGET_ADAPTER_VERSION,
+      taps: lockedTaps,
+      assets: resolved.map((receipt) => ({
+        formula: receipt.coordinate,
+        commit: receipt.commit,
+        digest: formulaDigest(receipt),
+        dependencies: [...receipt.dependencies].sort(),
+        requested: desired.get(receipt.coordinate)?.requested ?? false,
+        targets: canonicalTargets([...(desired.get(receipt.coordinate)?.targets.values() ?? [])])
+      }))
+    };
+  if (resolutionLock !== undefined) {
+    if (resolutionLock.schemaVersion === 2 && !sameLock(lock, resolutionLock)) {
+      throw new HarnessBrewError("Installed bundle does not match Harnessfile.lock; use --update-lock to regenerate it.");
+    }
+    if (resolutionLock.schemaVersion === 1) {
+      for (const asset of resolutionLock.assets) {
+        const receipt = installed.get(asset.formula);
+        if (receipt !== undefined && receipt.commit !== asset.commit) {
+          throw new HarnessBrewError(`Locked commit mismatch for ${asset.formula}`);
+        }
       }
     }
   }
-
-  const taps = await listTaps(home);
-  const lock: HarnessLock = {
-    schemaVersion: 1,
-    taps: manifest.taps.map((declaration) => {
-      const tap = taps.find((candidate) => candidate.name === declaration.name);
-      if (tap === undefined) throw new HarnessBrewError(`Tap was not synchronized: ${declaration.name}`);
-      return {
-        name: tap.name,
-        git: tap.url,
-        commit: tap.commit,
-        ...(declaration.ref === undefined ? {} : { ref: declaration.ref })
-      };
-    }),
-    assets: [...resolved.values()].sort((left, right) => left.coordinate.localeCompare(right.coordinate)).map((receipt) => ({
-      formula: receipt.coordinate,
-      commit: receipt.commit,
-      dependencies: receipt.dependencies,
-      targets: receipt.targets
-    }))
-  };
   await writeLock(targetLockPath, lock);
   return lock;
+}
+
+export function bundleInstall(
+  home: string,
+  harnessfilePath: string,
+  options: BundleOptions = {}
+): Promise<HarnessLock> {
+  return withJournalTransaction(home, "bundle:install", () => bundleInstallInternal(home, harnessfilePath, options));
 }
 
 async function desiredCoordinates(home: string, manifest: Harnessfile): Promise<Set<string>> {
@@ -228,7 +516,7 @@ function removalOrder(receipts: InstallReceipt[]): InstallReceipt[] {
   return ordered;
 }
 
-export async function bundleCleanup(home: string, harnessfilePath: string): Promise<BundleCleanupResult> {
+async function bundleCleanupInternal(home: string, harnessfilePath: string): Promise<BundleCleanupResult> {
   const manifest = await readHarnessfile(harnessfilePath);
   const desired = await desiredCoordinates(home, manifest);
   const installed = await listInstalled(home);
@@ -239,6 +527,10 @@ export async function bundleCleanup(home: string, harnessfilePath: string): Prom
     removed.push(receipt.coordinate);
   }
   return { removed, retained: installed.filter((receipt) => desired.has(receipt.coordinate)).map((receipt) => receipt.coordinate) };
+}
+
+export function bundleCleanup(home: string, harnessfilePath: string): Promise<BundleCleanupResult> {
+  return withJournalTransaction(home, "bundle:cleanup", () => bundleCleanupInternal(home, harnessfilePath));
 }
 
 export async function removeLock(harnessfilePath: string): Promise<void> {

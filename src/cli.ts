@@ -309,7 +309,7 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
     const action = args[1];
     const filePath = optionValue(args, "--file") ?? path.resolve("Harnessfile");
     if (action === "install") {
-      const lock = await bundleInstall(home, filePath);
+      const lock = await bundleInstall(home, filePath, { updateLock: args.includes("--update-lock") });
       io.stdout(`Bundle installed ${lock.assets.length} formulas from ${lock.taps.length} taps.`);
       return 0;
     }
@@ -318,7 +318,7 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
       result.removed.forEach((coordinate) => io.stdout(`Removed ${coordinate}.`));
       return 0;
     }
-    throw new HarnessBrewError("Usage: harnessbrew bundle <install|cleanup> [--file <Harnessfile>]");
+    throw new HarnessBrewError("Usage: harnessbrew bundle <install|cleanup> [--file <Harnessfile>] [--update-lock]");
   }
 
   io.stderr(`Unknown command: ${command}`);

@@ -9,7 +9,7 @@ export type { BuiltinTarget, LinkOptions, TargetScope, UnlinkOptions } from "./c
 export { targetCapabilities, targetCapability, targetOperationKinds } from "./core/target-capabilities.js";
 export type { TargetCapabilityMatrix, TargetOperationKind } from "./core/target-capabilities.js";
 export { planTargetInstall } from "./core/targets/planner.js";
-export { getTargetAdapter } from "./core/targets/registry.js";
+export { getTargetAdapter, TARGET_ADAPTER_VERSION } from "./core/targets/registry.js";
 export type {
   PlannedTargetOperation,
   TargetAdapter,
@@ -37,6 +37,9 @@ export type {
   BundleOptions,
   HarnessAssetDeclaration,
   HarnessLock,
+  HarnessLockV1,
+  HarnessLockV2,
+  HarnessTargetDeclaration,
   HarnessTapDeclaration,
   Harnessfile
 } from "./core/bundle.js";

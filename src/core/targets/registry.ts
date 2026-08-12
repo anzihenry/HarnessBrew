@@ -9,6 +9,8 @@ const adapters = new Map<BuiltinTarget, TargetAdapter>([
   [claudeCodeAdapter.name, claudeCodeAdapter]
 ]);
 
+export const TARGET_ADAPTER_VERSION = "1";
+
 export function getTargetAdapter(target: BuiltinTarget): TargetAdapter {
   const adapter = adapters.get(target);
   if (adapter === undefined) throw new HarnessBrewError(`Target adapter is not registered: ${target}`);

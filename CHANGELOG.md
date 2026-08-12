@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - prevent forced cleanup from recursively deleting a real directory that replaced a managed directory symlink
 - serialize CLI mutations per HarnessBrew home and protect shared Target configuration updates across processes
 - recover interrupted mutations from durable write-ahead journals, including abandoned process locks and external Target files
+- add Harnessfile and lockfile v2 with structured scopes, portable paths, content digests, explicit lock refresh, and Target convergence
 
 ## 0.5.2 - 2026-08-13
 

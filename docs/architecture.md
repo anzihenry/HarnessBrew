@@ -155,14 +155,23 @@ Receipt 是安全卸载和冲突检测的依据。HarnessBrew 不应删除 recei
 `Harnessfile` 描述用户希望安装的顶层资产，可提交到个人配置仓库或项目仓库：
 
 ```yaml
+schemaVersion: 2
 taps:
   - name: xiejinheng/agents
     git: git@github.com:xiejinheng/agent-assets.git
 
 assets:
   - formula: xiejinheng/agents/code-review
-    targets: [openai-codex]
+    targets:
+      - target: openai-codex
+        scope: user
+      - target: claude-code
+        scope: project
+        project: .
 ```
+
+Harnessfile v2 使用结构化 Target placement，并将相对 `project`/`root` 路径按 Harnessfile 所在目录解析。依赖继承顶层资产的 placement；
+`bundle install` 同时补齐缺失 placement 并移除不再声明的受管 placement。schema v1 的字符串 Target 数组继续按 user scope 兼容读取。
 
 Lockfile 由 HarnessBrew 生成并提交到 Git，记录：
 
@@ -170,6 +179,9 @@ Lockfile 由 HarnessBrew 生成并提交到 Git，记录：
 - 每个 formula 的来源与内容摘要
 - 完整依赖闭包
 - 解析时使用的 adapter 版本
+
+v2 lockfile 还保存 Harnessfile 的规范化摘要、每个 Formula 安装清单的内容摘要、顶层请求标记和可移植 placement。
+Manifest 或 Adapter 版本变化时默认拒绝隐式改写，必须通过 `bundle install --update-lock` 显式生成新锁。
 
 `harnessbrew bundle install` 应根据 lockfile 重建相同环境；只有显式 update/upgrade 才更新锁定结果。
 
