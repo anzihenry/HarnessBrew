@@ -1,6 +1,6 @@
 {
   "name": "harnessbrew",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "A Git-native package manager for AI Agent assets.",
   "type": "module",
   "bin": {

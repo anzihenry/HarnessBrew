@@ -37,7 +37,7 @@ test("version prints the package version", async () => {
   const exitCode = await runCli(["--version"], output.io);
 
   assert.equal(exitCode, 0);
-  assert.deepEqual(output.stdout, ["0.5.2"]);
+  assert.deepEqual(output.stdout, ["0.6.0"]);
 });
 
 test("unknown commands fail with a useful error", async () => {
@@ -59,8 +59,8 @@ test("JSON mode emits one versioned envelope for success and failure", async () 
     command: "version",
     exitCode: 0,
     dryRun: false,
-    result: { version: "0.5.2" },
-    output: ["0.5.2"],
+    result: { version: "0.6.0" },
+    output: ["0.6.0"],
     diagnostics: []
   });
 

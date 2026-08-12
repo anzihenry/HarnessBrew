@@ -36,6 +36,11 @@ export async function verifyRelease(requestedTag) {
     "CHANGELOG.md must contain a dated entry for the package version"
   );
   assert.equal(packageJson.bin?.harnessbrew, "dist/bin.js", "the npm executable must point to dist/bin.js");
+  assert.equal(
+    packageLock.packages?.[""]?.bin?.harnessbrew,
+    packageJson.bin.harnessbrew,
+    "package-lock.json executable must match package.json"
+  );
   assert.ok(packageJson.files?.includes("dist"), "the npm package must include dist");
   assert.equal(packageJson.publishConfig?.access, "public", "the npm package must be public");
   assert.equal(
