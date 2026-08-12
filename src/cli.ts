@@ -3,13 +3,13 @@ import { HarnessBrewError } from "./core/errors.js";
 import { formulaKinds, getFormula, searchFormulas, type FormulaKind } from "./core/formulas.js";
 import { installFormula, listInstalled, uninstallFormula } from "./core/installations.js";
 import {
-  builtinTargets,
   installForTarget,
   linkFormula,
   unlinkFormula,
-  type BuiltinTarget,
   type LinkOptions
 } from "./core/targets.js";
+import { hasTargetAdapter } from "./core/targets/registry.js";
+import type { TargetName } from "./core/targets/types.js";
 import { findOutdated, upgradeFormulas } from "./core/upgrades.js";
 import { bundleCleanup, bundleInstall } from "./core/bundle.js";
 import { resolveHarnessHome } from "./core/paths.js";
@@ -266,12 +266,12 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
     const name = args[1];
     if (name === undefined) throw new HarnessBrewError("Usage: harnessbrew install <formula>");
     const targetValue = optionValue(args, "--target");
-    if (targetValue !== undefined && !builtinTargets.includes(targetValue as BuiltinTarget)) {
-      throw new HarnessBrewError(`Unsupported built-in target: ${targetValue}`);
+    if (targetValue !== undefined && !hasTargetAdapter(targetValue)) {
+      throw new HarnessBrewError(`Target adapter is not registered: ${targetValue}`);
     }
     const receipts = targetValue === undefined
       ? await installFormula(home, name)
-      : await installForTarget(home, name, targetValue as BuiltinTarget, targetOptions(args));
+      : await installForTarget(home, name, targetValue as TargetName, targetOptions(args));
     receipts.forEach((receipt) => io.stdout(`Installed ${receipt.coordinate} at ${receipt.commit.slice(0, 12)}.`));
     setResult(io, receipts);
     return 0;
@@ -301,15 +301,15 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
         `Usage: harnessbrew ${command} <formula> --target <target> [--scope <user|project>] [--project <path>]`
       );
     }
-    if (!builtinTargets.includes(targetValue as BuiltinTarget)) {
-      throw new HarnessBrewError(`Unsupported built-in target: ${targetValue}`);
+    if (!hasTargetAdapter(targetValue)) {
+      throw new HarnessBrewError(`Target adapter is not registered: ${targetValue}`);
     }
     if (command === "link") {
-      const receipt = await linkFormula(home, name, targetValue as BuiltinTarget, targetOptions(args));
+      const receipt = await linkFormula(home, name, targetValue, targetOptions(args));
       io.stdout(`Linked ${name} to ${targetValue}.`);
       setResult(io, receipt);
     } else {
-      const receipt = await unlinkFormula(home, name, targetValue as BuiltinTarget, {
+      const receipt = await unlinkFormula(home, name, targetValue, {
         ...(hasTargetPlacementOptions(args) ? targetOptions(args) : {}),
         force: args.includes("--force")
       });
@@ -340,12 +340,12 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
     const name = args[1];
     if (name === undefined) throw new HarnessBrewError("Usage: harnessbrew relink <formula> [--target <target>]");
     const targetValue = optionValue(args, "--target");
-    if (targetValue !== undefined && !builtinTargets.includes(targetValue as BuiltinTarget)) {
-      throw new HarnessBrewError(`Unsupported built-in target: ${targetValue}`);
+    if (targetValue !== undefined && !hasTargetAdapter(targetValue)) {
+      throw new HarnessBrewError(`Target adapter is not registered: ${targetValue}`);
     }
     const receipt = await relinkFormula(home, name, {
       ...(hasTargetPlacementOptions(args) ? targetOptions(args) : {}),
-      ...(targetValue === undefined ? {} : { target: targetValue as BuiltinTarget })
+      ...(targetValue === undefined ? {} : { target: targetValue })
     });
     io.stdout(`Relinked ${name}${targetValue === undefined ? "" : ` to ${targetValue}`}.`);
     setResult(io, receipt);

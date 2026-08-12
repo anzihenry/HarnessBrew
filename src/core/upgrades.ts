@@ -12,7 +12,7 @@ import {
   type InstalledLink
 } from "./installations.js";
 import { resolveReceiptPath } from "./paths.js";
-import { linkFormula, type BuiltinTarget, type LinkOptions } from "./targets.js";
+import { linkFormula, type LinkOptions, type TargetName } from "./targets.js";
 import { removeTargetOperation } from "./targets/transaction.js";
 import { captureTransactionPath, markTransactionPath } from "./journal.js";
 import { assertTapTrusted } from "./taps.js";
@@ -61,14 +61,14 @@ function targetRootFromLink(receipt: InstallReceipt, link: InstalledLink): strin
 }
 
 interface TargetPlacement {
-  target: BuiltinTarget;
+  target: TargetName;
   options: LinkOptions;
 }
 
 function targetPlacements(receipt: InstallReceipt): TargetPlacement[] {
   if (receipt.operations.length > 0) {
     return receipt.operations.map((operation) => {
-      const target = operation.target as BuiltinTarget;
+      const target = operation.target;
       if (operation.scope !== undefined) {
         return {
           target,
@@ -97,7 +97,7 @@ function targetPlacements(receipt: InstallReceipt): TargetPlacement[] {
     });
   }
   return receipt.links.map((link) => ({
-    target: link.target as BuiltinTarget,
+    target: link.target,
     options: { root: targetRootFromLink(receipt, link) }
   }));
 }

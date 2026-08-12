@@ -307,6 +307,41 @@ npm run check
 
 `npm run check` 会执行 TypeScript 编译、全部 Node.js 测试、安装包冒烟测试和 `npm pack --dry-run`。
 
+## Target Adapter SDK
+
+Node.js/TypeScript 宿主可以通过公开 API 注册第三方 Agent Target。Adapter API v1 只接收 Receipt 与 Target Context，并返回一条声明式安装计划；
+实际写入、冲突检测、Receipt、doctor、relink、upgrade、dry-run 和回滚仍由 HarnessBrew transaction layer 负责。
+
+```ts
+import { registerTargetAdapter, type TargetAdapter } from "harnessbrew";
+
+const adapter: TargetAdapter = {
+  apiVersion: 1,
+  name: "cursor",
+  version: "1.0.0",
+  capabilities: {
+    skill: "symlink-directory",
+    agent: "symlink-file",
+    workflow: "symlink-file",
+    instruction: "symlink-file",
+    prompt: "symlink-file",
+    mcp: "unsupported",
+    adapter: "unsupported"
+  },
+  plan(receipt, context = {}) {
+    // Return one absolute destination and a source inside receipt.cellarPath.
+    return { target: "cursor", coordinate: receipt.coordinate, operations: [/* ... */] };
+  }
+};
+
+const unregister = registerTargetAdapter(adapter);
+```
+
+SDK 会校验 API 版本、名称、版本、完整能力矩阵、计划身份、绝对目标路径和 Cellar source 边界。v1 的第三方 Adapter 计划只允许
+`symlink-file`、`symlink-directory` 和 `unsupported`，不提供直接写文件或生成共享配置的操作。注册是显式、进程内操作；HarnessBrew 不会从 Tap
+自动执行 Adapter Formula 或任意 npm 模块。第三方 Adapter 本身是具有宿主进程权限的可信代码，只应加载经过审查的 npm 包。Harnessfile v2
+可以使用已注册 Target，并把第三方 Adapter 的名称和版本写入 lockfile 签名。
+
 ## 架构
 
 完整设计见 [docs/architecture.md](docs/architecture.md)。

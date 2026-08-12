@@ -10,13 +10,22 @@ export type { BuiltinTarget, LinkOptions, TargetScope, UnlinkOptions } from "./c
 export { targetCapabilities, targetCapability, targetOperationKinds } from "./core/target-capabilities.js";
 export type { TargetCapabilityMatrix, TargetOperationKind } from "./core/target-capabilities.js";
 export { planTargetInstall } from "./core/targets/planner.js";
-export { getTargetAdapter, TARGET_ADAPTER_VERSION } from "./core/targets/registry.js";
+export {
+  getTargetAdapter,
+  hasTargetAdapter,
+  listTargetAdapters,
+  registerTargetAdapter,
+  targetAdapterVersion,
+  TARGET_ADAPTER_VERSION
+} from "./core/targets/registry.js";
 export type {
   PlannedTargetOperation,
   TargetAdapter,
+  TargetName,
   TargetContext,
   TargetInstallPlan
 } from "./core/targets/types.js";
+export { TARGET_ADAPTER_API_VERSION } from "./core/targets/types.js";
 export { findOutdated, upgradeFormulas } from "./core/upgrades.js";
 export type { OutdatedFormula, UpgradeResult } from "./core/upgrades.js";
 export { doctor, relinkFormula } from "./core/doctor.js";

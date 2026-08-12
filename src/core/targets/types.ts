@@ -1,6 +1,9 @@
 import type { FormulaKind } from "../formulas.js";
 import type { InstallReceipt } from "../installations.js";
-import type { BuiltinTarget, TargetOperationKind } from "../target-capabilities.js";
+import type { TargetOperationKind } from "../target-capabilities.js";
+
+export const TARGET_ADAPTER_API_VERSION = 1 as const;
+export type TargetName = string;
 
 export type TargetScope = "user" | "project";
 
@@ -17,13 +20,15 @@ export interface PlannedTargetOperation {
 }
 
 export interface TargetInstallPlan {
-  target: BuiltinTarget;
+  target: TargetName;
   coordinate: string;
   operations: PlannedTargetOperation[];
 }
 
 export interface TargetAdapter {
-  readonly name: BuiltinTarget;
-  supports(kind: FormulaKind): boolean;
+  readonly apiVersion: typeof TARGET_ADAPTER_API_VERSION;
+  readonly name: TargetName;
+  readonly version: string;
+  readonly capabilities: Readonly<Record<FormulaKind, TargetOperationKind>>;
   plan(receipt: InstallReceipt, context?: TargetContext): TargetInstallPlan;
 }

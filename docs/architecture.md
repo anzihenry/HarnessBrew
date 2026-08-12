@@ -233,7 +233,7 @@ Workflow 与 Prompt Formula 通过 `render-skill` 统一投影为 `<target-skill
 
 MCP Formula 使用统一 JSON 描述 stdio 或 HTTP transport。凭据字段只能引用环境变量名称：stdio 使用 `envVars`，HTTP 使用 `bearerTokenEnvVar` 和 `headersFromEnv`，不允许 Formula 保存明文密钥。Codex Adapter 在 `config.toml` 中生成带坐标标记的 `[mcp_servers.<name>]` 区块；Claude Code Adapter 合并 `.claude.json` 或项目 `.mcp.json` 的 `mcpServers.<name>` 键。Receipt 保存区块/键所有权及值摘要，冲突键、拥有值篡改和无效配置都会中止操作，卸载只移除对应键或区块。
 
-Adapter Formula 在当前版本仅作为 Git/Cellar 资产保存，不允许投递到任何内置 Target。执行层必须根据能力矩阵返回明确的 `unsupported` 错误，不得退回通用目录或 `${kind}s` 路径。未来只有经过版本化插件接口加载的 Adapter 才能参与安装计划。
+Adapter Formula 在当前版本仅作为 Git/Cellar 资产保存，不允许投递到任何内置 Target。执行层必须根据能力矩阵返回明确的 `unsupported` 错误，不得退回通用目录或 `${kind}s` 路径。第三方 Target 通过宿主显式注册的版本化 Adapter SDK 参与安装计划；HarnessBrew 不从 Tap 自动执行 Adapter Formula。
 
 #### Target Scope 与实例标识
 
@@ -387,7 +387,13 @@ Agent 平台变化应与核心包管理能力解耦。Adapter 最终以插件形
 - `@harnessbrew/adapter-claude-code`
 - `@harnessbrew/adapter-cursor`
 
-插件接口应以“输入 formula、依赖闭包和 target 配置，输出确定性安装计划”为核心。插件不能绕过 transaction layer 直接修改任意文件。
+插件接口以“输入已安装 Receipt 和 Target Context，输出确定性安装计划”为核心。注册时校验 API/插件版本和完整 Formula 能力矩阵；
+每次计划校验 Target、坐标、策略、绝对 destination 以及 source 必须位于 Cellar。能力快照在注册后冻结，第三方 Adapter 的名称与版本进入
+Harnessfile v2 lock 的 Adapter 签名。
+
+Adapter API v1 是最小安全接口：第三方只可声明单个 `symlink-file` 或 `symlink-directory` 操作（或 `unsupported`），由核心 transaction layer
+执行、记账、诊断和回滚；渲染、受管区块和配置合并仍保留给内置 Adapter。SDK 不向插件提供写入回调，独立 CLI 也不会自动加载 Tap 或任意 npm 包
+中的 JavaScript。由于进程内插件本身拥有 Node.js 宿主权限，加载第三方 Adapter 必须是可信 TypeScript/Node.js 宿主对已审查代码的显式行为。
 
 ## 11. HarnessBrew 的边界
 

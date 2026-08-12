@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - add a versioned JSON CLI envelope with command-level results and structured errors
 - add transactional `--dry-run` previews that report path fingerprints and roll back all managed changes
+- add Target Adapter API v1 with validated registration, Cellar-bounded symlink plans, transaction-managed execution, and lockfile version fingerprints
 
 ### Security
 

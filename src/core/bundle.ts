@@ -13,9 +13,9 @@ import {
   type InstallReceipt
 } from "./installations.js";
 import { addTap, checkoutTap, listTaps, setTapTrust, updateTaps } from "./taps.js";
-import { builtinTargets, linkFormula, targetDestination, type BuiltinTarget, type LinkOptions } from "./targets.js";
+import { linkFormula, targetDestination, type LinkOptions, type TargetName } from "./targets.js";
 import { removeTargetOperation } from "./targets/transaction.js";
-import { TARGET_ADAPTER_VERSION } from "./targets/registry.js";
+import { hasTargetAdapter, targetAdapterVersion } from "./targets/registry.js";
 import { upgradeFormulas } from "./upgrades.js";
 import { captureMissingParents, captureTransactionPath, markTransactionPath, withJournalTransaction } from "./journal.js";
 
@@ -32,7 +32,7 @@ export interface HarnessAssetDeclaration {
 }
 
 export interface HarnessTargetDeclaration {
-  target: BuiltinTarget;
+  target: TargetName;
   scope: "user" | "project";
   project?: string;
   root?: string;
@@ -73,7 +73,7 @@ export interface HarnessLockV2 {
 export type HarnessLock = HarnessLockV1 | HarnessLockV2;
 
 export interface BundleOptions {
-  targetRoots?: Partial<Record<BuiltinTarget, string>>;
+  targetRoots?: Partial<Record<TargetName, string>>;
   updateLock?: boolean;
 }
 
@@ -94,7 +94,7 @@ function assertKeys(value: Record<string, unknown>, allowed: readonly string[], 
 function targetDeclaration(value: unknown, context: string): HarnessTargetDeclaration {
   if (!isRecord(value)) throw new HarnessBrewError(`Invalid Target declaration for ${context}`);
   assertKeys(value, ["target", "scope", "project", "root"], `Target declaration for ${context}`);
-  if (typeof value.target !== "string" || !builtinTargets.includes(value.target as BuiltinTarget)) {
+  if (typeof value.target !== "string" || !hasTargetAdapter(value.target)) {
     throw new HarnessBrewError(`Invalid Target in ${context}`);
   }
   if (value.scope !== "user" && value.scope !== "project") {
@@ -113,7 +113,7 @@ function targetDeclaration(value: unknown, context: string): HarnessTargetDeclar
     throw new HarnessBrewError(`Project Target must declare project in ${context}`);
   }
   return {
-    target: value.target as BuiltinTarget,
+    target: value.target,
     scope: value.scope,
     ...(value.project === undefined ? {} : { project: path.posix.normalize(value.project) }),
     ...(value.root === undefined ? {} : { root: path.posix.normalize(value.root) })
@@ -170,10 +170,10 @@ export async function readHarnessfile(filePath: string): Promise<Harnessfile> {
     }
     const targets = schemaVersion === 1
       ? declaredTargets.map((target): HarnessTargetDeclaration => {
-        if (typeof target !== "string" || !builtinTargets.includes(target as BuiltinTarget)) {
+        if (typeof target !== "string" || !hasTargetAdapter(target)) {
           throw new HarnessBrewError(`Invalid asset targets for ${formula}`);
         }
-        return { target: target as BuiltinTarget, scope: "user" };
+        return { target, scope: "user" };
       })
       : declaredTargets.map((target) => targetDeclaration(target, formula));
     if (new Set(targets.map(targetKey)).size !== targets.length) {
@@ -410,6 +410,9 @@ async function bundleInstallInternal(
   const targetLockPath = lockfilePath(harnessfilePath);
   const existingLock = await readLock(targetLockPath);
   const digest = manifestDigest(manifest);
+  const adapterVersion = targetAdapterVersion(
+    manifest.assets.flatMap((asset) => asset.targets.map((target) => target.target))
+  );
   if (options.updateLock !== true && existingLock !== undefined) {
     if (existingLock.schemaVersion !== manifest.schemaVersion) {
       throw new HarnessBrewError("Harnessfile and lockfile schema versions differ; use --update-lock.");
@@ -417,9 +420,9 @@ async function bundleInstallInternal(
     if (existingLock.schemaVersion === 2 && existingLock.manifestDigest !== digest) {
       throw new HarnessBrewError("Harnessfile changed since the lockfile was created; use --update-lock.");
     }
-    if (existingLock.schemaVersion === 2 && existingLock.adapterVersion !== TARGET_ADAPTER_VERSION) {
+    if (existingLock.schemaVersion === 2 && existingLock.adapterVersion !== adapterVersion) {
       throw new HarnessBrewError(
-        `Harnessfile lock requires adapter version ${existingLock.adapterVersion}; installed version is ${TARGET_ADAPTER_VERSION}. Use --update-lock.`
+        `Harnessfile lock requires adapter version ${existingLock.adapterVersion}; installed version is ${adapterVersion}. Use --update-lock.`
       );
     }
   }
@@ -469,7 +472,7 @@ async function bundleInstallInternal(
     : {
       schemaVersion: 2,
       manifestDigest: digest,
-      adapterVersion: TARGET_ADAPTER_VERSION,
+      adapterVersion,
       taps: lockedTaps,
       assets: resolved.map((receipt) => ({
         formula: receipt.coordinate,

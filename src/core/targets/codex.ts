@@ -55,8 +55,18 @@ function operation(receipt: InstallReceipt, context: TargetContext): PlannedTarg
 }
 
 export const codexAdapter: TargetAdapter = {
+  apiVersion: 1,
   name: "openai-codex",
-  supports: (kind) => targetCapability("openai-codex", kind) !== "unsupported",
+  version: "1",
+  capabilities: {
+    skill: targetCapability("openai-codex", "skill"),
+    agent: targetCapability("openai-codex", "agent"),
+    workflow: targetCapability("openai-codex", "workflow"),
+    instruction: targetCapability("openai-codex", "instruction"),
+    prompt: targetCapability("openai-codex", "prompt"),
+    mcp: targetCapability("openai-codex", "mcp"),
+    adapter: targetCapability("openai-codex", "adapter")
+  },
   plan(receipt, context = {}) {
     return {
       target: "openai-codex",

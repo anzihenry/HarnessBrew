@@ -50,8 +50,18 @@ function operation(receipt: InstallReceipt, context: TargetContext): PlannedTarg
 }
 
 export const claudeCodeAdapter: TargetAdapter = {
+  apiVersion: 1,
   name: "claude-code",
-  supports: (kind) => targetCapability("claude-code", kind) !== "unsupported",
+  version: "1",
+  capabilities: {
+    skill: targetCapability("claude-code", "skill"),
+    agent: targetCapability("claude-code", "agent"),
+    workflow: targetCapability("claude-code", "workflow"),
+    instruction: targetCapability("claude-code", "instruction"),
+    prompt: targetCapability("claude-code", "prompt"),
+    mcp: targetCapability("claude-code", "mcp"),
+    adapter: targetCapability("claude-code", "adapter")
+  },
   plan(receipt, context = {}) {
     return {
       target: "claude-code",

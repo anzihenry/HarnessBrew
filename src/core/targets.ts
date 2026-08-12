@@ -3,7 +3,6 @@ import { lstat, readFile, readlink, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
 import { HarnessBrewError } from "./errors.js";
-import type { FormulaKind } from "./formulas.js";
 import {
   installFormula,
   listInstalled,
@@ -14,17 +13,17 @@ import {
   type InstalledLink
 } from "./installations.js";
 import { parseCoordinate } from "./paths.js";
-import { builtinTargets, targetCapability, type BuiltinTarget } from "./target-capabilities.js";
+import { builtinTargets, type BuiltinTarget } from "./target-capabilities.js";
 import { executeTargetOperations, removeTargetOperation, verifyTargetOperation } from "./targets/transaction.js";
 import { planTargetInstall } from "./targets/planner.js";
 import { renderAgent, renderMcpConfig, renderSkillProjection } from "./targets/renderers.js";
-import type { TargetContext, TargetScope } from "./targets/types.js";
+import type { TargetContext, TargetName, TargetScope } from "./targets/types.js";
 import { captureTransactionPath, markTransactionPath } from "./journal.js";
 import { assertTapTrusted } from "./taps.js";
 
 export { builtinTargets } from "./target-capabilities.js";
 export type { BuiltinTarget } from "./target-capabilities.js";
-export type { TargetScope } from "./targets/types.js";
+export type { TargetName, TargetScope } from "./targets/types.js";
 
 export interface LinkOptions {
   root?: string;
@@ -47,16 +46,13 @@ function targetContext(options: LinkOptions): TargetContext {
 
 export function targetDestination(
   receipt: InstallReceipt,
-  target: BuiltinTarget,
+  target: TargetName,
   options: LinkOptions = {}
 ): string {
-  if (targetCapability(target, receipt.kind as FormulaKind) === "unsupported") {
-    throw new HarnessBrewError(`Formula kind ${receipt.kind} cannot be linked to target ${target}.`);
-  }
   const plan = planTargetInstall(receipt, target, targetContext(options));
   const operation = plan.operations[0];
   if (operation === undefined) throw new HarnessBrewError(`No target operation planned for ${receipt.coordinate}.`);
-  return receipt.kind === "workflow" || receipt.kind === "prompt"
+  return operation.strategy === "render-skill"
     ? path.join(operation.destination, "SKILL.md")
     : operation.destination;
 }
@@ -120,7 +116,7 @@ async function assertDestinationAvailable(
 export async function linkFormula(
   home: string,
   nameOrCoordinate: string,
-  target: BuiltinTarget,
+  target: TargetName,
   options: LinkOptions = {}
 ): Promise<InstallReceipt> {
   const installed = await listInstalled(home);
@@ -137,14 +133,20 @@ export async function linkFormula(
   if (!receipt.supportedTargets.includes(target)) {
     throw new HarnessBrewError(`Formula ${receipt.coordinate} does not support target ${target}.`);
   }
-  if (targetCapability(target, receipt.kind as FormulaKind) === "unsupported") {
-    throw new HarnessBrewError(
-      `Formula kind ${receipt.kind} cannot be linked to target ${target}; install it to the Cellar without --target.`
-    );
-  }
   if (receipt.kind === "skill") await validateSkillDirectory(receipt);
   const context = targetContext(options);
-  const destination = targetDestination(receipt, target, options);
+  const plan = planTargetInstall(receipt, target, context);
+  const planned = plan.operations[0];
+  if (planned === undefined) throw new HarnessBrewError(`No target operation planned for ${receipt.coordinate}.`);
+  if (!builtinTargets.includes(target as BuiltinTarget)
+    && planned.strategy !== "symlink-file" && planned.strategy !== "symlink-directory") {
+    throw new HarnessBrewError(
+      `Target Adapter API v1 only executes symlink-file and symlink-directory for third-party target ${target}.`
+    );
+  }
+  const destination = planned.strategy === "render-skill"
+    ? path.join(planned.destination, "SKILL.md")
+    : planned.destination;
   const existingOperation = receipt.operations.find((operation) => operation.target === target
     && operation.destination === destination);
   if (existingOperation !== undefined) {
@@ -156,18 +158,18 @@ export async function linkFormula(
     }
   }
 
-  const source = receipt.kind === "skill" ? receipt.cellarPath : path.join(receipt.cellarPath, receipt.entry);
-  const type = receipt.kind === "skill"
-    ? "symlink-directory"
-    : receipt.kind === "agent" || receipt.kind === "workflow" || receipt.kind === "prompt"
-      ? "render-file"
-      : receipt.kind === "instruction" && target === "openai-codex"
-        ? "managed-block"
-        : receipt.kind === "mcp"
-          ? "merge-config"
-        : "symlink-file";
+  const source = planned.source ?? (receipt.kind === "skill"
+    ? receipt.cellarPath
+    : path.join(receipt.cellarPath, receipt.entry));
+  const type = planned.strategy === "render-skill" ? "render-file" : planned.strategy;
+  if (type === "symlink-file" || type === "symlink-directory") {
+    const sourceMetadata = await lstat(source).catch(() => undefined);
+    const validSource = type === "symlink-file" ? sourceMetadata?.isFile() : sourceMetadata?.isDirectory();
+    if (validSource !== true) throw new HarnessBrewError(`Invalid ${type} source from Target Adapter ${target}: ${source}`);
+  }
   if (type !== "managed-block" && type !== "merge-config") await assertDestinationAvailable(home, receipt, destination);
-  const mcpConfig = receipt.kind === "mcp" ? await renderMcpConfig(receipt, target) : undefined;
+  const builtinTarget = target as BuiltinTarget;
+  const mcpConfig = receipt.kind === "mcp" ? await renderMcpConfig(receipt, builtinTarget) : undefined;
   const [operation] = await executeTargetOperations([{
     id: `${receipt.coordinate}:${target}:${destination}`,
     type,
@@ -177,7 +179,7 @@ export async function linkFormula(
     ...(context.projectRoot === undefined ? {} : { projectRoot: context.projectRoot }),
     ...(type === "render-file"
       ? { content: receipt.kind === "agent"
-        ? await renderAgent(receipt, target)
+        ? await renderAgent(receipt, builtinTarget)
         : await renderSkillProjection(receipt) }
       : type === "managed-block"
         ? { content: await readFile(source, "utf8"), marker: receipt.coordinate }
@@ -210,7 +212,7 @@ export async function linkFormula(
 export async function unlinkFormula(
   home: string,
   nameOrCoordinate: string,
-  target: BuiltinTarget,
+  target: TargetName,
   options: UnlinkOptions | boolean = {}
 ): Promise<InstallReceipt> {
   const resolvedOptions: UnlinkOptions = typeof options === "boolean" ? { force: options } : options;
@@ -270,7 +272,7 @@ export async function unlinkFormula(
 export async function installForTarget(
   home: string,
   nameOrCoordinate: string,
-  target: BuiltinTarget,
+  target: TargetName,
   options: LinkOptions = {}
 ): Promise<InstallReceipt[]> {
   const before = new Set((await listInstalled(home)).map((receipt) => receipt.coordinate));

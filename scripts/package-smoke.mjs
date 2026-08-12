@@ -46,6 +46,12 @@ try {
     shell: process.platform === "win32"
   });
   assert.equal(result.stdout.trim(), packageJson.version);
+  const apiResult = await execFileAsync(process.execPath, [
+    "--input-type=module",
+    "--eval",
+    'import { TARGET_ADAPTER_API_VERSION, registerTargetAdapter } from "harnessbrew"; console.log(`${TARGET_ADAPTER_API_VERSION}:${typeof registerTargetAdapter}`);'
+  ], { cwd: installRoot, encoding: "utf8" });
+  assert.equal(apiResult.stdout.trim(), "1:function");
   assert.equal(packageJson.devDependencies.typescript, "^7.0.2");
   console.log(`Package smoke test passed for harnessbrew@${packageJson.version}.`);
 } finally {

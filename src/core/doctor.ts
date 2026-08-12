@@ -11,8 +11,8 @@ import {
 import {
   linkFormula,
   targetDestination,
-  type BuiltinTarget,
-  type LinkOptions
+  type LinkOptions,
+  type TargetName
 } from "./targets.js";
 import { removeTargetOperation, verifyTargetOperation } from "./targets/transaction.js";
 import { assertTapTrusted } from "./taps.js";
@@ -35,7 +35,7 @@ export interface DoctorReport {
 }
 
 export interface RelinkOptions extends LinkOptions {
-  target?: BuiltinTarget;
+  target?: TargetName;
 }
 
 function matchingReceipts(receipts: InstallReceipt[], nameOrCoordinate?: string): InstallReceipt[] {
@@ -95,7 +95,7 @@ function placementSpecified(options: RelinkOptions): boolean {
 }
 
 function legacyLinkOptions(receipt: InstallReceipt, operation: InstalledOperation): LinkOptions {
-  const target = operation.target as BuiltinTarget;
+  const target = operation.target;
   if (receipt.kind === "workflow" || receipt.kind === "prompt") {
     return { root: path.dirname(path.dirname(path.dirname(operation.destination))) };
   }
@@ -175,7 +175,7 @@ export async function relinkFormula(
       current.targets = current.targets.filter((target) => target !== operation.target);
     }
     await writeReceipt(home, current);
-    current = await linkFormula(home, current.coordinate, operation.target as BuiltinTarget, linkOptions);
+    current = await linkFormula(home, current.coordinate, operation.target, linkOptions);
   }
   return current;
 }
