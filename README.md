@@ -48,7 +48,7 @@ HarnessBrew stores managed state in `~/.harnessbrew` by default. Set `HARNESSBRE
 Register an asset Tap:
 
 ```bash
-harnessbrew tap add xiejinheng/agents git@github.com:xiejinheng/agent-assets.git --trust
+harnessbrew tap add your-name/agents git@github.com:your-name/agent-assets.git --trust
 ```
 
 Search for and inspect Formulae:
@@ -56,13 +56,13 @@ Search for and inspect Formulae:
 ```bash
 harnessbrew search review
 harnessbrew search --kind skill --target openai-codex
-harnessbrew info xiejinheng/agents/code-review
+harnessbrew info your-name/agents/code-review
 ```
 
 Install into the Cellar and link into Codex:
 
 ```bash
-harnessbrew install xiejinheng/agents/code-review \
+harnessbrew install your-name/agents/code-review \
   --target openai-codex
 ```
 
@@ -134,7 +134,7 @@ The Formula directory name must match `name`, and its parent directory must matc
   "entry": "SKILL.md",
   "targets": ["openai-codex", "claude-code"],
   "dependencies": [
-    "xiejinheng/agents/repository-guardrails"
+    "your-name/agents/repository-guardrails"
   ],
   "conflicts": [],
   "tags": ["review", "quality"]
@@ -200,13 +200,13 @@ A `Harnessfile` can be committed to a dotfiles or project repository:
 ```yaml
 schemaVersion: 2
 taps:
-  - name: xiejinheng/agents
-    git: git@github.com:xiejinheng/agent-assets.git
+  - name: your-name/agents
+    git: git@github.com:your-name/agent-assets.git
     ref: main
     trust: true
 
 assets:
-  - formula: xiejinheng/agents/code-review
+  - formula: your-name/agents/code-review
     targets:
       - target: openai-codex
         scope: user

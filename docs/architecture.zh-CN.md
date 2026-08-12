@@ -85,7 +85,7 @@ my-agent-tap/
 
 Tap 标识采用 `<owner>/<name>`，例如：
 
-- `xiejinheng/agents`：个人资产
+- `your-name/agents`：个人资产
 - `company/engineering-agents`：团队资产
 - `community/workflows`：第三方资产
 
@@ -104,12 +104,12 @@ Formula 描述一个可安装资产，不承载 Git 已经提供的历史记录�
   "entry": "SKILL.md",
   "targets": ["openai-codex", "claude-code"],
   "dependencies": [
-    "xiejinheng/agents/repository-guardrails"
+    "your-name/agents/repository-guardrails"
   ]
 }
 ```
 
-完整资产坐标为 `<tap>/<formula>`，例如 `xiejinheng/agents/code-review`。若短名称能唯一解析，CLI 可以接受 `code-review`；出现歧义时必须要求完整坐标。
+完整资产坐标为 `<tap>/<formula>`，例如 `your-name/agents/code-review`。若短名称能唯一解析，CLI 可以接受 `code-review`；出现歧义时必须要求完整坐标。
 
 Formula 可以声明：
 
@@ -130,11 +130,11 @@ Cellar 保存解析后、按来源和版本隔离的安装实例。示意结构�
 ```text
 ~/.harnessbrew/
 ├── taps/
-│   └── xiejinheng/agents/       # Git 工作树或受管缓存
+│   └── your-name/agents/        # Git 工作树或受管缓存
 ├── cellar/
-│   └── xiejinheng/agents/code-review/<commit>/
+│   └── your-name/agents/code-review/<commit>/
 ├── receipts/
-│   └── xiejinheng/agents/code-review.json
+│   └── your-name/agents/code-review.json
 └── state.json
 ```
 
@@ -159,12 +159,12 @@ Receipt 是安全卸载和冲突检测的依据。HarnessBrew 不应删除 recei
 ```yaml
 schemaVersion: 2
 taps:
-  - name: xiejinheng/agents
-    git: git@github.com:xiejinheng/agent-assets.git
+  - name: your-name/agents
+    git: git@github.com:your-name/agent-assets.git
     trust: true
 
 assets:
-  - formula: xiejinheng/agents/code-review
+  - formula: your-name/agents/code-review
     targets:
       - target: openai-codex
         scope: user
@@ -254,7 +254,7 @@ Target 实例的身份由 `target + destination` 决定，而不是仅由 Target
 ### 6.1 注册资产源
 
 ```bash
-harnessbrew tap xiejinheng/agents git@github.com:xiejinheng/agent-assets.git
+harnessbrew tap your-name/agents git@github.com:your-name/agent-assets.git
 harnessbrew tap community/workflows https://github.com/community/agent-workflows.git
 ```
 
@@ -263,7 +263,7 @@ harnessbrew tap community/workflows https://github.com/community/agent-workflows
 ### 6.2 安装
 
 ```bash
-harnessbrew install xiejinheng/agents/code-review --target openai-codex
+harnessbrew install your-name/agents/code-review --target openai-codex
 ```
 
 流程：

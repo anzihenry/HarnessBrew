@@ -48,7 +48,7 @@ HarnessBrew 默认将受管状态保存到 `~/.harnessbrew`。测试或隔离环
 注册自己的资产 Tap：
 
 ```bash
-harnessbrew tap add xiejinheng/agents git@github.com:xiejinheng/agent-assets.git --trust
+harnessbrew tap add your-name/agents git@github.com:your-name/agent-assets.git --trust
 ```
 
 搜索并查看 Formula：
@@ -56,13 +56,13 @@ harnessbrew tap add xiejinheng/agents git@github.com:xiejinheng/agent-assets.git
 ```bash
 harnessbrew search review
 harnessbrew search --kind skill --target openai-codex
-harnessbrew info xiejinheng/agents/code-review
+harnessbrew info your-name/agents/code-review
 ```
 
 安装到 Cellar，并链接到 Codex：
 
 ```bash
-harnessbrew install xiejinheng/agents/code-review \
+harnessbrew install your-name/agents/code-review \
   --target openai-codex
 ```
 
@@ -134,7 +134,7 @@ Formula 的目录名称必须与 `name` 一致，目录类型必须与 `kind` �
   "entry": "SKILL.md",
   "targets": ["openai-codex", "claude-code"],
   "dependencies": [
-    "xiejinheng/agents/repository-guardrails"
+    "your-name/agents/repository-guardrails"
   ],
   "conflicts": [],
   "tags": ["review", "quality"]
@@ -197,13 +197,13 @@ harnessbrew unlink code-review --target openai-codex
 ```yaml
 schemaVersion: 2
 taps:
-  - name: xiejinheng/agents
-    git: git@github.com:xiejinheng/agent-assets.git
+  - name: your-name/agents
+    git: git@github.com:your-name/agent-assets.git
     ref: main
     trust: true
 
 assets:
-  - formula: xiejinheng/agents/code-review
+  - formula: your-name/agents/code-review
     targets:
       - target: openai-codex
         scope: user

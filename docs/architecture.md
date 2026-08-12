@@ -85,7 +85,7 @@ my-agent-tap/
 
 A Tap identifier uses `<owner>/<name>`, for example:
 
-- `xiejinheng/agents` for personal assets
+- `your-name/agents` for personal assets
 - `company/engineering-agents` for team assets
 - `community/workflows` for third-party assets
 
@@ -104,12 +104,12 @@ A Formula describes an installable asset without duplicating history already pro
   "entry": "SKILL.md",
   "targets": ["openai-codex", "claude-code"],
   "dependencies": [
-    "xiejinheng/agents/repository-guardrails"
+    "your-name/agents/repository-guardrails"
   ]
 }
 ```
 
-The full asset coordinate is `<tap>/<formula>`, such as `xiejinheng/agents/code-review`. The CLI may accept `code-review` when the short name resolves uniquely; ambiguity requires a full coordinate.
+The full asset coordinate is `<tap>/<formula>`, such as `your-name/agents/code-review`. The CLI may accept `code-review` when the short name resolves uniquely; ambiguity requires a full coordinate.
 
 A Formula may declare:
 
@@ -130,11 +130,11 @@ The Cellar stores resolved installation instances, isolated by source and versio
 ```text
 ~/.harnessbrew/
 ├── taps/
-│   └── xiejinheng/agents/       # Managed Git worktree or cache
+│   └── your-name/agents/        # Managed Git worktree or cache
 ├── cellar/
-│   └── xiejinheng/agents/code-review/<commit>/
+│   └── your-name/agents/code-review/<commit>/
 ├── receipts/
-│   └── xiejinheng/agents/code-review.json
+│   └── your-name/agents/code-review.json
 └── state.json
 ```
 
@@ -159,12 +159,12 @@ The `Harnessfile` declares the top-level assets a user wants installed and can b
 ```yaml
 schemaVersion: 2
 taps:
-  - name: xiejinheng/agents
-    git: git@github.com:xiejinheng/agent-assets.git
+  - name: your-name/agents
+    git: git@github.com:your-name/agent-assets.git
     trust: true
 
 assets:
-  - formula: xiejinheng/agents/code-review
+  - formula: your-name/agents/code-review
     targets:
       - target: openai-codex
         scope: user
@@ -252,7 +252,7 @@ A Target instance is identified by `target + destination`, not by Target name al
 ### 6.1 Registering an asset source
 
 ```bash
-harnessbrew tap xiejinheng/agents git@github.com:xiejinheng/agent-assets.git
+harnessbrew tap your-name/agents git@github.com:your-name/agent-assets.git
 harnessbrew tap community/workflows https://github.com/community/agent-workflows.git
 ```
 
@@ -261,7 +261,7 @@ The flow registers a URL, clones or fetches the Tap, validates `tap.json` and Fo
 ### 6.2 Installation
 
 ```bash
-harnessbrew install xiejinheng/agents/code-review --target openai-codex
+harnessbrew install your-name/agents/code-review --target openai-codex
 ```
 
 1. Resolve the name, ref, and Git commit.
