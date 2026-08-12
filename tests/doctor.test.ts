@@ -16,7 +16,7 @@ test("doctor classifies missing and modified targets and relink repairs them", a
   const repository = await createTapRepository(root);
   await addFormula(repository, "skills", "review");
   await addFormula(repository, "agents", "reviewer");
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
   await installForTarget(home, "review", "openai-codex", { root: targetRoot });
   await installForTarget(home, "reviewer", "openai-codex", { root: targetRoot });
   assert.equal((await doctor(home)).healthy, true);
@@ -35,13 +35,13 @@ test("doctor classifies missing and modified targets and relink repairs them", a
   assert.equal((await doctor(home)).healthy, true);
 });
 
-test("doctor reports Cellar modifications and relink refuses an untrusted source", async () => {
+test("doctor reports Cellar modifications and relink refuses a modified source", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-doctor-"));
   const home = path.join(root, "home");
   const targetRoot = path.join(root, ".claude");
   const repository = await createTapRepository(root);
   await addFormula(repository, "skills", "review", { targets: ["claude-code"] });
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
   const [receipt] = await installForTarget(home, "review", "claude-code", { root: targetRoot });
   assert.ok(receipt);
   await writeFile(path.join(receipt.cellarPath, "SKILL.md"), "tampered\n");

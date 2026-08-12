@@ -15,7 +15,7 @@ test("update and upgrade replace Cellar content while preserving target links", 
   const targetRoot = path.join(root, ".codex");
   const repository = await createTapRepository(root);
   await addFormula(repository, "skills", "code-review");
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
   const [original] = await installForTarget(home, "code-review", "openai-codex", { root: targetRoot });
   assert.ok(original);
 
@@ -44,7 +44,7 @@ test("agent upgrades regenerate target-native files", async () => {
   const targetRoot = path.join(root, ".codex");
   const repository = await createTapRepository(root);
   await addFormula(repository, "agents", "reviewer", { description: "Original reviewer" });
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
   await installForTarget(home, "reviewer", "openai-codex", { root: targetRoot });
 
   await addFormula(repository, "agents", "reviewer", { description: "Updated reviewer" });
@@ -63,7 +63,7 @@ test("instruction upgrades replace only their managed Codex block", async () => 
   const targetRoot = path.join(root, ".codex");
   const repository = await createTapRepository(root);
   await addFormula(repository, "instructions", "policies");
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
   await mkdir(targetRoot, { recursive: true });
   const destination = path.join(targetRoot, "AGENTS.md");
   await writeFile(destination, "# User preface\nKeep forever.\n");
@@ -85,7 +85,7 @@ test("workflow upgrades regenerate their projected skill", async () => {
   const targetRoot = path.join(root, ".claude");
   const repository = await createTapRepository(root);
   await addFormula(repository, "workflows", "release", { targets: ["claude-code"] });
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
   await installForTarget(home, "release", "claude-code", { root: targetRoot });
 
   await commitFile(repository, "workflows/release/content.md", "# release\nRun updated checks.\n");
@@ -105,7 +105,7 @@ test("MCP upgrades replace only the owned Claude config key", async () => {
   const repository = await createTapRepository(root);
   await addFormula(repository, "mcp", "docs", { targets: ["claude-code"] });
   await commitFile(repository, "mcp/docs/content.md", JSON.stringify({ command: "docs-v1", envVars: ["DOCS_TOKEN"] }));
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
   await mkdir(targetRoot, { recursive: true });
   const destination = path.join(targetRoot, ".mcp.json");
   await writeFile(destination, `${JSON.stringify({ userSetting: true }, null, 2)}\n`);
@@ -131,7 +131,7 @@ test("upgrades preserve multiple scopes for the same target", async () => {
   const projectRoot = path.join(root, "project");
   const repository = await createTapRepository(root);
   await addFormula(repository, "skills", "review");
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
   await installForTarget(home, "review", "openai-codex", { scope: "user", root: userRoot });
   await linkFormula(home, "review", "openai-codex", { scope: "project", projectRoot });
 

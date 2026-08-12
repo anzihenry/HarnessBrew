@@ -87,7 +87,7 @@ Tap 标识采用 `<owner>/<name>`，例如：
 - `company/engineering-agents`：团队资产
 - `community/workflows`：第三方资产
 
-`harnessbrew tap` 只注册 Git 来源；Tap 的 clone、fetch、checkout 和缓存由 HarnessBrew 管理。
+`harnessbrew tap` 只注册 Git 来源；Tap 的 clone、fetch、checkout 和缓存由 HarnessBrew 管理。新注册 Tap 默认处于不受信任状态，允许浏览 Formula 和安装到 Cellar，但不能激活到 Agent Target；用户需通过 `tap trust`、`tap add --trust` 或 Harnessfile v2 的 `trust: true` 明确授权。旧版本状态中没有信任字段的 Tap 仅为兼容而视为已信任。
 
 ### 5.2 Formula
 
@@ -159,6 +159,7 @@ schemaVersion: 2
 taps:
   - name: xiejinheng/agents
     git: git@github.com:xiejinheng/agent-assets.git
+    trust: true
 
 assets:
   - formula: xiejinheng/agents/code-review
@@ -170,7 +171,7 @@ assets:
         project: .
 ```
 
-Harnessfile v2 使用结构化 Target placement，并将相对 `project`/`root` 路径按 Harnessfile 所在目录解析。依赖继承顶层资产的 placement；
+Harnessfile v2 使用结构化 Target placement，并将相对 `project`/`root` 路径按 Harnessfile 所在目录解析。Tap 的 `trust` 也是声明式状态，省略时为 `false`；依赖继承顶层资产的 placement；
 `bundle install` 同时补齐缺失 placement 并移除不再声明的受管 placement。schema v1 的字符串 Target 数组继续按 user scope 兼容读取。
 
 Lockfile 由 HarnessBrew 生成并提交到 Git，记录：
@@ -255,7 +256,7 @@ harnessbrew tap xiejinheng/agents git@github.com:xiejinheng/agent-assets.git
 harnessbrew tap community/workflows https://github.com/community/agent-workflows.git
 ```
 
-流程：注册 URL、克隆或获取 Tap、校验 `tap.json` 和 formula、建立本地索引。
+流程：注册 URL、克隆或获取 Tap、校验 `tap.json` 和 formula、建立本地索引，并记录显式信任状态。默认注册不授予 Target 激活权限。
 
 ### 6.2 安装
 
@@ -283,7 +284,7 @@ harnessbrew outdated
 harnessbrew upgrade code-review
 ```
 
-- `update` 获取 Tap 的最新 Git 状态和索引，不直接修改已安装资产。
+- `update` 获取 Tap 的最新 Git 状态和索引，不直接修改已安装资产。默认只接受 fast-forward；历史重写必须显式使用 `--allow-rewind`。候选 checkout 或 Formula 校验失败时恢复全部已处理 Tap 的 checkout，且不提交状态变化。
 - `outdated` 比较已安装 commit、当前约束和可用版本。
 - `upgrade` 展示来源及内容差异，安装新版本，更新链接、receipt 和 lockfile。
 
@@ -364,6 +365,8 @@ HarnessBrew 使用以下优先级解析版本：
 ## 9. 安全和所有权边界
 
 - Tap 内容默认视为不受信任输入。
+- Tap 信任控制的是 Target 激活边界，不阻止只读发现或 Cellar 安装；撤销信任后仍允许 unlink/uninstall 等清理操作。
+- update 采用 fast-forward continuity，并在候选校验失败时回滚 checkout 与状态；`--allow-rewind` 是处理已人工确认历史重写的显式逃生口。
 - Formula 使用声明式数据格式，不默认加载 Tap 中的可执行代码。
 - 安装前展示将要写入的 target 和文件列表。
 - 安装 hook 必须声明能力并单独授权。

@@ -20,6 +20,7 @@ import { planTargetInstall } from "./targets/planner.js";
 import { renderAgent, renderMcpConfig, renderSkillProjection } from "./targets/renderers.js";
 import type { TargetContext, TargetScope } from "./targets/types.js";
 import { captureTransactionPath, markTransactionPath } from "./journal.js";
+import { assertTapTrusted } from "./taps.js";
 
 export { builtinTargets } from "./target-capabilities.js";
 export type { BuiltinTarget } from "./target-capabilities.js";
@@ -132,6 +133,7 @@ export async function linkFormula(
       : `Installed formula name is ambiguous: ${nameOrCoordinate}`);
   }
   const receipt = matches[0] as InstallReceipt;
+  await assertTapTrusted(home, receipt.tap);
   if (!receipt.supportedTargets.includes(target)) {
     throw new HarnessBrewError(`Formula ${receipt.coordinate} does not support target ${target}.`);
   }

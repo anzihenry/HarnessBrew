@@ -15,6 +15,7 @@ import { resolveReceiptPath } from "./paths.js";
 import { linkFormula, type BuiltinTarget, type LinkOptions } from "./targets.js";
 import { removeTargetOperation } from "./targets/transaction.js";
 import { captureTransactionPath, markTransactionPath } from "./journal.js";
+import { assertTapTrusted } from "./taps.js";
 
 export interface OutdatedFormula {
   coordinate: string;
@@ -112,6 +113,7 @@ async function restoreReceipt(home: string, receipt: InstallReceipt, placements:
 async function upgradeOne(home: string, receipt: InstallReceipt, formula: CatalogFormula): Promise<UpgradeResult> {
   await verifyReceiptIntegrity(receipt);
   const placements = targetPlacements(receipt);
+  if (placements.length > 0) await assertTapTrusted(home, receipt.tap);
 
   if (receipt.operations.length > 0) {
     for (const operation of [...receipt.operations].reverse()) await removeTargetOperation(operation, true);

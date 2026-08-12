@@ -13,7 +13,7 @@ import {
 import { findOutdated, upgradeFormulas } from "./core/upgrades.js";
 import { bundleCleanup, bundleInstall } from "./core/bundle.js";
 import { resolveHarnessHome } from "./core/paths.js";
-import { addTap, listTaps, removeTap, updateTaps } from "./core/taps.js";
+import { addTap, listTaps, removeTap, setTapTrust, updateTaps } from "./core/taps.js";
 import { VERSION } from "./version.js";
 import { doctor, relinkFormula } from "./core/doctor.js";
 import { withHomeLock } from "./core/locks.js";
@@ -43,7 +43,7 @@ Usage:
 Commands:
   help       Show this help
   version    Show the installed version
-  tap        Add, list, update, or remove Git taps
+  tap        Add, trust, list, update, or remove Git taps
   untap      Remove a Git tap
   search     Search formulas across registered taps
   info       Show formula metadata
@@ -100,23 +100,27 @@ async function runTapCommand(args: readonly string[], home: string, io: CliIO): 
 
   if (action === "list") {
     const taps = await listTaps(home);
-    taps.forEach((tap) => io.stdout(`${tap.name}\t${tap.commit.slice(0, 12)}\t${tap.url}`));
+    taps.forEach((tap) => io.stdout(`${tap.name}\t${tap.trusted ? "trusted" : "untrusted"}\t${tap.commit.slice(0, 12)}\t${tap.url}`));
     return 0;
   }
 
   if (action === "add") {
     const [name, url] = rest;
     if (name === undefined || url === undefined) {
-      throw new HarnessBrewError("Usage: harnessbrew tap add <owner/name> <git-url> [--ref <ref>]");
+      throw new HarnessBrewError("Usage: harnessbrew tap add <owner/name> <git-url> [--ref <ref>] [--trust]");
     }
     const ref = optionValue(rest, "--ref");
-    const record = await addTap(home, name, url, ref === undefined ? {} : { ref });
+    const record = await addTap(home, name, url, {
+      ...(ref === undefined ? {} : { ref }),
+      trust: rest.includes("--trust")
+    });
     io.stdout(`Tapped ${record.name} at ${record.commit.slice(0, 12)}.`);
     return 0;
   }
 
   if (action === "update") {
-    const updates = await updateTaps(home, rest[0]);
+    const requested = rest.find((value) => !value.startsWith("--"));
+    const updates = await updateTaps(home, requested, { allowRewind: rest.includes("--allow-rewind") });
     updates.forEach((update) => {
       io.stdout(update.changed
         ? `Updated ${update.name}: ${update.before.slice(0, 12)} -> ${update.after.slice(0, 12)}.`
@@ -130,6 +134,14 @@ async function runTapCommand(args: readonly string[], home: string, io: CliIO): 
     if (name === undefined) throw new HarnessBrewError("Usage: harnessbrew tap remove <owner/name>");
     await removeTap(home, name);
     io.stdout(`Untapped ${name}.`);
+    return 0;
+  }
+
+  if (action === "trust" || action === "untrust") {
+    const [name] = rest;
+    if (name === undefined) throw new HarnessBrewError(`Usage: harnessbrew tap ${action} <owner/name>`);
+    const record = await setTapTrust(home, name, action === "trust");
+    io.stdout(`${record.name} is now ${record.trusted ? "trusted" : "untrusted"}.`);
     return 0;
   }
 
@@ -155,7 +167,7 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
   }
 
   if (command === "update") {
-    const updates = await updateTaps(home);
+    const updates = await updateTaps(home, undefined, { allowRewind: args.includes("--allow-rewind") });
     updates.forEach((update) => io.stdout(update.changed
       ? `Updated ${update.name}: ${update.before.slice(0, 12)} -> ${update.after.slice(0, 12)}.`
       : `${update.name} is already up-to-date.`));

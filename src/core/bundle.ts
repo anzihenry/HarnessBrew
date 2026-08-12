@@ -12,7 +12,7 @@ import {
   writeReceipt,
   type InstallReceipt
 } from "./installations.js";
-import { addTap, checkoutTap, listTaps, updateTaps } from "./taps.js";
+import { addTap, checkoutTap, listTaps, setTapTrust, updateTaps } from "./taps.js";
 import { builtinTargets, linkFormula, targetDestination, type BuiltinTarget, type LinkOptions } from "./targets.js";
 import { removeTargetOperation } from "./targets/transaction.js";
 import { TARGET_ADAPTER_VERSION } from "./targets/registry.js";
@@ -23,6 +23,7 @@ export interface HarnessTapDeclaration {
   name: string;
   git: string;
   ref?: string;
+  trust?: boolean;
 }
 
 export interface HarnessAssetDeclaration {
@@ -142,12 +143,20 @@ export async function readHarnessfile(filePath: string): Promise<Harnessfile> {
     if (!isRecord(item) || typeof item.name !== "string" || typeof item.git !== "string") {
       throw new HarnessBrewError(`Invalid tap declaration in ${filePath}`);
     }
-    if (schemaVersion === 2) assertKeys(item, ["name", "git", "ref"], `Tap ${item.name}`);
+    if (schemaVersion === 2) assertKeys(item, ["name", "git", "ref", "trust"], `Tap ${item.name}`);
     if (item.git.trim() === "") throw new HarnessBrewError(`Invalid tap Git URL in ${filePath}`);
     if (item.ref !== undefined && (typeof item.ref !== "string" || item.ref.trim() === "")) {
       throw new HarnessBrewError(`Invalid tap ref in ${filePath}`);
     }
-    return { name: item.name, git: item.git, ...(item.ref === undefined ? {} : { ref: item.ref }) };
+    if (item.trust !== undefined && typeof item.trust !== "boolean") {
+      throw new HarnessBrewError(`Invalid tap trust policy in ${filePath}`);
+    }
+    return {
+      name: item.name,
+      git: item.git,
+      ...(item.ref === undefined ? {} : { ref: item.ref }),
+      ...(item.trust === undefined ? {} : { trust: item.trust })
+    };
   });
   const assets = raw.assets.map((item): HarnessAssetDeclaration => {
     if (!isRecord(item) || typeof item.formula !== "string") {
@@ -275,12 +284,18 @@ async function syncTaps(home: string, manifest: Harnessfile, lock: HarnessLock |
       throw new HarnessBrewError(`Lockfile Tap URL mismatch for ${declaration.name}`);
     }
     if (existing === undefined) {
-      await addTap(home, declaration.name, declaration.git, declaration.ref === undefined ? {} : { ref: declaration.ref });
+      await addTap(home, declaration.name, declaration.git, {
+        ...(declaration.ref === undefined ? {} : { ref: declaration.ref }),
+        trust: manifest.schemaVersion === 1 ? true : declaration.trust ?? false
+      });
     } else if (locked === undefined) {
       if (existing.ref !== declaration.ref) {
         throw new HarnessBrewError(`Tap ref mismatch for ${declaration.name}; remove and re-add the tap.`);
       }
       await updateTaps(home, declaration.name);
+    }
+    if (manifest.schemaVersion === 2) {
+      await setTapTrust(home, declaration.name, declaration.trust ?? false);
     }
     if (locked !== undefined) await checkoutTap(home, declaration.name, locked.commit);
   }

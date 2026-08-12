@@ -36,3 +36,19 @@ export async function resolveGitCommit(repositoryPath: string, ref?: string): Pr
 
   throw new HarnessBrewError(`Git ref not found: ${ref}`);
 }
+
+export async function isGitAncestor(repositoryPath: string, ancestor: string, descendant: string): Promise<boolean> {
+  try {
+    await execFileAsync("git", ["merge-base", "--is-ancestor", ancestor, descendant], {
+      cwd: repositoryPath,
+      encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024
+    });
+    return true;
+  } catch (error) {
+    const code = (error as { code?: number }).code;
+    if (code === 1) return false;
+    const failure = error as Error & { stderr?: string };
+    throw new HarnessBrewError(`Git command failed: ${failure.stderr?.trim() || failure.message}`);
+  }
+}

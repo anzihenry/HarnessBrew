@@ -56,7 +56,11 @@ test("tap commands expose the Git source lifecycle", async () => {
 
   assert.equal(await runCli(["tap", "add", "personal/agents", repository], output.io, { home }), 0);
   assert.equal(await runCli(["tap", "list"], output.io, { home }), 0);
-  assert.match(output.stdout.join("\n"), /personal\/agents/);
+  assert.match(output.stdout.join("\n"), /personal\/agents.*untrusted/u);
+  output.stdout.length = 0;
+  assert.equal(await runCli(["tap", "trust", "personal/agents"], output.io, { home }), 0);
+  assert.equal(await runCli(["tap", "list"], output.io, { home }), 0);
+  assert.match(output.stdout.join("\n"), /personal\/agents.*trusted/u);
   assert.equal(await runCli(["untap", "personal/agents"], output.io, { home }), 0);
 });
 
@@ -81,7 +85,7 @@ test("install, list, and uninstall manage Cellar receipts", async () => {
   await addFormula(repository, "skills", "code-review");
   const output = captureIO();
 
-  await runCli(["tap", "add", "personal/agents", repository], output.io, { home });
+  await runCli(["tap", "add", "personal/agents", repository, "--trust"], output.io, { home });
   assert.equal(await runCli(["install", "code-review"], output.io, { home }), 0);
   assert.equal(await runCli(["list"], output.io, { home }), 0);
   assert.match(output.stdout.join("\n"), /Installed personal\/agents\/code-review/);
@@ -95,7 +99,7 @@ test("update, outdated, and upgrade expose the Git release lifecycle", async () 
   await addFormula(repository, "skills", "code-review");
   const output = captureIO();
 
-  await runCli(["tap", "add", "personal/agents", repository], output.io, { home });
+  await runCli(["tap", "add", "personal/agents", repository, "--trust"], output.io, { home });
   await runCli(["install", "code-review"], output.io, { home });
   await addFormula(repository, "skills", "code-review", { description: "new review" });
   assert.equal(await runCli(["update"], output.io, { home }), 0);
@@ -131,7 +135,7 @@ test("link and unlink CLI commands select user or project scope", async () => {
   const repository = await createTapRepository(root);
   await addFormula(repository, "skills", "review");
   const output = captureIO();
-  await runCli(["tap", "add", "personal/agents", repository], output.io, { home });
+  await runCli(["tap", "add", "personal/agents", repository, "--trust"], output.io, { home });
 
   assert.equal(await runCli([
     "install", "review", "--target", "openai-codex", "--scope", "user", "--target-root", userRoot
@@ -158,7 +162,7 @@ test("doctor and relink CLI commands repair a missing target", async () => {
   const repository = await createTapRepository(root);
   await addFormula(repository, "skills", "review", { targets: ["claude-code"] });
   const output = captureIO();
-  await runCli(["tap", "add", "personal/agents", repository], output.io, { home });
+  await runCli(["tap", "add", "personal/agents", repository, "--trust"], output.io, { home });
   await runCli(["install", "review", "--target", "claude-code", "--target-root", targetRoot], output.io, { home });
   const destination = path.join(targetRoot, "skills", "review");
   await rm(destination);

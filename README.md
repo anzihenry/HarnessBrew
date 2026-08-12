@@ -41,7 +41,7 @@ HarnessBrew 默认将受管状态保存到 `~/.harnessbrew`。测试或隔离环
 注册自己的资产 Tap：
 
 ```bash
-harnessbrew tap add xiejinheng/agents git@github.com:xiejinheng/agent-assets.git
+harnessbrew tap add xiejinheng/agents git@github.com:xiejinheng/agent-assets.git --trust
 ```
 
 搜索并查看 Formula：
@@ -64,7 +64,7 @@ harnessbrew install xiejinheng/agents/code-review \
 更新和升级：
 
 ```bash
-harnessbrew update
+harnessbrew update [--allow-rewind]
 harnessbrew outdated
 harnessbrew upgrade code-review
 ```
@@ -192,6 +192,7 @@ taps:
   - name: xiejinheng/agents
     git: git@github.com:xiejinheng/agent-assets.git
     ref: main
+    trust: true
 
 assets:
   - formula: xiejinheng/agents/code-review
@@ -237,9 +238,11 @@ harnessbrew bundle install --file ./config/Harnessfile
 ## CLI
 
 ```text
-harnessbrew tap add <owner/name> <git-url> [--ref <ref>]
+harnessbrew tap add <owner/name> <git-url> [--ref <ref>] [--trust]
 harnessbrew tap list
-harnessbrew tap update [owner/name]
+harnessbrew tap update [owner/name] [--allow-rewind]
+harnessbrew tap trust <owner/name>
+harnessbrew tap untrust <owner/name>
 harnessbrew tap remove <owner/name>
 harnessbrew untap <owner/name>
 harnessbrew search [query] [--kind <kind>] [--target <target>]
@@ -273,6 +276,8 @@ Tap 工作树和 Cellar 内容都由 HarnessBrew 管理，不应直接编辑。�
 ## 安全边界
 
 - Formula 是声明式 JSON；HarnessBrew 不执行 Tap 中的任意脚本。
+- 新注册的 Tap 默认不受信任：可以搜索和安装到 Cellar，但必须通过 `tap trust`、`tap add --trust` 或 Harnessfile v2 的 `trust: true` 才能链接或渲染到 Agent Target。旧状态记录按兼容策略视为已信任。
+- Tap 更新默认只接受 Git fast-forward；仓库历史被重写时必须人工检查后使用 `--allow-rewind`。候选 commit 校验失败会恢复原 checkout 和状态。
 - Formula 入口不能逃逸所属目录。
 - 安装前会检查依赖、冲突和 target 兼容性。
 - HarnessBrew 不覆盖未由 Receipt 管理的目标文件。

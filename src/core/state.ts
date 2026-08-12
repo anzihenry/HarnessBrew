@@ -10,6 +10,8 @@ export interface TapRecord {
   commit: string;
   addedAt: string;
   updatedAt: string;
+  trusted: boolean;
+  trustedAt?: string;
   ref?: string;
 }
 
@@ -51,7 +53,21 @@ export async function readState(home: string): Promise<HarnessState> {
     throw new HarnessBrewError(`Unsupported HarnessBrew state file: ${statePath}`);
   }
 
-  return parsed as HarnessState;
+  const state = parsed as HarnessState;
+  for (const [name, candidate] of Object.entries(state.taps)) {
+    if (typeof candidate !== "object" || candidate === null || candidate.name !== name
+      || typeof candidate.url !== "string" || typeof candidate.commit !== "string") {
+      throw new HarnessBrewError(`Unsupported HarnessBrew state file: ${statePath}`);
+    }
+    if (candidate.trusted === undefined) candidate.trusted = true;
+    else if (typeof candidate.trusted !== "boolean") {
+      throw new HarnessBrewError(`Unsupported HarnessBrew state file: ${statePath}`);
+    }
+    if (candidate.trustedAt !== undefined && typeof candidate.trustedAt !== "string") {
+      throw new HarnessBrewError(`Unsupported HarnessBrew state file: ${statePath}`);
+    }
+  }
+  return state;
 }
 
 export async function writeState(home: string, state: HarnessState): Promise<void> {

@@ -78,6 +78,7 @@ test("Harnessfile v2 reproduces structured user and project placements with cont
 taps:
   - name: personal/agents
     git: ${JSON.stringify(repository)}
+    trust: true
 assets:
   - formula: personal/agents/code-review
     targets:
@@ -135,6 +136,7 @@ test("Harnessfile v2 requires explicit lock refresh and converges removed placem
 taps:
   - name: personal/agents
     git: ${JSON.stringify(repository)}
+    trust: true
 assets:
   - formula: personal/agents/review
     targets:
@@ -162,11 +164,15 @@ test("Harnessfile v2 rejects unknown fields and invalid or duplicate placements"
   const harnessfile = path.join(root, "Harnessfile");
   const invalid = [
     `schemaVersion: 2\ntaps: []\nassets: []\nunknown: true\n`,
+    `schemaVersion: 2\ntaps:\n  - name: personal/agents\n    git: https://example.test/agents.git\n    trust: yes\nassets: []\n`,
     `schemaVersion: 2\ntaps: []\nassets:\n  - formula: personal/agents/review\n    targets:\n      - target: openai-codex\n        scope: project\n`,
     `schemaVersion: 2\ntaps: []\nassets:\n  - formula: personal/agents/review\n    targets:\n      - &target\n        target: openai-codex\n        scope: user\n      - *target\n`
   ];
   for (const content of invalid) {
     await writeFile(harnessfile, content);
-    await assert.rejects(readHarnessfile(harnessfile), /Unknown Harnessfile field|must declare project|duplicate Target/u);
+    await assert.rejects(
+      readHarnessfile(harnessfile),
+      /Unknown Harnessfile field|Invalid tap trust policy|must declare project|duplicate Target/u
+    );
   }
 });

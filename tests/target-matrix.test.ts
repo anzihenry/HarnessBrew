@@ -92,7 +92,7 @@ test("formula x target x scope matrix installs, verifies, and unlinks every supp
   await addFormula(repository, "adapters", "adapter-matrix", {
     targets: ["openai-codex", "claude-code"]
   });
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
 
   const targets: BuiltinTarget[] = ["openai-codex", "claude-code"];
   const scopes: TargetScope[] = ["user", "project"];

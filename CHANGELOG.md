@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 - serialize CLI mutations per HarnessBrew home and protect shared Target configuration updates across processes
 - recover interrupted mutations from durable write-ahead journals, including abandoned process locks and external Target files
 - add Harnessfile and lockfile v2 with structured scopes, portable paths, content digests, explicit lock refresh, and Target convergence
+- require explicit Tap trust before Target activation, enforce fast-forward updates by default, and roll back invalid Tap candidates
 
 ## 0.5.2 - 2026-08-13
 

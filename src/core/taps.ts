@@ -1,7 +1,7 @@
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { HarnessBrewError } from "./errors.js";
-import { resolveGitCommit, runGit } from "./git.js";
+import { isGitAncestor, resolveGitCommit, runGit } from "./git.js";
 import { validateTapRepository } from "./formulas.js";
 import { assertTapName, resolveTapPath } from "./paths.js";
 import { readState, type TapRecord, writeState } from "./state.js";
@@ -9,6 +9,11 @@ import { captureMissingParents, captureTransactionPath } from "./journal.js";
 
 export interface AddTapOptions {
   ref?: string;
+  trust?: boolean;
+}
+
+export interface UpdateTapOptions {
+  allowRewind?: boolean;
 }
 
 export interface TapUpdate {
@@ -56,6 +61,8 @@ export async function addTap(
       commit,
       addedAt: timestamp,
       updatedAt: timestamp,
+      trusted: options.trust ?? false,
+      ...(options.trust === true ? { trustedAt: timestamp } : {}),
       ...(options.ref === undefined ? {} : { ref: options.ref })
     };
     state.taps[name] = record;
@@ -67,7 +74,11 @@ export async function addTap(
   }
 }
 
-export async function updateTaps(home: string, requestedName?: string): Promise<TapUpdate[]> {
+export async function updateTaps(
+  home: string,
+  requestedName?: string,
+  options: UpdateTapOptions = {}
+): Promise<TapUpdate[]> {
   if (requestedName !== undefined) {
     assertTapName(requestedName);
   }
@@ -81,21 +92,61 @@ export async function updateTaps(home: string, requestedName?: string): Promise<
   }
 
   const updates: TapUpdate[] = [];
-  for (const record of records.sort((left, right) => left.name.localeCompare(right.name))) {
-    const repositoryPath = resolveTapPath(home, record.name);
-    await captureTransactionPath(repositoryPath);
-    await runGit(["fetch", "--quiet", "--prune", "--tags", "origin"], repositoryPath);
-    const commit = await resolveGitCommit(repositoryPath, record.ref);
-    await runGit(["checkout", "--quiet", "--detach", commit], repositoryPath);
-    await validateTapRepository(repositoryPath);
-    const before = record.commit;
-    record.commit = commit;
-    record.updatedAt = new Date().toISOString();
-    updates.push({ name: record.name, before, after: commit, changed: before !== commit });
+  const applied: Array<{ record: TapRecord; before: string; updatedAt: string }> = [];
+  try {
+    for (const record of records.sort((left, right) => left.name.localeCompare(right.name))) {
+      const repositoryPath = resolveTapPath(home, record.name);
+      await captureTransactionPath(repositoryPath);
+      await runGit(["fetch", "--quiet", "--prune", "--tags", "origin"], repositoryPath);
+      const commit = await resolveGitCommit(repositoryPath, record.ref);
+      const before = record.commit;
+      if (commit !== before && options.allowRewind !== true && !await isGitAncestor(repositoryPath, before, commit)) {
+        throw new HarnessBrewError(
+          `Tap update is not a fast-forward: ${record.name} ${before.slice(0, 12)} -> ${commit.slice(0, 12)}. Use --allow-rewind.`
+        );
+      }
+      try {
+        await runGit(["checkout", "--quiet", "--detach", commit], repositoryPath);
+        await validateTapRepository(repositoryPath);
+      } catch (error) {
+        await runGit(["checkout", "--quiet", "--detach", before], repositoryPath).catch(() => undefined);
+        throw error;
+      }
+      applied.push({ record, before, updatedAt: record.updatedAt });
+      record.commit = commit;
+      record.updatedAt = new Date().toISOString();
+      updates.push({ name: record.name, before, after: commit, changed: before !== commit });
+    }
+    await writeState(home, state);
+    return updates;
+  } catch (error) {
+    for (const item of applied.reverse()) {
+      await runGit(["checkout", "--quiet", "--detach", item.before], resolveTapPath(home, item.record.name)).catch(() => undefined);
+      item.record.commit = item.before;
+      item.record.updatedAt = item.updatedAt;
+    }
+    throw error;
   }
+}
 
+export async function setTapTrust(home: string, name: string, trusted: boolean): Promise<TapRecord> {
+  assertTapName(name);
+  const state = await readState(home);
+  const record = state.taps[name];
+  if (record === undefined) throw new HarnessBrewError(`Tap not found: ${name}`);
+  record.trusted = trusted;
+  if (trusted) record.trustedAt = new Date().toISOString();
+  else delete record.trustedAt;
   await writeState(home, state);
-  return updates;
+  return record;
+}
+
+export async function assertTapTrusted(home: string, name: string): Promise<void> {
+  const record = (await readState(home)).taps[name];
+  if (record === undefined) throw new HarnessBrewError(`Tap not found: ${name}`);
+  if (!record.trusted) {
+    throw new HarnessBrewError(`Tap is not trusted for Target activation: ${name}. Run harnessbrew tap trust ${name}.`);
+  }
 }
 
 export async function removeTap(home: string, name: string): Promise<TapRecord> {
@@ -124,8 +175,13 @@ export async function checkoutTap(home: string, name: string, commit: string): P
   await captureTransactionPath(repositoryPath);
   await runGit(["fetch", "--quiet", "--prune", "--tags", "origin"], repositoryPath);
   const resolved = await resolveGitCommit(repositoryPath, commit);
-  await runGit(["checkout", "--quiet", "--detach", resolved], repositoryPath);
-  await validateTapRepository(repositoryPath);
+  try {
+    await runGit(["checkout", "--quiet", "--detach", resolved], repositoryPath);
+    await validateTapRepository(repositoryPath);
+  } catch (error) {
+    await runGit(["checkout", "--quiet", "--detach", record.commit], repositoryPath).catch(() => undefined);
+    throw error;
+  }
   record.commit = resolved;
   record.updatedAt = new Date().toISOString();
   await writeState(home, state);

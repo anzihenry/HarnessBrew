@@ -4,9 +4,25 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { installFormula, listInstalled, uninstallFormula } from "../src/core/installations.js";
-import { addTap } from "../src/core/taps.js";
+import { addTap, setTapTrust } from "../src/core/taps.js";
 import { installForTarget, linkFormula, unlinkFormula } from "../src/core/targets.js";
 import { addFormula, createTapRepository, git } from "./helpers/git.js";
+
+test("untrusted taps can populate the Cellar but cannot activate Targets", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
+  const home = path.join(root, "home");
+  const targetRoot = path.join(root, ".codex");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "skills", "review");
+  const tap = await addTap(home, "personal/agents", repository);
+  assert.equal(tap.trusted, false);
+  await installFormula(home, "review");
+
+  await assert.rejects(linkFormula(home, "review", "openai-codex", { root: targetRoot }), /Tap is not trusted/u);
+  await setTapTrust(home, "personal/agents", true);
+  const linked = await linkFormula(home, "review", "openai-codex", { root: targetRoot });
+  assert.equal(linked.operations.length, 1);
+});
 
 test("Codex adapter links skill entries and uninstall removes owned links", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
@@ -17,7 +33,7 @@ test("Codex adapter links skill entries and uninstall removes owned links", asyn
   await writeFile(path.join(repository, "skills", "code-review", "reference.md"), "reference material\n");
   await git(repository, "add", "skills/code-review/reference.md");
   await git(repository, "commit", "-m", "add skill reference");
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
 
   const [receipt] = await installForTarget(home, "code-review", "openai-codex", { root: targetRoot });
   assert.ok(receipt);
@@ -38,7 +54,7 @@ test("workflow and prompt formulas project to target-native skills", async () =>
   const repository = await createTapRepository(root);
   await addFormula(repository, "workflows", "release", { targets: ["claude-code"] });
   await addFormula(repository, "prompts", "summarize", { targets: ["openai-codex"] });
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
 
   await installForTarget(home, "release", "claude-code", { root: claudeRoot });
   await installForTarget(home, "summarize", "openai-codex", { root: codexRoot });
@@ -60,7 +76,7 @@ test("Claude adapter links complete skill directories", async () => {
   await writeFile(path.join(repository, "skills", "review", "scripts", "check.sh"), "echo checked\n");
   await git(repository, "add", "skills/review");
   await git(repository, "commit", "-m", "complete review skill");
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
 
   await installForTarget(home, "review", "claude-code", { root: targetRoot });
   const destination = path.join(targetRoot, "skills", "review");
@@ -77,7 +93,7 @@ test("skill linking validates the canonical SKILL.md metadata", async () => {
   await writeFile(path.join(repository, "skills", "invalid-skill", "SKILL.md"), "# Missing frontmatter\n");
   await git(repository, "add", "skills/invalid-skill/SKILL.md");
   await git(repository, "commit", "-m", "break skill metadata");
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
   await installFormula(home, "invalid-skill");
 
   await assert.rejects(
@@ -96,7 +112,7 @@ test("agent formulas render native Codex TOML and Claude Code Markdown", async (
     description: "Reviews risky changes",
     targets: ["openai-codex", "claude-code"]
   });
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
 
   await installForTarget(home, "reviewer", "openai-codex", { root: codexRoot });
   await linkFormula(home, "reviewer", "claude-code", { root: claudeRoot });
@@ -123,7 +139,7 @@ test("instructions use Codex managed blocks and Claude Code rule links", async (
   await addFormula(repository, "instructions", "style", {
     targets: ["openai-codex"]
   });
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
   await mkdir(codexRoot, { recursive: true });
   const agentsFile = path.join(codexRoot, "AGENTS.md");
   await writeFile(agentsFile, "# User-owned instructions\nPreserve this.\n");
@@ -179,7 +195,7 @@ test("MCP formulas merge owned config while preserving user settings", async () 
   }));
   await git(repository, "add", "mcp/unsafe/content.md");
   await git(repository, "commit", "-m", "define unsafe mcp");
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
   await mkdir(codexRoot, { recursive: true });
   await mkdir(claudeRoot, { recursive: true });
   const codexConfig = path.join(codexRoot, "config.toml");
@@ -223,7 +239,7 @@ test("linking rejects unowned target files and uninstall detects link replacemen
   const targetRoot = path.join(root, ".codex");
   const repository = await createTapRepository(root);
   await addFormula(repository, "skills", "code-review");
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
   await installFormula(home, "code-review");
 
   const destination = path.join(targetRoot, "skills", "code-review");
@@ -247,7 +263,7 @@ test("adapter formulas install to the Cellar but cannot link to Agent targets", 
   await addFormula(repository, "adapters", "custom-target", {
     targets: ["openai-codex", "claude-code"]
   });
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
 
   const [receipt] = await installFormula(home, "custom-target");
   assert.equal(receipt?.kind, "adapter");
@@ -270,7 +286,7 @@ test("one formula can link to user and project scopes independently", async () =
   const projectRoot = path.join(root, "project");
   const repository = await createTapRepository(root);
   await addFormula(repository, "skills", "review");
-  await addTap(home, "personal/agents", repository);
+  await addTap(home, "personal/agents", repository, { trust: true });
   await installFormula(home, "review");
 
   await linkFormula(home, "review", "openai-codex", { scope: "user", root: userRoot });

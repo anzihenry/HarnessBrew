@@ -1,5 +1,6 @@
 export { runCli, type CliIO, type CliOptions } from "./cli.js";
-export { addTap, listTaps, removeTap, updateTaps } from "./core/taps.js";
+export { addTap, assertTapTrusted, listTaps, removeTap, setTapTrust, updateTaps } from "./core/taps.js";
+export type { AddTapOptions, TapUpdate, UpdateTapOptions } from "./core/taps.js";
 export { getFormula, loadCatalog, searchFormulas, validateTapRepository } from "./core/formulas.js";
 export type { CatalogFormula, Formula, FormulaKind, FormulaSearchOptions } from "./core/formulas.js";
 export { installFormula, listInstalled, readReceipt, resolveDependencies, uninstallFormula } from "./core/installations.js";

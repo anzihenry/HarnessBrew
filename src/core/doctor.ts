@@ -15,6 +15,7 @@ import {
   type LinkOptions
 } from "./targets.js";
 import { removeTargetOperation, verifyTargetOperation } from "./targets/transaction.js";
+import { assertTapTrusted } from "./taps.js";
 
 export type DoctorFindingKind = "cellar-modified" | "target-missing" | "target-modified";
 
@@ -160,6 +161,7 @@ export async function relinkFormula(
   const [receipt] = matchingReceipts(await listInstalled(home), nameOrCoordinate);
   if (receipt === undefined) throw new HarnessBrewError(`Formula is not installed: ${nameOrCoordinate}`);
   await verifyCellarIntegrity(receipt);
+  await assertTapTrusted(home, receipt.tap);
   const selected = selectedOperations(receipt, options);
   if (selected.length === 0) throw new HarnessBrewError(`Formula has no target installations: ${receipt.coordinate}`);
   let current = receipt;
