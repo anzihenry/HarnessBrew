@@ -170,6 +170,8 @@ harnessbrew unlink code-review --target openai-codex --scope project --project /
 
 项目级 Codex 资产使用项目中的 `.agents/skills`、`.codex/agents`、根 `AGENTS.md` 和 `.codex/config.toml`；Claude Code 使用 `.claude/skills`、`.claude/agents`、`.claude/rules` 和根 `.mcp.json`。当同一 Target 有多个实例时，unlink 必须指定 scope。
 
+`harnessbrew doctor [formula]` 会校验 Cellar 文件摘要和每条 Target operation，区分目标缺失与被修改；`harnessbrew relink <formula>` 会在 Cellar 完整的前提下，按 Receipt 记录的 scope/root 强制重建 HarnessBrew 拥有的目标。可用 `--target`、`--scope` 和 `--project` 只修复一个实例。
+
 也可以单独管理链接：
 
 ```bash
@@ -229,6 +231,8 @@ harnessbrew install <formula> [--target <target>] [--scope <user|project>] [--pr
 harnessbrew list
 harnessbrew link <formula> --target <target> [--scope <user|project>] [--project <path>] [--target-root <path>]
 harnessbrew unlink <formula> --target <target> [--scope <user|project>] [--project <path>] [--force]
+harnessbrew doctor [formula]
+harnessbrew relink <formula> [--target <target>] [--scope <user|project>] [--project <path>]
 harnessbrew update
 harnessbrew outdated
 harnessbrew upgrade [formula]

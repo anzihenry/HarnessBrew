@@ -15,6 +15,7 @@ import { bundleCleanup, bundleInstall } from "./core/bundle.js";
 import { resolveHarnessHome } from "./core/paths.js";
 import { addTap, listTaps, removeTap, updateTaps } from "./core/taps.js";
 import { VERSION } from "./version.js";
+import { doctor, relinkFormula } from "./core/doctor.js";
 
 export interface CliIO {
   stdout: (message: string) => void;
@@ -49,6 +50,8 @@ Commands:
   uninstall  Safely uninstall a formula
   link       Link an installed formula to an Agent target
   unlink     Remove a managed target link
+  doctor     Check Cellar and Target integrity
+  relink     Rebuild managed Target installations
   update     Fetch all registered taps
   outdated   List installed formulas with available changes
   upgrade    Upgrade formulas while preserving target links
@@ -84,6 +87,10 @@ function targetOptions(args: readonly string[]): LinkOptions {
     ...(targetRoot === undefined ? {} : { root: targetRoot }),
     ...(scope === "project" ? { projectRoot: path.resolve(projectValue ?? process.cwd()) } : {})
   };
+}
+
+function hasTargetPlacementOptions(args: readonly string[]): boolean {
+  return args.includes("--scope") || args.includes("--project") || args.includes("--target-root");
 }
 
 async function runTapCommand(args: readonly string[], home: string, io: CliIO): Promise<number> {
@@ -239,11 +246,42 @@ async function execute(args: readonly string[], io: CliIO, options: CliOptions):
       io.stdout(`Linked ${name} to ${targetValue}.`);
     } else {
       await unlinkFormula(home, name, targetValue as BuiltinTarget, {
-        ...targetOptions(args),
+        ...(hasTargetPlacementOptions(args) ? targetOptions(args) : {}),
         force: args.includes("--force")
       });
       io.stdout(`Unlinked ${name} from ${targetValue}.`);
     }
+    return 0;
+  }
+
+  if (command === "doctor") {
+    const name = args[1]?.startsWith("--") === true ? undefined : args[1];
+    const report = await doctor(home, name);
+    if (report.healthy) {
+      io.stdout(`Doctor found no issues across ${report.checked} formula(s).`);
+      return 0;
+    }
+    report.findings.forEach((finding) => io.stderr([
+      finding.coordinate,
+      finding.kind,
+      finding.target,
+      finding.destination
+    ].filter((value) => value !== undefined).join("\t")));
+    return 1;
+  }
+
+  if (command === "relink") {
+    const name = args[1];
+    if (name === undefined) throw new HarnessBrewError("Usage: harnessbrew relink <formula> [--target <target>]");
+    const targetValue = optionValue(args, "--target");
+    if (targetValue !== undefined && !builtinTargets.includes(targetValue as BuiltinTarget)) {
+      throw new HarnessBrewError(`Unsupported built-in target: ${targetValue}`);
+    }
+    await relinkFormula(home, name, {
+      ...(hasTargetPlacementOptions(args) ? targetOptions(args) : {}),
+      ...(targetValue === undefined ? {} : { target: targetValue as BuiltinTarget })
+    });
+    io.stdout(`Relinked ${name}${targetValue === undefined ? "" : ` to ${targetValue}`}.`);
     return 0;
   }
 

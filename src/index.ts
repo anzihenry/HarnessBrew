@@ -18,6 +18,8 @@ export type {
 } from "./core/targets/types.js";
 export { findOutdated, upgradeFormulas } from "./core/upgrades.js";
 export type { OutdatedFormula, UpgradeResult } from "./core/upgrades.js";
+export { doctor, relinkFormula } from "./core/doctor.js";
+export type { DoctorFinding, DoctorFindingKind, DoctorReport, RelinkOptions } from "./core/doctor.js";
 export { bundleCleanup, bundleInstall, lockfilePath, readHarnessfile } from "./core/bundle.js";
 export type {
   BundleCleanupResult,

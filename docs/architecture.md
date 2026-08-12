@@ -228,6 +228,12 @@ Target Context 明确区分 `user` 和 `project` scope。project scope 必须带
 
 Target 实例的身份由 `target + destination` 决定，而不是仅由 Target 名称决定。Receipt 的每条 operation 记录 scope、显式 root 和 project root，因此同一 Formula 可以同时投递到 user/project，upgrade 会逐实例重建，unlink 只删除所选实例。如果调用方未指定 scope 且只有一个实例，为兼容旧 API 可以自动选择；存在多个实例时必须拒绝歧义操作。
 
+#### Doctor 与 Relink
+
+`doctor` 对每个 Receipt 分别校验 Cellar inventory 和 Target operation：Cellar 摘要不匹配报告 `cellar-modified`，目标不存在报告 `target-missing`，所有权标记、软链目标或渲染摘要不匹配报告 `target-modified`。诊断是只读操作，并可限定到单个 Formula。
+
+`relink` 是显式修复操作。它首先要求 Cellar inventory 完整，再根据 Receipt 保存的 scope/root 移除损坏的 HarnessBrew operation 并重新执行 Adapter 计划；共享配置仍只处理拥有的区块或键。调用方可以限定 Target 和 scope；多实例但选择条件不充分时必须拒绝执行。
+
 ## 6. 主要生命周期
 
 ### 6.1 注册资产源

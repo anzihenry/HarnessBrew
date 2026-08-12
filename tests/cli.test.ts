@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { runCli } from "../src/cli.js";
-import { lstat, mkdtemp, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { addFormula, createTapRepository } from "./helpers/git.js";
@@ -149,4 +149,25 @@ test("link and unlink CLI commands select user or project scope", async () => {
   ], output.io, { home }), 0);
   await assert.rejects(lstat(projectDestination), /ENOENT/);
   assert.equal((await lstat(userDestination)).isSymbolicLink(), true);
+});
+
+test("doctor and relink CLI commands repair a missing target", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-cli-"));
+  const home = path.join(root, "home");
+  const targetRoot = path.join(root, ".claude");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "skills", "review", { targets: ["claude-code"] });
+  const output = captureIO();
+  await runCli(["tap", "add", "personal/agents", repository], output.io, { home });
+  await runCli(["install", "review", "--target", "claude-code", "--target-root", targetRoot], output.io, { home });
+  const destination = path.join(targetRoot, "skills", "review");
+  await rm(destination);
+
+  assert.equal(await runCli(["doctor", "review"], output.io, { home }), 1);
+  assert.match(output.stderr.join("\n"), /target-missing/u);
+  assert.equal(await runCli([
+    "relink", "review", "--target", "claude-code", "--target-root", targetRoot
+  ], output.io, { home }), 0);
+  assert.equal((await lstat(destination)).isSymbolicLink(), true);
+  assert.equal(await runCli(["doctor", "review"], output.io, { home }), 0);
 });

@@ -295,6 +295,10 @@ async function verifyReceiptFiles(receipt: InstallReceipt): Promise<void> {
   }
 }
 
+export async function verifyCellarIntegrity(receipt: InstallReceipt): Promise<void> {
+  await verifyReceiptFiles(receipt);
+}
+
 async function verifyReceiptLinks(receipt: InstallReceipt): Promise<void> {
   if (receipt.operations.length > 0) {
     const { verifyTargetOperation } = await import("./targets/transaction.js");
