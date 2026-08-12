@@ -48,6 +48,48 @@ test("unknown commands fail with a useful error", async () => {
   assert.match(output.stderr.join("\n"), /Unknown command: missing/);
 });
 
+test("JSON mode emits one versioned envelope for success and failure", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-cli-json-"));
+  const output = captureIO();
+  assert.equal(await runCli(["version", "--json"], output.io), 0);
+  assert.equal(output.stdout.length, 1);
+  assert.deepEqual(JSON.parse(output.stdout[0] ?? ""), {
+    schemaVersion: 1,
+    ok: true,
+    command: "version",
+    exitCode: 0,
+    dryRun: false,
+    result: { version: "0.5.2" },
+    output: ["0.5.2"],
+    diagnostics: []
+  });
+
+  output.stdout.length = 0;
+  assert.equal(await runCli(["missing", "--json"], output.io), 1);
+  const failure = JSON.parse(output.stdout[0] ?? "") as {
+    ok: boolean;
+    diagnostics: string[];
+    error: { code: string; message: string };
+  };
+  assert.equal(failure.ok, false);
+  assert.match(failure.diagnostics.join("\n"), /Unknown command: missing/u);
+  assert.deepEqual(failure.error, {
+    code: "COMMAND_FAILED",
+    message: "Unknown command: missing"
+  });
+
+  output.stdout.length = 0;
+  assert.equal(await runCli(
+    ["tap", "remove", "missing/tap", "--json"],
+    output.io,
+    { home: path.join(root, "home") }
+  ), 1);
+  const domainFailure = JSON.parse(output.stdout[0] ?? "") as { error: { code: string }; diagnostics: string[] };
+  assert.equal(domainFailure.error.code, "HARNESSBREW_ERROR");
+  assert.match(domainFailure.diagnostics.join("\n"), /Tap not found/u);
+  assert.deepEqual(output.stderr, []);
+});
+
 test("tap commands expose the Git source lifecycle", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-cli-"));
   const home = path.join(root, "home");
@@ -90,6 +132,36 @@ test("install, list, and uninstall manage Cellar receipts", async () => {
   assert.equal(await runCli(["list"], output.io, { home }), 0);
   assert.match(output.stdout.join("\n"), /Installed personal\/agents\/code-review/);
   assert.equal(await runCli(["uninstall", "code-review"], output.io, { home }), 0);
+});
+
+test("dry-run reports installation changes without persisting Cellar or Target state", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-cli-preview-"));
+  const home = path.join(root, "home");
+  const targetRoot = path.join(root, ".codex");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "skills", "review");
+  const setup = captureIO();
+  await runCli(["tap", "add", "personal/agents", repository, "--trust"], setup.io, { home });
+  const output = captureIO();
+
+  assert.equal(await runCli([
+    "install", "review", "--target", "openai-codex", "--target-root", targetRoot, "--dry-run", "--json"
+  ], output.io, { home }), 0);
+  const result = JSON.parse(output.stdout[0] ?? "") as {
+    dryRun: boolean;
+    result: Array<{ coordinate: string }>;
+    changes: Array<{ path: string; before: { kind: string }; after: { kind: string } }>;
+  };
+  assert.equal(result.dryRun, true);
+  assert.equal(result.result[0]?.coordinate, "personal/agents/review");
+  assert.ok(result.changes.some((change) => change.path === path.join(targetRoot, "skills", "review")
+    && change.before.kind === "missing" && change.after.kind === "symlink"));
+  await assert.rejects(lstat(path.join(targetRoot, "skills", "review")), /ENOENT/u);
+
+  const listed = captureIO();
+  assert.equal(await runCli(["list", "--json"], listed.io, { home }), 0);
+  const listResult = JSON.parse(listed.stdout[0] ?? "") as { output: string[] };
+  assert.deepEqual(listResult.output, []);
 });
 
 test("update, outdated, and upgrade expose the Git release lifecycle", async () => {

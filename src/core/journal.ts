@@ -18,7 +18,7 @@ import path from "node:path";
 import { HarnessBrewError } from "./errors.js";
 import { withTargetLock } from "./locks.js";
 
-type SnapshotKind = "missing" | "file" | "directory" | "symlink";
+export type SnapshotKind = "missing" | "file" | "directory" | "symlink";
 
 interface JournalEntry {
   path: string;
@@ -29,7 +29,7 @@ interface JournalEntry {
   expected?: PathFingerprint;
 }
 
-interface PathFingerprint {
+export interface PathFingerprint {
   kind: SnapshotKind;
   digest?: string;
   linkTarget?: string;
@@ -52,6 +52,17 @@ interface ActiveJournal {
 
 export interface RecoveryResult {
   recovered: string[];
+}
+
+export interface TransactionChange {
+  path: string;
+  before: PathFingerprint;
+  after: PathFingerprint;
+}
+
+export interface TransactionPreview<T> {
+  result: T;
+  changes: TransactionChange[];
 }
 
 const activeJournal = new AsyncLocalStorage<ActiveJournal>();
@@ -359,4 +370,46 @@ export async function withJournalTransaction<T>(
       throw error;
     }
   });
+}
+
+export async function withJournalPreview<T>(
+  home: string,
+  label: string,
+  action: () => Promise<T>
+): Promise<TransactionPreview<T>> {
+  const resolvedHome = path.resolve(home);
+  if (activeJournal.getStore() !== undefined) {
+    throw new HarnessBrewError("Transaction previews cannot be nested.");
+  }
+  await recoverTransactions(resolvedHome);
+  const id = randomUUID();
+  const directory = path.join(transactionsRoot(resolvedHome), id);
+  const active: ActiveJournal = {
+    directory,
+    record: {
+      schemaVersion: 1,
+      id,
+      label,
+      home: resolvedHome,
+      createdAt: new Date().toISOString(),
+      entries: []
+    },
+    captured: new Set()
+  };
+  await writeJournal(active);
+  let result: T;
+  let changes: TransactionChange[];
+  try {
+    result = await activeJournal.run(active, action);
+    changes = (await Promise.all(active.record.entries.map(async (entry): Promise<TransactionChange | undefined> => {
+      const before = await originalFingerprint(directory, entry);
+      const after = await fingerprint(entry.path);
+      return sameFingerprint(before, after) ? undefined : { path: entry.path, before, after };
+    }))).filter((change): change is TransactionChange => change !== undefined);
+  } catch (error) {
+    await rollback(directory, active.record);
+    throw error;
+  }
+  await rollback(directory, active.record);
+  return { result, changes };
 }

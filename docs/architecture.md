@@ -310,7 +310,8 @@ harnessbrew bundle cleanup
 
 ### CLI layer
 
-解析命令和参数，展示安装计划、diff、冲突与操作结果，不直接操作目标 Agent 文件。
+解析命令和参数，展示安装计划、diff、冲突与操作结果，不直接操作目标 Agent 文件。所有命令支持 schema v1 JSON envelope，稳定字段包括
+`ok`、`command`、`exitCode`、`dryRun`、命令级 `result`、兼容文本 `output` 与 `diagnostics`；失败额外提供结构化 `error`。
 
 ### Tap and Git layer
 
@@ -339,6 +340,9 @@ harnessbrew bundle cleanup
 所有 CLI 变更命令在同一个 HarnessBrew Home 写锁和持久化事务中执行。事务层在首次修改路径前，将原始状态写入
 `<home>/transactions/<id>/journal.json` 并保存必要的文件或目录快照；日志写入会在原子替换前同步到磁盘。命令成功后删除事务目录，
 普通异常立即按相反顺序恢复，进程崩溃则由下一次变更命令先回收已退出进程遗留的锁，再恢复未提交日志。
+
+`--dry-run` 复用同一事务实现而不是维护第二套近似 Planner：命令完成所有真实校验后，对 journal 中每条路径比较原始与结果指纹形成 `changes`，
+然后在释放 Home 写锁前无条件回滚。这样预览与真实执行共享解析、冲突和安全检查；Git fetch/clone 等只读外部操作仍可能发生。
 
 Home 外的共享 Target 文件额外记录写入后指纹。恢复前必须同时校验日志、备份和当前指纹；如果崩溃后已有其他事务修改同一路径，
 HarnessBrew 保留当前内容并报告恢复冲突，不允许旧快照覆盖后续有效更新。

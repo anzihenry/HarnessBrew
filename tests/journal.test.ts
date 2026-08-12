@@ -10,6 +10,7 @@ import {
   captureTransactionPath,
   recoverTransactions,
   transactionsRoot,
+  withJournalPreview,
   withJournalTransaction
 } from "../src/core/journal.js";
 
@@ -62,6 +63,28 @@ test("journal transactions restore modified and newly created paths after an exc
   assert.equal(await readFile(existing, "utf8"), "before\n");
   assert.equal((await lstat(existing)).mode & 0o777, 0o640);
   await assert.rejects(lstat(created), /ENOENT/);
+  assert.deepEqual(await readdir(transactionsRoot(home)), []);
+});
+
+test("journal previews report path changes and always restore the original filesystem", async () => {
+  const home = await mkdtemp(path.join(tmpdir(), "harnessbrew-preview-"));
+  const existing = path.join(home, "existing.txt");
+  const created = path.join(home, "created.txt");
+  await writeFile(existing, "before\n");
+
+  const preview = await withJournalPreview(home, "preview-write", async () => {
+    await captureTransactionPath(existing);
+    await captureTransactionPath(created);
+    await writeFile(existing, "after\n");
+    await writeFile(created, "temporary\n");
+    return "planned";
+  });
+
+  assert.equal(preview.result, "planned");
+  assert.deepEqual(preview.changes.map((change) => path.basename(change.path)).sort(), ["created.txt", "existing.txt"]);
+  assert.equal(preview.changes.find((change) => change.path === created)?.before.kind, "missing");
+  assert.equal(await readFile(existing, "utf8"), "before\n");
+  await assert.rejects(lstat(created), /ENOENT/u);
   assert.deepEqual(await readdir(transactionsRoot(home)), []);
 });
 

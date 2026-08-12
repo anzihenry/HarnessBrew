@@ -1,4 +1,4 @@
-export { runCli, type CliIO, type CliOptions } from "./cli.js";
+export { runCli, type CliIO, type CliJsonEnvelope, type CliJsonError, type CliOptions } from "./cli.js";
 export { addTap, assertTapTrusted, listTaps, removeTap, setTapTrust, updateTaps } from "./core/taps.js";
 export type { AddTapOptions, TapUpdate, UpdateTapOptions } from "./core/taps.js";
 export { getFormula, loadCatalog, searchFormulas, validateTapRepository } from "./core/formulas.js";
@@ -28,9 +28,16 @@ export {
   markTransactionPath,
   recoverTransactions,
   transactionsRoot,
+  withJournalPreview,
   withJournalTransaction
 } from "./core/journal.js";
-export type { RecoveryResult } from "./core/journal.js";
+export type {
+  PathFingerprint,
+  RecoveryResult,
+  SnapshotKind,
+  TransactionChange,
+  TransactionPreview
+} from "./core/journal.js";
 export type { DoctorFinding, DoctorFindingKind, DoctorReport, RelinkOptions } from "./core/doctor.js";
 export { bundleCleanup, bundleInstall, lockfilePath, readHarnessfile } from "./core/bundle.js";
 export type {

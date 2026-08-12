@@ -261,6 +261,16 @@ harnessbrew bundle install [--file <path>] [--update-lock]
 harnessbrew bundle cleanup [--file <path>]
 ```
 
+所有命令都可追加 `--json`，stdout 将只包含一个 schema v1 JSON envelope：`result` 是命令级结构化结果，`output` 保留人类文本，
+失败时包含 `error.code`、`error.message`、`diagnostics` 和非零 `exitCode`。
+
+变更命令可追加 `--dry-run`。HarnessBrew 会在同一 Home 写锁下完整执行校验和安装事务，收集每个路径的 before/after 类型与摘要，
+随后回滚 Cellar、Receipt、Tap checkout 和 Agent Target；与 `--json` 组合时，预览位于 `changes` 数组。dry-run 可能执行 Git fetch/clone 等只读网络操作。
+
+```bash
+harnessbrew install code-review --target openai-codex --dry-run --json
+```
+
 ## 本地目录
 
 ```text

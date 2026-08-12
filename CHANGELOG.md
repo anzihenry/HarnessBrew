@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- add a versioned JSON CLI envelope with command-level results and structured errors
+- add transactional `--dry-run` previews that report path fingerprints and roll back all managed changes
+
 ### Security
 
 - validate complete Receipt structures, canonical Cellar locations, operation metadata, owned keys, and all destructive paths before use
