@@ -53,6 +53,35 @@ test("target transaction rolls back earlier operations when a later operation fa
   assert.equal(await readFile(occupied, "utf8"), "user content\n");
 });
 
+test("managed-block operations preserve surrounding user content", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-transaction-"));
+  const destination = path.join(root, "AGENTS.md");
+  await writeFile(destination, "# User instructions\nKeep this line.\n");
+  const [operation] = await executeTargetOperations([{
+    id: "instruction",
+    type: "managed-block",
+    target: "openai-codex",
+    destination,
+    marker: "personal/agents/security",
+    content: "# Security\nNever expose secrets.\n"
+  }]);
+  assert.ok(operation);
+  assert.match(await readFile(destination, "utf8"), /harnessbrew:start personal\/agents\/security/u);
+  await verifyTargetOperation(operation);
+  const installedContent = await readFile(destination, "utf8");
+  await assert.rejects(executeTargetOperations([{
+    id: "duplicate",
+    type: "managed-block",
+    target: "openai-codex",
+    destination,
+    marker: "personal/agents/security",
+    content: "duplicate\n"
+  }]), /already exists/);
+  assert.equal(await readFile(destination, "utf8"), installedContent);
+  await removeTargetOperation(operation);
+  assert.equal(await readFile(destination, "utf8"), "# User instructions\nKeep this line.\n");
+});
+
 test("version one receipts are normalized to version two operations", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-receipt-"));
   const coordinate = "personal/agents/example";

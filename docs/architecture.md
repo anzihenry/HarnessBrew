@@ -214,6 +214,8 @@ Skill 必须使用以 `SKILL.md` 为入口的标准目录结构。Codex 用户�
 
 Agent Formula 使用统一 Markdown 入口作为可移植源码。Adapter 读取 Formula 的名称、描述与正文，确定性生成 Target 原生文件：Codex 写入 `~/.codex/agents/<name>.toml`，Claude Code 写入 `~/.claude/agents/<name>.md`。渲染文件的摘要与操作所有权记录在 Receipt 中；重复 link 会验证摘要，upgrade 会从新版本源码重新生成，检测到用户修改时默认拒绝覆盖或删除。
 
+Instruction Formula 同样使用 Markdown 入口。Codex Adapter 将内容写入 `~/.codex/AGENTS.md` 中以 Formula 坐标命名的受管区块，允许多个资产和用户原有内容安全共存；Claude Code Adapter 将入口软链到 `~/.claude/rules/<name>.md`。Receipt 记录区块标记和内容摘要，因而 unlink、uninstall 和 upgrade 只处理 HarnessBrew 拥有的区块，并在区块被修改时默认中止。
+
 ## 6. 主要生命周期
 
 ### 6.1 注册资产源

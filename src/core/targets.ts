@@ -35,7 +35,7 @@ function extensionFor(entry: string): string {
 }
 
 export function targetDestination(receipt: InstallReceipt, target: BuiltinTarget, root?: string): string {
-  if (receipt.kind === "skill" || receipt.kind === "agent") {
+  if (receipt.kind === "skill" || receipt.kind === "agent" || receipt.kind === "instruction") {
     const plan = planTargetInstall(receipt, target, root === undefined ? {} : { root });
     const operation = plan.operations[0];
     if (operation === undefined) throw new HarnessBrewError(`No target operation planned for ${receipt.coordinate}.`);
@@ -150,17 +150,27 @@ export async function linkFormula(
 
   const source = receipt.kind === "skill" ? receipt.cellarPath : path.join(receipt.cellarPath, receipt.entry);
   const destination = targetDestination(receipt, target, options.root);
-  await assertDestinationAvailable(home, receipt, destination);
-  const type = receipt.kind === "skill" ? "symlink-directory" : receipt.kind === "agent" ? "render-file" : "symlink-file";
+  const type = receipt.kind === "skill"
+    ? "symlink-directory"
+    : receipt.kind === "agent"
+      ? "render-file"
+      : receipt.kind === "instruction" && target === "openai-codex"
+        ? "managed-block"
+        : "symlink-file";
+  if (type !== "managed-block") await assertDestinationAvailable(home, receipt, destination);
   const [operation] = await executeTargetOperations([{
     id: `${receipt.coordinate}:${target}:${destination}`,
     type,
     target,
-    ...(type === "render-file" ? { content: await renderAgent(receipt, target) } : { source }),
+    ...(type === "render-file"
+      ? { content: await renderAgent(receipt, target) }
+      : type === "managed-block"
+        ? { content: await readFile(source, "utf8"), marker: receipt.coordinate }
+        : { source }),
     destination
   }]);
   if (operation === undefined) throw new HarnessBrewError(`Target operation was not created: ${destination}`);
-  if (type !== "render-file") {
+  if (type === "symlink-file" || type === "symlink-directory") {
     const link: InstalledLink = {
       path: destination,
       source,

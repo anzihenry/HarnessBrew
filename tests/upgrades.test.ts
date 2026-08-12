@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { lstat, mkdtemp, readFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -7,7 +7,7 @@ import { listInstalled } from "../src/core/installations.js";
 import { addTap, updateTaps } from "../src/core/taps.js";
 import { installForTarget } from "../src/core/targets.js";
 import { findOutdated, upgradeFormulas } from "../src/core/upgrades.js";
-import { addFormula, createTapRepository } from "./helpers/git.js";
+import { addFormula, commitFile, createTapRepository } from "./helpers/git.js";
 
 test("update and upgrade replace Cellar content while preserving target links", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-upgrade-"));
@@ -55,4 +55,26 @@ test("agent upgrades regenerate target-native files", async () => {
   assert.match(await readFile(destination, "utf8"), /description = "Updated reviewer"/);
   const [receipt] = await listInstalled(home);
   assert.equal(receipt?.operations[0]?.type, "render-file");
+});
+
+test("instruction upgrades replace only their managed Codex block", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-upgrade-"));
+  const home = path.join(root, "home");
+  const targetRoot = path.join(root, ".codex");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "instructions", "policies");
+  await addTap(home, "personal/agents", repository);
+  await mkdir(targetRoot, { recursive: true });
+  const destination = path.join(targetRoot, "AGENTS.md");
+  await writeFile(destination, "# User preface\nKeep forever.\n");
+  await installForTarget(home, "policies", "openai-codex", { root: targetRoot });
+
+  await commitFile(repository, "instructions/policies/content.md", "# policies\nUpdated policy.\n");
+  await updateTaps(home);
+  await upgradeFormulas(home, "policies");
+
+  const content = await readFile(destination, "utf8");
+  assert.match(content, /# User preface\nKeep forever\./u);
+  assert.match(content, /Updated policy\./u);
+  assert.equal(content.match(/harnessbrew:start personal\/agents\/policies/gu)?.length, 1);
 });

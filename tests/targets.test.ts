@@ -104,6 +104,43 @@ test("agent formulas render native Codex TOML and Claude Code Markdown", async (
   await assert.rejects(unlinkFormula(home, "reviewer", "openai-codex"), /modified/);
 });
 
+test("instructions use Codex managed blocks and Claude Code rule links", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
+  const home = path.join(root, "home");
+  const codexRoot = path.join(root, ".codex");
+  const claudeRoot = path.join(root, ".claude");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "instructions", "security", {
+    targets: ["openai-codex", "claude-code"]
+  });
+  await addFormula(repository, "instructions", "style", {
+    targets: ["openai-codex"]
+  });
+  await addTap(home, "personal/agents", repository);
+  await mkdir(codexRoot, { recursive: true });
+  const agentsFile = path.join(codexRoot, "AGENTS.md");
+  await writeFile(agentsFile, "# User-owned instructions\nPreserve this.\n");
+
+  await installForTarget(home, "security", "openai-codex", { root: codexRoot });
+  await installForTarget(home, "style", "openai-codex", { root: codexRoot });
+  await linkFormula(home, "security", "claude-code", { root: claudeRoot });
+  const installedContent = await readFile(agentsFile, "utf8");
+  assert.match(installedContent, /# User-owned instructions/u);
+  assert.match(installedContent, /harnessbrew:start personal\/agents\/security/u);
+  assert.match(installedContent, /harnessbrew:start personal\/agents\/style/u);
+  const claudeRule = path.join(claudeRoot, "rules", "security.md");
+  assert.equal((await lstat(claudeRule)).isSymbolicLink(), true);
+
+  await unlinkFormula(home, "security", "openai-codex");
+  const afterUnlink = await readFile(agentsFile, "utf8");
+  assert.match(afterUnlink, /# User-owned instructions/u);
+  assert.doesNotMatch(afterUnlink, /personal\/agents\/security/u);
+  assert.match(afterUnlink, /personal\/agents\/style/u);
+
+  await writeFile(agentsFile, afterUnlink.replace("# style", "# user-edited style"));
+  await assert.rejects(unlinkFormula(home, "style", "openai-codex"), /modified/);
+});
+
 test("linking rejects unowned target files and uninstall detects link replacement", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
   const home = path.join(root, "home");

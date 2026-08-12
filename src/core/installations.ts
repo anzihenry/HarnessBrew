@@ -32,6 +32,7 @@ export interface InstalledOperation {
   installedDigest?: string;
   ownedKeys?: string[];
   marker?: string;
+  managedPrefix?: string;
   createdDirectories: string[];
 }
 

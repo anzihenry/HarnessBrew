@@ -71,6 +71,9 @@ function targetPlacements(receipt: InstallReceipt): TargetPlacement[] {
       if (receipt.kind === "skill" || receipt.kind === "agent" || receipt.kind === "workflow" || receipt.kind === "prompt") {
         return { target, root: path.dirname(path.dirname(operation.destination)) };
       }
+      if (receipt.kind === "instruction" && target === "claude-code") {
+        return { target, root: path.dirname(path.dirname(operation.destination)) };
+      }
       return { target, root: path.dirname(operation.destination) };
     }
     const link = receipt.links.find((candidate) => candidate.target === target);
