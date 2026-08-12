@@ -218,6 +218,8 @@ Instruction Formula 同样使用 Markdown 入口。Codex Adapter 将内容写入
 
 Workflow 与 Prompt Formula 通过 `render-skill` 统一投影为 `<target-skill-root>/<name>/SKILL.md`。生成文件包含标准的 `name`、`description` frontmatter，以及记录原始 Formula 类型和坐标的 HarnessBrew metadata；正文保持为 Formula 的 Markdown 入口。Codex 和 Claude Code 使用相同的可移植投影模型，不依赖某个平台专有且可能废弃的 commands 目录。
 
+MCP Formula 使用统一 JSON 描述 stdio 或 HTTP transport。凭据字段只能引用环境变量名称：stdio 使用 `envVars`，HTTP 使用 `bearerTokenEnvVar` 和 `headersFromEnv`，不允许 Formula 保存明文密钥。Codex Adapter 在 `config.toml` 中生成带坐标标记的 `[mcp_servers.<name>]` 区块；Claude Code Adapter 合并 `.claude.json` 或项目 `.mcp.json` 的 `mcpServers.<name>` 键。Receipt 保存区块/键所有权及值摘要，冲突键、拥有值篡改和无效配置都会中止操作，卸载只移除对应键或区块。
+
 ## 6. 主要生命周期
 
 ### 6.1 注册资产源

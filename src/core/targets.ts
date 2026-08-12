@@ -17,7 +17,7 @@ import { parseCoordinate } from "./paths.js";
 import { builtinTargets, type BuiltinTarget } from "./target-capabilities.js";
 import { executeTargetOperations, removeTargetOperation, verifyTargetOperation } from "./targets/transaction.js";
 import { planTargetInstall } from "./targets/planner.js";
-import { renderAgent, renderSkillProjection } from "./targets/renderers.js";
+import { renderAgent, renderMcpConfig, renderSkillProjection } from "./targets/renderers.js";
 
 export { builtinTargets } from "./target-capabilities.js";
 export type { BuiltinTarget } from "./target-capabilities.js";
@@ -36,7 +36,7 @@ function extensionFor(entry: string): string {
 
 export function targetDestination(receipt: InstallReceipt, target: BuiltinTarget, root?: string): string {
   if (receipt.kind === "skill" || receipt.kind === "agent" || receipt.kind === "instruction"
-    || receipt.kind === "workflow" || receipt.kind === "prompt") {
+    || receipt.kind === "workflow" || receipt.kind === "prompt" || receipt.kind === "mcp") {
     const plan = planTargetInstall(receipt, target, root === undefined ? {} : { root });
     const operation = plan.operations[0];
     if (operation === undefined) throw new HarnessBrewError(`No target operation planned for ${receipt.coordinate}.`);
@@ -159,8 +159,11 @@ export async function linkFormula(
       ? "render-file"
       : receipt.kind === "instruction" && target === "openai-codex"
         ? "managed-block"
+        : receipt.kind === "mcp"
+          ? "merge-config"
         : "symlink-file";
-  if (type !== "managed-block") await assertDestinationAvailable(home, receipt, destination);
+  if (type !== "managed-block" && type !== "merge-config") await assertDestinationAvailable(home, receipt, destination);
+  const mcpConfig = receipt.kind === "mcp" ? await renderMcpConfig(receipt, target) : undefined;
   const [operation] = await executeTargetOperations([{
     id: `${receipt.coordinate}:${target}:${destination}`,
     type,
@@ -171,6 +174,8 @@ export async function linkFormula(
         : await renderSkillProjection(receipt) }
       : type === "managed-block"
         ? { content: await readFile(source, "utf8"), marker: receipt.coordinate }
+        : type === "merge-config" && mcpConfig !== undefined
+          ? mcpConfig
         : { source }),
     destination
   }]);

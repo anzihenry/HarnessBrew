@@ -60,7 +60,7 @@ function targetRootFromLink(receipt: InstallReceipt, link: InstalledLink): strin
 
 interface TargetPlacement {
   target: BuiltinTarget;
-  root: string;
+  root?: string;
 }
 
 function targetPlacements(receipt: InstallReceipt): TargetPlacement[] {
@@ -77,6 +77,11 @@ function targetPlacements(receipt: InstallReceipt): TargetPlacement[] {
       if (receipt.kind === "instruction" && target === "claude-code") {
         return { target, root: path.dirname(path.dirname(operation.destination)) };
       }
+      if (receipt.kind === "mcp" && target === "claude-code") {
+        return path.basename(operation.destination) === ".claude.json"
+          ? { target }
+          : { target, root: path.dirname(operation.destination) };
+      }
       return { target, root: path.dirname(operation.destination) };
     }
     const link = receipt.links.find((candidate) => candidate.target === target);
@@ -89,7 +94,8 @@ async function restoreReceipt(home: string, receipt: InstallReceipt, placements:
   const restored: InstallReceipt = { ...receipt, targets: [], links: [], operations: [] };
   await writeReceipt(home, restored);
   for (const placement of placements) {
-    await linkFormula(home, restored.coordinate, placement.target, { root: placement.root });
+    await linkFormula(home, restored.coordinate, placement.target,
+      placement.root === undefined ? {} : { root: placement.root });
   }
 }
 
@@ -108,7 +114,8 @@ async function upgradeOne(home: string, receipt: InstallReceipt, formula: Catalo
   try {
     replacement = await installCatalogFormula(home, formula, receipt.requested);
     for (const placement of placements) {
-      await linkFormula(home, replacement.coordinate, placement.target, { root: placement.root });
+      await linkFormula(home, replacement.coordinate, placement.target,
+        placement.root === undefined ? {} : { root: placement.root });
     }
     await rm(receipt.cellarPath, { recursive: true, force: true });
     return { coordinate: receipt.coordinate, before: receipt.commit, after: formula.commit };

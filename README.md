@@ -135,6 +135,8 @@ Formula 的目录名称必须与 `name` 一致，目录类型必须与 `kind` �
 
 Git commit 是安装版本的唯一事实来源；Formula 不维护 `.snapshots` 或重复的 `history`。
 
+MCP Formula 的入口是统一 JSON。stdio 配置使用 `command`、可选 `args` 和只包含环境变量名称的 `envVars`；HTTP 配置使用 `transport: "http"`、`url`、可选 `bearerTokenEnvVar` 与 `headersFromEnv`。HarnessBrew 不接受入口中的明文 `env` 密钥值。
+
 ## Target
 
 当前内置：
@@ -148,7 +150,7 @@ Git commit 是安装版本的唯一事实来源；Formula 不维护 `.snapshots`
 harnessbrew install code-review --target openai-codex
 ```
 
-Codex Skill 默认安装到 `~/.agents/skills`，其他 Codex 配置使用 `~/.codex`；Claude Code 使用 `~/.claude`。Skill 以完整目录软链安装，因此 `scripts/`、`references/` 和 `assets/` 等相对资源会与 `SKILL.md` 一起生效。Workflow 和 Prompt 会被投影为带标准 frontmatter 的 Target Skill。Agent 则以统一 Markdown 作为源码：投递到 Codex 时确定性渲染为 `.codex/agents/<name>.toml`，投递到 Claude Code 时渲染为 `.claude/agents/<name>.md`。Instruction 在 Codex 的 `AGENTS.md` 中使用带所有权标记的受管区块，在 Claude Code 中链接为 `.claude/rules/<name>.md`；卸载不会覆盖共享文件中的用户内容。需要隔离安装时可使用：
+Codex Skill 默认安装到 `~/.agents/skills`，其他 Codex 配置使用 `~/.codex`；Claude Code 使用 `~/.claude`。Skill 以完整目录软链安装，因此 `scripts/`、`references/` 和 `assets/` 等相对资源会与 `SKILL.md` 一起生效。Workflow 和 Prompt 会被投影为带标准 frontmatter 的 Target Skill。Agent 则以统一 Markdown 作为源码：投递到 Codex 时确定性渲染为 `.codex/agents/<name>.toml`，投递到 Claude Code 时渲染为 `.claude/agents/<name>.md`。Instruction 在 Codex 的 `AGENTS.md` 中使用带所有权标记的受管区块，在 Claude Code 中链接为 `.claude/rules/<name>.md`；MCP 分别按 TOML 区块或 JSON 键合并。卸载这些共享配置不会覆盖用户内容。需要隔离安装时可使用：
 
 ```bash
 harnessbrew install code-review \

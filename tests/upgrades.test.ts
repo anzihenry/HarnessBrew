@@ -97,3 +97,29 @@ test("workflow upgrades regenerate their projected skill", async () => {
   const [receipt] = await listInstalled(home);
   assert.equal(receipt?.operations[0]?.type, "render-file");
 });
+
+test("MCP upgrades replace only the owned Claude config key", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-upgrade-"));
+  const home = path.join(root, "home");
+  const targetRoot = path.join(root, ".claude");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "mcp", "docs", { targets: ["claude-code"] });
+  await commitFile(repository, "mcp/docs/content.md", JSON.stringify({ command: "docs-v1", envVars: ["DOCS_TOKEN"] }));
+  await addTap(home, "personal/agents", repository);
+  await mkdir(targetRoot, { recursive: true });
+  const destination = path.join(targetRoot, ".mcp.json");
+  await writeFile(destination, `${JSON.stringify({ userSetting: true }, null, 2)}\n`);
+  await installForTarget(home, "docs", "claude-code", { root: targetRoot });
+
+  await commitFile(repository, "mcp/docs/content.md", JSON.stringify({ command: "docs-v2", args: ["serve"] }));
+  await updateTaps(home);
+  await upgradeFormulas(home, "docs");
+
+  const configuration = JSON.parse(await readFile(destination, "utf8")) as {
+    userSetting: boolean;
+    mcpServers: Record<string, { command: string; args: string[] }>;
+  };
+  assert.equal(configuration.userSetting, true);
+  assert.equal(configuration.mcpServers.docs?.command, "docs-v2");
+  assert.deepEqual(configuration.mcpServers.docs?.args, ["serve"]);
+});

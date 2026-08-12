@@ -82,6 +82,48 @@ test("managed-block operations preserve surrounding user content", async () => {
   assert.equal(await readFile(destination, "utf8"), "# User instructions\nKeep this line.\n");
 });
 
+test("merge-config operations own only their TOML block or JSON key", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-transaction-"));
+  const tomlPath = path.join(root, "config.toml");
+  const jsonPath = path.join(root, ".mcp.json");
+  await writeFile(tomlPath, "model = \"gpt-5\"\n");
+  await writeFile(jsonPath, `${JSON.stringify({ theme: "dark", mcpServers: { user: { command: "user-server" } } }, null, 2)}\n`);
+  const [tomlOperation, jsonOperation] = await executeTargetOperations([
+    {
+      id: "codex-mcp",
+      type: "merge-config",
+      target: "openai-codex",
+      destination: tomlPath,
+      marker: "personal/agents/docs",
+      configFormat: "toml-block",
+      ownedKeys: ["mcp_servers", "docs"],
+      content: "[mcp_servers.docs]\ncommand = \"docs-server\"\n"
+    },
+    {
+      id: "claude-mcp",
+      type: "merge-config",
+      target: "claude-code",
+      destination: jsonPath,
+      configFormat: "json",
+      ownedKeys: ["mcpServers", "docs"],
+      content: JSON.stringify({ type: "stdio", command: "docs-server" })
+    }
+  ]);
+  assert.ok(tomlOperation && jsonOperation);
+  await verifyTargetOperation(tomlOperation);
+  await verifyTargetOperation(jsonOperation);
+  const json = JSON.parse(await readFile(jsonPath, "utf8")) as { theme: string; mcpServers: Record<string, unknown> };
+  assert.equal(json.theme, "dark");
+  assert.deepEqual(Object.keys(json.mcpServers).sort(), ["docs", "user"]);
+
+  await removeTargetOperation(jsonOperation);
+  await removeTargetOperation(tomlOperation);
+  assert.match(await readFile(tomlPath, "utf8"), /^model = "gpt-5"/u);
+  const remainingJson = JSON.parse(await readFile(jsonPath, "utf8")) as { theme: string; mcpServers: Record<string, unknown> };
+  assert.equal(remainingJson.theme, "dark");
+  assert.deepEqual(Object.keys(remainingJson.mcpServers), ["user"]);
+});
+
 test("version one receipts are normalized to version two operations", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-receipt-"));
   const coordinate = "personal/agents/example";

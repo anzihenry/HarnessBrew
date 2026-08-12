@@ -148,6 +148,75 @@ test("instructions use Codex managed blocks and Claude Code rule links", async (
   await assert.rejects(unlinkFormula(home, "style", "openai-codex"), /modified/);
 });
 
+test("MCP formulas merge owned config while preserving user settings", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
+  const home = path.join(root, "home");
+  const codexRoot = path.join(root, ".codex");
+  const claudeRoot = path.join(root, ".claude");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "mcp", "docs", { targets: ["openai-codex", "claude-code"] });
+  await addFormula(repository, "mcp", "remote", { targets: ["openai-codex"] });
+  await addFormula(repository, "mcp", "unsafe", { targets: ["openai-codex"] });
+  await writeFile(path.join(repository, "mcp", "docs", "content.md"), JSON.stringify({
+    transport: "stdio",
+    command: "npx",
+    args: ["-y", "docs-server"],
+    envVars: ["DOCS_TOKEN"]
+  }));
+  await git(repository, "add", "mcp/docs/content.md");
+  await git(repository, "commit", "-m", "define docs mcp");
+  await writeFile(path.join(repository, "mcp", "remote", "content.md"), JSON.stringify({
+    transport: "http",
+    url: "https://mcp.example.test",
+    bearerTokenEnvVar: "MCP_TOKEN",
+    headersFromEnv: { "X-Tenant": "MCP_TENANT" }
+  }));
+  await git(repository, "add", "mcp/remote/content.md");
+  await git(repository, "commit", "-m", "define remote mcp");
+  await writeFile(path.join(repository, "mcp", "unsafe", "content.md"), JSON.stringify({
+    command: "unsafe-server",
+    env: { TOKEN: "plaintext-secret" }
+  }));
+  await git(repository, "add", "mcp/unsafe/content.md");
+  await git(repository, "commit", "-m", "define unsafe mcp");
+  await addTap(home, "personal/agents", repository);
+  await mkdir(codexRoot, { recursive: true });
+  await mkdir(claudeRoot, { recursive: true });
+  const codexConfig = path.join(codexRoot, "config.toml");
+  const claudeConfig = path.join(claudeRoot, ".mcp.json");
+  await writeFile(codexConfig, "model = \"gpt-5\"\n");
+  await writeFile(claudeConfig, `${JSON.stringify({ theme: "dark" }, null, 2)}\n`);
+
+  await installForTarget(home, "docs", "openai-codex", { root: codexRoot });
+  await linkFormula(home, "docs", "claude-code", { root: claudeRoot });
+  const codexContent = await readFile(codexConfig, "utf8");
+  assert.match(codexContent, /model = "gpt-5"/u);
+  assert.match(codexContent, /\[mcp_servers\.docs\][\s\S]*env_vars = \["DOCS_TOKEN"\]/u);
+  const claudeContent = JSON.parse(await readFile(claudeConfig, "utf8")) as {
+    theme: string;
+    mcpServers: Record<string, { env: Record<string, string> }>;
+  };
+  assert.equal(claudeContent.theme, "dark");
+  const docsServer = claudeContent.mcpServers.docs;
+  assert.ok(docsServer);
+  assert.equal(docsServer.env.DOCS_TOKEN, "${DOCS_TOKEN}");
+
+  await unlinkFormula(home, "docs", "openai-codex");
+  assert.equal(await readFile(codexConfig, "utf8"), "model = \"gpt-5\"\n");
+  await installForTarget(home, "remote", "openai-codex", { root: codexRoot });
+  assert.match(await readFile(codexConfig, "utf8"), /bearer_token_env_var = "MCP_TOKEN"[\s\S]*env_http_headers = \{ "X-Tenant" = "MCP_TENANT" \}/u);
+  await unlinkFormula(home, "remote", "openai-codex");
+  docsServer.env.DOCS_TOKEN = "plaintext-secret";
+  await writeFile(claudeConfig, `${JSON.stringify(claudeContent, null, 2)}\n`);
+  await assert.rejects(unlinkFormula(home, "docs", "claude-code"), /modified/);
+
+  await installFormula(home, "unsafe");
+  await assert.rejects(
+    linkFormula(home, "unsafe", "openai-codex", { root: codexRoot }),
+    /use command, args, and envVars/
+  );
+});
+
 test("linking rejects unowned target files and uninstall detects link replacement", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
   const home = path.join(root, "home");

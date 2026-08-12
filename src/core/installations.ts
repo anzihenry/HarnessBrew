@@ -33,6 +33,7 @@ export interface InstalledOperation {
   ownedKeys?: string[];
   marker?: string;
   managedPrefix?: string;
+  configFormat?: "json" | "toml-block";
   createdDirectories: string[];
 }
 
