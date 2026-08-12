@@ -8,6 +8,14 @@ export { builtinTargets, installForTarget, linkFormula, targetDestination, unlin
 export type { BuiltinTarget, LinkOptions } from "./core/targets.js";
 export { targetCapabilities, targetCapability, targetOperationKinds } from "./core/target-capabilities.js";
 export type { TargetCapabilityMatrix, TargetOperationKind } from "./core/target-capabilities.js";
+export { planTargetInstall } from "./core/targets/planner.js";
+export { getTargetAdapter } from "./core/targets/registry.js";
+export type {
+  PlannedTargetOperation,
+  TargetAdapter,
+  TargetContext,
+  TargetInstallPlan
+} from "./core/targets/types.js";
 export { findOutdated, upgradeFormulas } from "./core/upgrades.js";
 export type { OutdatedFormula, UpgradeResult } from "./core/upgrades.js";
 export { bundleCleanup, bundleInstall, lockfilePath, readHarnessfile } from "./core/bundle.js";
