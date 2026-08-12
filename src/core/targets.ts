@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
-import { lstat, mkdir, readFile, readlink, rm, stat, symlink } from "node:fs/promises";
+import { lstat, readFile, readlink, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { HarnessBrewError } from "./errors.js";
 import {
@@ -14,6 +14,7 @@ import {
 } from "./installations.js";
 import { parseCoordinate } from "./paths.js";
 import { builtinTargets, type BuiltinTarget } from "./target-capabilities.js";
+import { executeTargetOperations, removeTargetOperation } from "./targets/transaction.js";
 
 export { builtinTargets } from "./target-capabilities.js";
 export type { BuiltinTarget } from "./target-capabilities.js";
@@ -115,15 +116,22 @@ export async function linkFormula(
   const source = path.join(receipt.cellarPath, receipt.entry);
   const destination = targetDestination(receipt, target, options.root);
   await assertDestinationAvailable(home, receipt, destination);
-  await mkdir(path.dirname(destination), { recursive: true });
-  await symlink(source, destination, "file");
-  const link: InstalledLink = { path: destination, source, target, sha256: await sha256(source) };
+  const [operation] = await executeTargetOperations([{
+    id: `${receipt.coordinate}:${target}:${destination}`,
+    type: "symlink-file",
+    target,
+    source,
+    destination
+  }]);
+  if (operation === undefined) throw new HarnessBrewError(`Target operation was not created: ${destination}`);
+  const link: InstalledLink = { path: destination, source, target, sha256: operation.installedDigest ?? await sha256(source) };
   receipt.links.push(link);
+  receipt.operations.push(operation);
   if (!receipt.targets.includes(target)) receipt.targets.push(target);
   try {
     await writeReceipt(home, receipt);
   } catch (error) {
-    await rm(destination, { force: true });
+    await removeTargetOperation(operation, true);
     throw error;
   }
   return receipt;
@@ -141,6 +149,7 @@ export async function unlinkFormula(
   if (receipt === undefined) throw new HarnessBrewError(`Formula is not installed: ${nameOrCoordinate}`);
   const links = receipt.links.filter((link) => link.target === target);
   if (links.length === 0) throw new HarnessBrewError(`Formula is not linked to ${target}: ${receipt.coordinate}`);
+  const operations = receipt.operations.filter((operation) => operation.target === target);
   for (const link of links) {
     if (!force) {
       try {
@@ -151,9 +160,14 @@ export async function unlinkFormula(
         throw new HarnessBrewError(`Installed target was modified for ${receipt.coordinate}: ${link.path}`);
       }
     }
-    await rm(link.path, { force: true });
+  }
+  if (operations.length > 0) {
+    for (const operation of operations) await removeTargetOperation(operation, force);
+  } else {
+    for (const link of links) await rm(link.path, { force: true });
   }
   receipt.links = receipt.links.filter((link) => link.target !== target);
+  receipt.operations = receipt.operations.filter((operation) => operation.target !== target);
   receipt.targets = receipt.targets.filter((installedTarget) => installedTarget !== target);
   await writeReceipt(home, receipt);
   return receipt;

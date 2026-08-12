@@ -6,7 +6,7 @@ import type { InstallReceipt } from "../src/core/installations.js";
 
 function receipt(kind: string, entry = "content.md"): InstallReceipt {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     coordinate: `personal/agents/example`,
     kind,
     tap: "personal/agents",
@@ -20,6 +20,7 @@ function receipt(kind: string, entry = "content.md"): InstallReceipt {
     supportedTargets: ["openai-codex", "claude-code"],
     targets: [],
     links: [],
+    operations: [],
     installedAt: "2026-08-12T00:00:00.000Z"
   };
 }

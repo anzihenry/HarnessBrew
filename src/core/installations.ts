@@ -15,8 +15,28 @@ export interface InstalledLink extends InstalledFile {
   target: string;
 }
 
+export type InstalledOperationType =
+  | "symlink-directory"
+  | "symlink-file"
+  | "render-file"
+  | "merge-config"
+  | "managed-block";
+
+export interface InstalledOperation {
+  id: string;
+  type: InstalledOperationType;
+  target: string;
+  destination: string;
+  source?: string;
+  beforeDigest?: string;
+  installedDigest?: string;
+  ownedKeys?: string[];
+  marker?: string;
+  createdDirectories: string[];
+}
+
 export interface InstallReceipt {
-  schemaVersion: 1;
+  schemaVersion: 2;
   coordinate: string;
   kind: string;
   tap: string;
@@ -30,6 +50,7 @@ export interface InstallReceipt {
   supportedTargets: string[];
   targets: string[];
   links: InstalledLink[];
+  operations: InstalledOperation[];
   installedAt: string;
 }
 
@@ -71,6 +92,32 @@ async function pathExists(filePath: string): Promise<boolean> {
   }
 }
 
+function normalizeReceipt(value: unknown, receiptPath: string, expectedCoordinate?: string): InstallReceipt {
+  if (typeof value !== "object" || value === null) throw new HarnessBrewError(`Invalid install receipt: ${receiptPath}`);
+  const receipt = value as Omit<InstallReceipt, "schemaVersion" | "operations"> & {
+    schemaVersion?: unknown;
+    operations?: InstalledOperation[];
+  };
+  if ((receipt.schemaVersion !== 1 && receipt.schemaVersion !== 2)
+    || typeof receipt.coordinate !== "string"
+    || (expectedCoordinate !== undefined && receipt.coordinate !== expectedCoordinate)
+    || !Array.isArray(receipt.links)) {
+    throw new HarnessBrewError(`Invalid install receipt: ${receiptPath}`);
+  }
+  const operations = receipt.schemaVersion === 2 && Array.isArray(receipt.operations)
+    ? receipt.operations
+    : receipt.links.map((link, index): InstalledOperation => ({
+      id: `legacy:${receipt.coordinate}:${link.target}:${index}`,
+      type: "symlink-file",
+      target: link.target,
+      destination: link.path,
+      source: link.source,
+      installedDigest: link.sha256,
+      createdDirectories: []
+    }));
+  return { ...receipt, schemaVersion: 2, operations } as InstallReceipt;
+}
+
 export async function readReceipt(home: string, coordinate: string): Promise<InstallReceipt | undefined> {
   const receiptPath = resolveReceiptPath(home, coordinate);
   let content: string;
@@ -81,9 +128,7 @@ export async function readReceipt(home: string, coordinate: string): Promise<Ins
     throw error;
   }
   try {
-    const receipt = JSON.parse(content) as InstallReceipt;
-    if (receipt.schemaVersion !== 1 || receipt.coordinate !== coordinate) throw new Error("invalid receipt");
-    return receipt;
+    return normalizeReceipt(JSON.parse(content), receiptPath, coordinate);
   } catch {
     throw new HarnessBrewError(`Invalid install receipt: ${receiptPath}`);
   }
@@ -104,11 +149,7 @@ export async function listInstalled(home: string): Promise<InstallReceipt[]> {
   const receipts: InstallReceipt[] = [];
   for (const relativePath of receiptPaths) {
     const content = await readFile(path.join(receiptsRoot, relativePath), "utf8");
-    const receipt = JSON.parse(content) as InstallReceipt;
-    if (receipt.schemaVersion !== 1 || typeof receipt.coordinate !== "string") {
-      throw new HarnessBrewError(`Invalid install receipt: ${path.join(receiptsRoot, relativePath)}`);
-    }
-    receipts.push(receipt);
+    receipts.push(normalizeReceipt(JSON.parse(content), path.join(receiptsRoot, relativePath)));
   }
   return receipts.sort((left, right) => left.coordinate.localeCompare(right.coordinate));
 }
@@ -180,7 +221,7 @@ export async function installCatalogFormula(
     await cp(formula.directory, temporaryPath, { recursive: true, errorOnExist: true });
     await rename(temporaryPath, cellarPath);
     const receipt: InstallReceipt = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       coordinate: formula.coordinate,
       kind: formula.kind,
       tap: formula.tap,
@@ -194,6 +235,7 @@ export async function installCatalogFormula(
       supportedTargets: formula.targets,
       targets: [],
       links: [],
+      operations: [],
       installedAt: new Date().toISOString()
     };
     await writeReceipt(home, receipt);
@@ -243,6 +285,11 @@ async function verifyReceiptFiles(receipt: InstallReceipt): Promise<void> {
 }
 
 async function verifyReceiptLinks(receipt: InstallReceipt): Promise<void> {
+  if (receipt.operations.length > 0) {
+    const { verifyTargetOperation } = await import("./targets/transaction.js");
+    for (const operation of receipt.operations) await verifyTargetOperation(operation);
+    return;
+  }
   for (const link of receipt.links) {
     try {
       const metadata = await lstat(link.path);
@@ -282,8 +329,11 @@ export async function uninstallFormula(
   if (options.force !== true) {
     await verifyReceiptIntegrity(receipt);
   }
-  for (const link of receipt.links) {
-    await rm(link.path, { force: true });
+  if (receipt.operations.length > 0) {
+    const { removeTargetOperation } = await import("./targets/transaction.js");
+    for (const operation of [...receipt.operations].reverse()) await removeTargetOperation(operation, true);
+  } else {
+    for (const link of receipt.links) await rm(link.path, { force: true });
   }
   await rm(receipt.cellarPath, { recursive: true, force: true });
   await rm(resolveReceiptPath(home, receipt.coordinate), { force: true });
