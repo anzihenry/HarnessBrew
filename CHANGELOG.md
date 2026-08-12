@@ -4,9 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.6.1 - 2026-08-13
+
 ### Changed
 
 - upgrade GitHub CI and release workflows to `actions/checkout@v6` and `actions/setup-node@v6` while keeping HarnessBrew builds on Node.js 22
+- require Node.js 22 or later consistently in package metadata, CI, and installation documentation
+- make English the default README and architecture language while retaining complete Simplified Chinese editions
+- move historical release notes under `docs/releases` and remove obsolete roadmap, task-breakdown, and legacy walkthrough documents
+- add CI, npm version, Node.js support, and license badges to both README editions
 
 ## 0.6.0 - 2026-08-13
 
