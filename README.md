@@ -1,50 +1,52 @@
 # HarnessBrew
 
-HarnessBrew 是面向 AI Agent 资产的 Git 包管理器。它的定位类似 Homebrew：通过 Git Tap 发现资产，通过 Formula 描述资产，通过 Cellar 与 Receipt 安装、升级和安全卸载资产。
+English | [简体中文](README.zh-CN.md)
 
-HarnessBrew 不托管资产。个人、团队和第三方资产都保存在各自的 Git 仓库中，并使用完全相同的安装机制。
+HarnessBrew is a Git package manager for AI agent assets. Like Homebrew, it discovers assets through Git Taps, describes them with Formulae, and uses a Cellar and Receipts to install, upgrade, and safely uninstall them.
 
-## 主要能力
+HarnessBrew does not host assets. Personal, team, and third-party assets remain in their own Git repositories and use the same installation mechanism.
 
-- 注册、更新和移除 Git Tap
-- 校验并搜索 skill、agent、workflow、instruction、prompt、MCP 和 adapter Formula
-- 解析依赖、循环、缺失项与冲突
-- 按 Git commit 将不可变内容安装到 Cellar
-- 链接到 OpenAI Codex 和 Claude Code
-- 以原生格式投递 Skill、Agent、Workflow、Prompt、Instruction 和 MCP
-- 支持 user/project scope，以及同一 Target 的多实例
-- 通过 Receipt 跟踪文件、配置键、受管区块所有权和 SHA-256 摘要
-- 使用 `doctor` 诊断并通过 `relink` 修复 Target 漂移
-- 检测可用升级，并在升级后保留 Agent target 链接
-- 使用 `Harnessfile` 和 lockfile 在不同设备上复现环境
-- 从 npm 安装并通过 GitHub Release 发布
+## Features
 
-## 安装
+- Register, update, and remove Git Taps
+- Validate and search skill, agent, workflow, instruction, prompt, MCP, and adapter Formulae
+- Resolve dependencies, cycles, missing entries, and conflicts
+- Install immutable content into the Cellar at a specific Git commit
+- Link assets into OpenAI Codex and Claude Code
+- Deliver Skills, Agents, Workflows, Prompts, Instructions, and MCP configuration in native formats
+- Support user and project scopes, including multiple instances of one Target
+- Track file, configuration-key, managed-block, and SHA-256 ownership in Receipts
+- Diagnose Target drift with `doctor` and repair it with `relink`
+- Detect upgrades while preserving Agent Target links
+- Reproduce environments across machines with a `Harnessfile` and lockfile
+- Install from npm and publish through GitHub Releases
 
-要求：Node.js 20 或更高版本，系统中可用 Git。
+## Installation
+
+Requirements: Node.js 20 or later and Git available on the system.
 
 ```bash
 npm install --global harnessbrew
 harnessbrew --version
 ```
 
-也可以直接使用：
+You can also run it directly:
 
 ```bash
 npx harnessbrew help
 ```
 
-HarnessBrew 默认将受管状态保存到 `~/.harnessbrew`。测试或隔离环境可以设置 `HARNESSBREW_HOME`。
+HarnessBrew stores managed state in `~/.harnessbrew` by default. Set `HARNESSBREW_HOME` for tests or isolated environments.
 
-## 快速开始
+## Quick start
 
-注册自己的资产 Tap：
+Register an asset Tap:
 
 ```bash
 harnessbrew tap add xiejinheng/agents git@github.com:xiejinheng/agent-assets.git --trust
 ```
 
-搜索并查看 Formula：
+Search for and inspect Formulae:
 
 ```bash
 harnessbrew search review
@@ -52,16 +54,16 @@ harnessbrew search --kind skill --target openai-codex
 harnessbrew info xiejinheng/agents/code-review
 ```
 
-安装到 Cellar，并链接到 Codex：
+Install into the Cellar and link into Codex:
 
 ```bash
 harnessbrew install xiejinheng/agents/code-review \
   --target openai-codex
 ```
 
-如果只希望保存到 Cellar，不写入 Agent 配置目录，可以省略 `--target`。
+Omit `--target` to keep the asset in the Cellar without modifying an Agent configuration directory.
 
-更新和升级：
+Update and upgrade:
 
 ```bash
 harnessbrew update [--allow-rewind]
@@ -69,29 +71,29 @@ harnessbrew outdated
 harnessbrew upgrade code-review
 ```
 
-安全卸载：
+Safely uninstall:
 
 ```bash
 harnessbrew uninstall code-review
 ```
 
-若受管文件或链接已被修改，HarnessBrew 会停止卸载。确认需要删除时可以显式传入 `--force`。
+HarnessBrew stops if a managed file or link has changed. Pass `--force` explicitly when the modified target should still be removed.
 
-## Homebrew 概念对应
+## Homebrew concepts
 
 | Homebrew | HarnessBrew |
 | --- | --- |
 | `brew` | `harnessbrew` |
-| Tap | Git 资产源仓库 |
-| Formula / Cask | Agent 资产 Formula |
-| Cellar | 按 Git commit 隔离的本地安装区 |
-| Link | 到 Codex、Claude Code 等 target 的链接 |
+| Tap | Git asset-source repository |
+| Formula / Cask | Agent asset Formula |
+| Cellar | Commit-isolated local installation area |
+| Link | Link into Codex, Claude Code, or another Target |
 | `Brewfile` | `Harnessfile` |
-| Receipt | 安装来源、文件摘要与所有权记录 |
+| Receipt | Installation source, digest, and ownership record |
 
-## 创建 Tap
+## Creating a Tap
 
-Tap 是普通 Git 仓库。推荐按资产集合建立 Tap，不需要为每个 skill 单独建立仓库。
+A Tap is a regular Git repository. Prefer one repository per asset collection instead of one repository per Skill.
 
 ```text
 my-agent-tap/
@@ -108,7 +110,7 @@ my-agent-tap/
 └── adapters/
 ```
 
-最小 `tap.json`：
+Minimal `tap.json`:
 
 ```json
 {
@@ -116,7 +118,7 @@ my-agent-tap/
 }
 ```
 
-Formula 的目录名称必须与 `name` 一致，目录类型必须与 `kind` 一致：
+The Formula directory name must match `name`, and its parent directory must match `kind`:
 
 ```json
 {
@@ -134,29 +136,32 @@ Formula 的目录名称必须与 `name` 一致，目录类型必须与 `kind` �
 }
 ```
 
-完整坐标为 `<owner>/<tap>/<formula>`。依赖和冲突必须使用完整坐标，以避免跨 Tap 名称歧义。
+The full coordinate is `<owner>/<tap>/<formula>`. Dependencies and conflicts must use full coordinates to avoid ambiguity across Taps.
 
-Git commit 是安装版本的唯一事实来源；Formula 不维护 `.snapshots` 或重复的 `history`。
+The Git commit is the single source of truth for an installed version. Formulae do not maintain duplicate `.snapshots` or `history` data.
 
-MCP Formula 的入口是统一 JSON。stdio 配置使用 `command`、可选 `args` 和只包含环境变量名称的 `envVars`；HTTP 配置使用 `transport: "http"`、`url`、可选 `bearerTokenEnvVar` 与 `headersFromEnv`。HarnessBrew 不接受入口中的明文 `env` 密钥值。
+An MCP Formula uses a common JSON entry format. Stdio configuration uses `command`, optional `args`, and `envVars` containing environment-variable names only. HTTP configuration uses `transport: "http"`, `url`, optional `bearerTokenEnvVar`, and `headersFromEnv`. HarnessBrew rejects plaintext `env` secret values in entries.
 
-`adapter` Formula 是可由 Git/Cellar 管理的扩展资产，但不会作为代码自动执行。Target Adapter 运行时使用单独的可信模块机制：先审查并安装 npm 包，
-再通过 `harnessbrew adapter add <module>` 显式授权。这样 Tap 仍保持声明式、不执行任意代码，而第三方 Target 可以接入版本化 Adapter SDK。
+An `adapter` Formula is a Git/Cellar-managed extension asset, but it is never executed automatically. Target Adapter runtime modules use a separate trust mechanism: review and install an npm package, then authorize it explicitly with `harnessbrew adapter add <module>`. Taps therefore remain declarative while third-party Targets can use the versioned Adapter SDK.
 
-## Target
+## Targets
 
-当前内置：
+Built-in Targets:
 
 - `openai-codex`
 - `claude-code`
 
-可以在安装时指定 target：
+Select a Target during installation:
 
 ```bash
 harnessbrew install code-review --target openai-codex
 ```
 
-Codex Skill 默认安装到 `~/.agents/skills`，其他 Codex 配置使用 `~/.codex`；Claude Code 使用 `~/.claude`。Skill 以完整目录软链安装，因此 `scripts/`、`references/` 和 `assets/` 等相对资源会与 `SKILL.md` 一起生效。Workflow 和 Prompt 会被投影为带标准 frontmatter 的 Target Skill。Agent 则以统一 Markdown 作为源码：投递到 Codex 时确定性渲染为 `.codex/agents/<name>.toml`，投递到 Claude Code 时渲染为 `.claude/agents/<name>.md`。Instruction 在 Codex 的 `AGENTS.md` 中使用带所有权标记的受管区块，在 Claude Code 中链接为 `.claude/rules/<name>.md`；MCP 分别按 TOML 区块或 JSON 键合并。卸载这些共享配置不会覆盖用户内容。需要隔离安装时可使用：
+Codex Skills are installed in `~/.agents/skills` by default, while other Codex configuration uses `~/.codex`; Claude Code uses `~/.claude`. Skills are linked as complete directories, preserving relative resources such as `scripts/`, `references/`, and `assets/` alongside `SKILL.md`.
+
+Workflows and Prompts are projected as Target Skills with standard frontmatter. Agents use portable Markdown source and are rendered deterministically to `.codex/agents/<name>.toml` for Codex or `.claude/agents/<name>.md` for Claude Code. Instructions use owned managed blocks in Codex `AGENTS.md` and links under `.claude/rules/<name>.md` in Claude Code. MCP configuration is merged as TOML blocks or JSON keys. Removing shared configuration never overwrites user-owned content.
+
+Use an isolated Target root when needed:
 
 ```bash
 harnessbrew install code-review \
@@ -164,7 +169,7 @@ harnessbrew install code-review \
   --target-root /path/to/sandbox/.codex
 ```
 
-Target 支持用户级与项目级 scope；`--project` 会隐式选择 project scope。同一 Formula 可以同时存在于两个 scope，Receipt 会按实际目标路径分别记录操作：
+Targets support user and project scopes. `--project` implicitly selects project scope. The same Formula can exist in both scopes, and its Receipt records operations by their actual destination:
 
 ```bash
 harnessbrew link code-review --target openai-codex --scope user
@@ -172,11 +177,11 @@ harnessbrew link code-review --target openai-codex --scope project --project /pa
 harnessbrew unlink code-review --target openai-codex --scope project --project /path/to/repo
 ```
 
-项目级 Codex 资产使用项目中的 `.agents/skills`、`.codex/agents`、根 `AGENTS.md` 和 `.codex/config.toml`；Claude Code 使用 `.claude/skills`、`.claude/agents`、`.claude/rules` 和根 `.mcp.json`。当同一 Target 有多个实例时，unlink 必须指定 scope。
+Project-scoped Codex assets use `.agents/skills`, `.codex/agents`, the root `AGENTS.md`, and `.codex/config.toml`. Claude Code uses `.claude/skills`, `.claude/agents`, `.claude/rules`, and the root `.mcp.json`. When a Target has multiple instances, `unlink` requires an explicit scope.
 
-`harnessbrew doctor [formula]` 会校验 Cellar 文件摘要和每条 Target operation，区分目标缺失与被修改；`harnessbrew relink <formula>` 会在 Cellar 完整的前提下，按 Receipt 记录的 scope/root 强制重建 HarnessBrew 拥有的目标。可用 `--target`、`--scope` 和 `--project` 只修复一个实例。
+`harnessbrew doctor [formula]` validates Cellar file digests and every Target operation, distinguishing missing targets from modified ones. If the Cellar is intact, `harnessbrew relink <formula>` forcibly reconstructs HarnessBrew-owned targets using the scope and root recorded in the Receipt. Use `--target`, `--scope`, and `--project` to repair one instance.
 
-也可以单独管理链接：
+Links can also be managed separately:
 
 ```bash
 harnessbrew link code-review --target openai-codex
@@ -185,7 +190,7 @@ harnessbrew unlink code-review --target openai-codex
 
 ## Harnessfile
 
-`Harnessfile` 适合提交到个人 dotfiles 或项目仓库：
+A `Harnessfile` can be committed to a dotfiles or project repository:
 
 ```yaml
 schemaVersion: 2
@@ -205,32 +210,29 @@ assets:
         project: .
 ```
 
-v2 的 Target placement 可以声明 `user` 或 `project` scope，并可使用相对于 `Harnessfile` 的 `project` 和 `root` 路径。
-schema v1 的 `targets: [openai-codex]` 仍然兼容，并按 user scope 解释。
+Target placements in v2 declare `user` or `project` scope and may use `project` and `root` paths relative to the `Harnessfile`. Schema v1 `targets: [openai-codex]` remains compatible and is interpreted as user scope.
 
-安装并生成 `Harnessfile.lock`：
+Install and generate `Harnessfile.lock`:
 
 ```bash
 harnessbrew bundle install
 ```
 
-v2 lockfile 会记录 Manifest 摘要、HarnessBrew Adapter 版本、每个 Tap 的准确 commit、Formula 内容摘要、依赖闭包和完整 Target placement，
-应与 `Harnessfile` 一起提交到 Git。
+The v2 lockfile records the manifest digest, HarnessBrew Adapter versions, exact commit for every Tap, Formula content digests, dependency closure, and full Target placements. Commit it together with the `Harnessfile`.
 
-在其他设备运行同一命令时，HarnessBrew 会检出 lockfile 固定的 commit，而不是未经确认地使用 Tap 最新版本。
-修改 v2 Harnessfile 后需要显式更新 lockfile：
+On another machine, the same command checks out commits pinned by the lockfile instead of silently using the latest Tap versions. After changing a v2 Harnessfile, update the lockfile explicitly:
 
 ```bash
 harnessbrew bundle install --update-lock
 ```
 
-清理清单之外的受管资产：
+Remove managed assets not present in the manifest:
 
 ```bash
 harnessbrew bundle cleanup
 ```
 
-使用其他文件路径：
+Use a different manifest path:
 
 ```bash
 harnessbrew bundle install --file ./config/Harnessfile
@@ -262,42 +264,40 @@ harnessbrew bundle install [--file <path>] [--update-lock]
 harnessbrew bundle cleanup [--file <path>]
 ```
 
-所有命令都可追加 `--json`，stdout 将只包含一个 schema v1 JSON envelope：`result` 是命令级结构化结果，`output` 保留人类文本，
-失败时包含 `error.code`、`error.message`、`diagnostics` 和非零 `exitCode`。
+Every command accepts `--json`. Standard output then contains one schema v1 JSON envelope: `result` is the command-specific structured result, `output` retains human-readable text, and failures include `error.code`, `error.message`, `diagnostics`, and a non-zero `exitCode`.
 
-变更命令可追加 `--dry-run`。HarnessBrew 会在同一 Home 写锁下完整执行校验和安装事务，收集每个路径的 before/after 类型与摘要，
-随后回滚 Cellar、Receipt、Tap checkout 和 Agent Target；与 `--json` 组合时，预览位于 `changes` 数组。dry-run 可能执行 Git fetch/clone 等只读网络操作。
+Mutating commands also accept `--dry-run`. Under the same Home write lock, HarnessBrew runs full validation and the installation transaction, collects before/after types and digests for each path, then rolls back the Cellar, Receipts, Tap checkouts, and Agent Targets. With `--json`, the preview appears in `changes`. A dry run can still perform read-only network operations such as Git fetch or clone.
 
 ```bash
 harnessbrew install code-review --target openai-codex --dry-run --json
 ```
 
-## 本地目录
+## Local directories
 
 ```text
 ~/.harnessbrew/
-├── taps/       # HarnessBrew 管理的 Git 工作树
-├── cellar/     # 按 Formula 与 commit 隔离的不可变内容
-├── receipts/   # 安装、依赖、target 链接和摘要
-└── state.json  # Tap 注册状态
+├── taps/       # Git worktrees managed by HarnessBrew
+├── cellar/     # Immutable content isolated by Formula and commit
+├── receipts/   # Installation, dependency, Target-link, and digest records
+└── state.json  # Tap registration state
 ```
 
-Tap 工作树和 Cellar 内容都由 HarnessBrew 管理，不应直接编辑。个人资产应在原始 Tap 仓库中修改、提交和推送，再通过 `update`/`upgrade` 安装。
+HarnessBrew owns the Tap worktrees and Cellar contents; do not edit them directly. Change personal assets in the source Tap repository, commit and push, then install the changes with `update` and `upgrade`.
 
-## 安全边界
+## Security boundaries
 
-- Formula 是声明式 JSON；HarnessBrew 不执行 Tap 中的任意脚本。
-- 新注册的 Tap 默认不受信任：可以搜索和安装到 Cellar，但必须通过 `tap trust`、`tap add --trust` 或 Harnessfile v2 的 `trust: true` 才能链接或渲染到 Agent Target。旧状态记录按兼容策略视为已信任。
-- Tap 更新默认只接受 Git fast-forward；仓库历史被重写时必须人工检查后使用 `--allow-rewind`。候选 commit 校验失败会恢复原 checkout 和状态。
-- Formula 入口不能逃逸所属目录。
-- 安装前会检查依赖、冲突和 target 兼容性。
-- HarnessBrew 不覆盖未由 Receipt 管理的目标文件。
-- 卸载前会检查 Cellar 文件摘要和符号链接目标。
-- 私有 Tap 凭据由系统 Git/SSH credential 机制管理。
+- Formulae are declarative JSON; HarnessBrew does not execute arbitrary Tap scripts.
+- Newly registered Taps are untrusted by default. They can be searched and installed into the Cellar, but linking or rendering into an Agent Target requires `tap trust`, `tap add --trust`, or `trust: true` in Harnessfile v2. Legacy state records are treated as trusted for compatibility.
+- Tap updates accept Git fast-forwards only by default. Rewritten history must be reviewed and accepted with `--allow-rewind`. A failed candidate-commit validation restores the original checkout and state.
+- Formula entries cannot escape their containing directories.
+- Dependencies, conflicts, and Target compatibility are checked before installation.
+- HarnessBrew does not overwrite target files it does not own through a Receipt.
+- Uninstallation validates Cellar digests and symlink destinations first.
+- Credentials for private Taps are handled by the system Git/SSH credential mechanism.
 
-## 开发
+## Development
 
-项目使用 TypeScript 7.0，并启用严格类型检查。
+The project uses TypeScript 7.0 with strict type checking.
 
 ```bash
 npm ci
@@ -306,12 +306,11 @@ npm test
 npm run check
 ```
 
-`npm run check` 会执行 TypeScript 编译、全部 Node.js 测试、安装包冒烟测试和 `npm pack --dry-run`。
+`npm run check` runs TypeScript compilation, all Node.js tests, a package smoke test, and `npm pack --dry-run`.
 
 ## Target Adapter SDK
 
-Node.js/TypeScript 宿主可以通过公开 API 注册第三方 Agent Target。Adapter API v1 只接收 Receipt 与 Target Context，并返回一条声明式安装计划；
-实际写入、冲突检测、Receipt、doctor、relink、upgrade、dry-run 和回滚仍由 HarnessBrew transaction layer 负责。
+Node.js and TypeScript hosts can register third-party Agent Targets through the public API. Adapter API v1 receives only a Receipt and Target Context and returns a declarative installation plan. Writes, conflict detection, Receipts, `doctor`, `relink`, upgrades, dry runs, and rollback remain the responsibility of the HarnessBrew transaction layer.
 
 ```ts
 import { registerTargetAdapter, type TargetAdapter } from "harnessbrew";
@@ -338,12 +337,9 @@ const adapter: TargetAdapter = {
 const unregister = registerTargetAdapter(adapter);
 ```
 
-SDK 会校验 API 版本、名称、版本、完整能力矩阵、计划身份、绝对目标路径和 Cellar source 边界。v1 的第三方 Adapter 计划只允许
-`symlink-file`、`symlink-directory` 和 `unsupported`，不提供直接写文件或生成共享配置的操作。注册是显式、进程内操作；HarnessBrew 不会从 Tap
-自动执行 Adapter Formula。第三方 Adapter 本身是具有宿主进程权限的可信代码，只应加载经过审查的 npm 包。
+The SDK validates API version, name, version, the complete capability matrix, plan identity, absolute target paths, and Cellar source boundaries. Third-party Adapter plans in v1 may use only `symlink-file`, `symlink-directory`, and `unsupported`; they cannot write files directly or generate shared configuration. Registration is explicit and process-local. HarnessBrew never executes Adapter Formulae from a Tap automatically. A third-party Adapter has the host process's privileges and should be loaded only from a reviewed npm package.
 
-独立 CLI 可以持久化管理可信 Adapter 模块。模块需已通过 npm 安装并可被 `harnessbrew` 解析，也可以使用绝对路径或 `file://` URL；它必须默认导出
-一个 Adapter，或提供名为 `adapter` 的导出：
+The standalone CLI can persist trusted Adapter modules. The module must already be installed and resolvable by `harnessbrew`, or be supplied as an absolute path or `file://` URL. It must default-export an Adapter or provide a named `adapter` export:
 
 ```bash
 harnessbrew adapter add @harnessbrew/adapter-cursor
@@ -352,14 +348,11 @@ harnessbrew install review --target cursor
 harnessbrew adapter remove cursor
 ```
 
-`adapter add` 是一次显式的代码执行授权。HarnessBrew 将模块标识及审核时的 name、version、API version 写入
-`~/.harnessbrew/adapters.json`；后续只在 install/link/unlink/relink/upgrade/bundle 需要 Target 时加载，并在每次加载时核对身份。
-如果包升级改变身份，命令会关闭失败，要求先 remove、审查后再 add。`adapter list/remove` 本身不执行插件，HarnessBrew 也不会自动运行 `npm install`。
-CLI 加载的 Target 同样进入 Harnessfile v2 lock 的 Adapter 签名。
+`adapter add` explicitly authorizes code execution. HarnessBrew records the module specifier and reviewed name, version, and API version in `~/.harnessbrew/adapters.json`. It loads the module only when install, link, unlink, relink, upgrade, or bundle operations need that Target, and verifies its identity every time. If a package upgrade changes identity, the command fails closed until the module is removed, reviewed, and added again. `adapter list` and `adapter remove` do not execute plugins, and HarnessBrew never runs `npm install` automatically. CLI-loaded Targets are also included in the Harnessfile v2 Adapter signature.
 
-## 架构
+## Architecture
 
-完整设计见 [docs/architecture.md](docs/architecture.md)。
+See [docs/architecture.md](docs/architecture.md) for the full design.
 
 ## License
 
