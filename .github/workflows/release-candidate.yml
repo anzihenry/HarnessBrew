@@ -37,8 +37,10 @@ jobs:
         shell: bash
         run: |
           npm run artifact:build
-          echo "sha256=$(node -p \"require('./release-artifacts/artifact-manifest.json').package.sha256\")" >> "$GITHUB_OUTPUT"
-          echo "commit=$(node -p \"require('./release-artifacts/artifact-manifest.json').source.commit\")" >> "$GITHUB_OUTPUT"
+          manifest_sha="$(node -p 'require("./release-artifacts/artifact-manifest.json").package.sha256')"
+          manifest_commit="$(node -p 'require("./release-artifacts/artifact-manifest.json").source.commit')"
+          echo "sha256=$manifest_sha" >> "$GITHUB_OUTPUT"
+          echo "commit=$manifest_commit" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with:
           name: release-candidate-${{ github.run_id }}
@@ -73,7 +75,8 @@ jobs:
         run: |
           tarball="$(find release-artifacts -maxdepth 1 -name '*.tgz' -type f -print -quit)"
           test -n "$tarball"
-          test "${{ needs.build.outputs.sha256 }}" = "$(node -p \"require('./release-artifacts/artifact-manifest.json').package.sha256\")"
+          manifest_sha="$(node -p 'require("./release-artifacts/artifact-manifest.json").package.sha256')"
+          test "${{ needs.build.outputs.sha256 }}" = "$manifest_sha"
           echo "package=$tarball" >> "$GITHUB_OUTPUT"
       - name: Run deterministic packaged release gate
         run: >-
