@@ -9,17 +9,17 @@ const execFileAsync = promisify(execFile);
 const releaseCheck = path.resolve("scripts/release-check.mjs");
 
 test("release source metadata is synchronized", async () => {
-  const result = await execFileAsync(process.execPath, [releaseCheck, "v0.6.2"], { encoding: "utf8" });
+  const result = await execFileAsync(process.execPath, [releaseCheck, "v0.7.0"], { encoding: "utf8" });
 
-  assert.match(result.stdout, /harnessbrew@0\.6\.2 \(v0\.6\.2\)/);
+  assert.match(result.stdout, /harnessbrew@0\.7\.0 \(v0\.7\.0\)/);
 });
 
 test("release source verification rejects a mismatched tag", async () => {
   await assert.rejects(
-    execFileAsync(process.execPath, [releaseCheck, "v0.5.2"], { encoding: "utf8" }),
+    execFileAsync(process.execPath, [releaseCheck, "v0.6.2"], { encoding: "utf8" }),
     (error: unknown) => {
       assert.ok(error instanceof Error);
-      assert.match(error.message, /release tag v0\.5\.2 must match v0\.6\.2/);
+      assert.match(error.message, /release tag v0\.6\.2 must match v0\.7\.0/);
       return true;
     }
   );

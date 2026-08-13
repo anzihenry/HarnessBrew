@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.7.0 - 2026-08-13
+
+### Added
+
+- add an immutable release artifact manifest and SHA-256 checksum generated from one npm tarball
+- add isolated packaged-CLI E2E coverage for the full Tap and Formula lifecycle, all 24 built-in Target placements, upgrades, doctor/relink, Bundle reproduction, cleanup, JSON errors, and dry-run rollback
+- add `release:gate` as the credential-free deterministic package gate shared by Linux and macOS
+- add `release:preflight` for authenticated local Codex and Claude Code Skill, Instruction, custom Agent, and MCP runtime probes
+- add redacted runtime evidence with candidate identity, CLI versions, failure classification, timings, and bounded structured event metadata
+- add release candidate, protected npm publication, and post-publication registry smoke workflows
+- add an operational release verification runbook
+
+### Changed
+
+- package smoke and E2E commands now require an explicit candidate tarball and never repack implicitly
+- CI builds a candidate once and verifies the same SHA-256 across Linux and macOS without model credentials
+- npm publication downloads an approved candidate by workflow run ID, verifies commit, tag, version, and digest, then publishes the existing tarball with provenance
+
+### Fixed
+
+- remove Bundle formulas in dependent-before-dependency order during cleanup
+- keep transaction fingerprints current when multiple Target writes share newly created parent directories
+- serialize concurrent artifact builds so `npm pack` cannot race while `prepack` rewrites build output
+
 ## 0.6.2 - 2026-08-13
 
 ### Security
