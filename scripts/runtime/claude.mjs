@@ -59,6 +59,7 @@ export async function runClaudeProbe({
   const execution = await spawnCapture(binary, [
     ...prefixArgs,
     "--print",
+    probe.prompt,
     "--output-format",
     "stream-json",
     "--verbose",
@@ -67,9 +68,7 @@ export async function runClaudeProbe({
     "project",
     "--permission-mode",
     "dontAsk",
-    "--allowedTools",
-    "Skill,Task,mcp__harnessbrew-runtime-mcp__harnessbrew_runtime_nonce",
-    probe.prompt
+    "--allowedTools=Skill,Task,mcp__harnessbrew-runtime-mcp__harnessbrew_runtime_nonce"
   ], { cwd, environment, timeoutMs });
   let events = [];
   let parseError;

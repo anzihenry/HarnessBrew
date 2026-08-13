@@ -61,9 +61,12 @@ export async function runCodexProbe({
   environment = process.env,
   timeoutMs
 }) {
+  const projectTrustOverride = `projects.${JSON.stringify(cwd)}.trust_level="trusted"`;
   const execution = await spawnCapture(binary, [
     ...prefixArgs,
     "exec",
+    "--config",
+    projectTrustOverride,
     "--json",
     "--ephemeral",
     "--ignore-user-config",

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -30,6 +30,16 @@ async function fakeCodex(root: string): Promise<string> {
       item: { type: "agent_message", text: prompt.includes("OMIT_MARKER") ? "no marker" : "HB_SKILL_TESTMARK" }
     }));
     console.log(JSON.stringify({ type: "turn.completed", usage: {} }));
+  `, "utf8");
+  return script;
+}
+
+async function recordingCodex(root: string, argumentsPath: string): Promise<string> {
+  const script = path.join(root, "recording-codex.mjs");
+  await writeFile(script, `
+    import { writeFile } from "node:fs/promises";
+    await writeFile(${JSON.stringify(argumentsPath)}, JSON.stringify(process.argv.slice(2)));
+    console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "HB_SKILL_TESTMARK" } }));
   `, "utf8");
   return script;
 }
@@ -78,4 +88,21 @@ test("Codex runtime adapter classifies authentication and provider failures with
   assert.equal("stderr" in auth, false);
   assert.equal(codexModule.classifyRuntimeFailure("429 rate limit").failureClass, "provider-failure");
   assert.throws(() => codexModule.parseCodexJsonLines("not-json\n"), /invalid JSONL/u);
+});
+
+test("Codex runtime adapter trusts only the ephemeral project through a CLI override", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-runtime-codex-trust-"));
+  const argumentsPath = path.join(root, "arguments.json");
+  const script = await recordingCodex(root, argumentsPath);
+  const result = await codexModule.runCodexProbe({
+    probe: { name: "skill", prompt: "CHECK_TRUST", marker: "HB_SKILL_TESTMARK" },
+    cwd: root,
+    binary: process.execPath,
+    prefixArgs: [script]
+  });
+  assert.equal(result.status, "passed");
+  const args = JSON.parse(await readFile(argumentsPath, "utf8")) as string[];
+  const configIndex = args.indexOf("--config");
+  assert.notEqual(configIndex, -1);
+  assert.equal(args[configIndex + 1], `projects.${JSON.stringify(root)}.trust_level="trusted"`);
 });
