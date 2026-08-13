@@ -52,7 +52,7 @@ jobs:
         id: identity
         shell: bash
         run: |
-          tarball="$(find release-artifacts -maxdepth 1 -name '*.tgz' -type f -print -quit)"
+          tarball="$(find "${GITHUB_WORKSPACE:?}/release-artifacts" -maxdepth 1 -name '*.tgz' -type f -print -quit)"
           test -n "$tarball"
           version="${{ inputs.tag }}"
           version="${version#v}"

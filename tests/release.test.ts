@@ -37,6 +37,7 @@ test("release workflow publishes the approved candidate without rebuilding", asy
   assert.match(workflow, /run-id: \$\{\{ inputs\['candidate-run-id'\] \}\}/u);
   assert.match(workflow, /--expected-commit "\$commit"/u);
   assert.match(workflow, /--expected-tag "\$\{\{ inputs\.tag \}\}"/u);
+  assert.match(workflow, /find "\$\{GITHUB_WORKSPACE:\?\}\/release-artifacts"/u);
   assert.match(workflow, /npm publish "\$\{\{ steps\.identity\.outputs\.package \}\}"/u);
   assert.match(workflow, /scripts\/registry-smoke\.mjs/u);
   assert.doesNotMatch(workflow, /npm (?:pack|run build|run check)/u);
