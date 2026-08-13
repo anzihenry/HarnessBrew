@@ -7,11 +7,13 @@ import { createE2EEnvironment } from "./environment.mjs";
 import { E2EReporter } from "./reporter.mjs";
 import { lifecycleScenario } from "./scenarios/lifecycle.mjs";
 import { targetMatrixScenario } from "./scenarios/target-matrix.mjs";
+import { upgradeRepairScenario } from "./scenarios/upgrade-repair.mjs";
 
 const runnerPath = fileURLToPath(import.meta.url);
 const scenarioRegistry = new Map([
   ["lifecycle", lifecycleScenario],
-  ["target-matrix", targetMatrixScenario]
+  ["target-matrix", targetMatrixScenario],
+  ["upgrade-repair", upgradeRepairScenario]
 ]);
 
 async function exportReports(reportPaths, destination) {
@@ -30,7 +32,7 @@ export async function runPackagedE2E({
   checksumsPath,
   cachePath,
   reportDirectory,
-  scenarios = ["lifecycle", "target-matrix"],
+  scenarios = ["lifecycle", "target-matrix", "upgrade-repair"],
   keepOnFailure = false
 }) {
   const environment = await createE2EEnvironment({
