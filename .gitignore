@@ -3,4 +3,5 @@ dist/
 .test-dist/
 .npm-cache/
 exports/
+release-artifacts/
 .DS_Store

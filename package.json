@@ -24,6 +24,8 @@
     "build:test": "tsc -p tsconfig.test.json",
     "start": "node ./dist/bin.js",
     "test": "npm run build:test && node --test .test-dist/tests/*.test.js",
+    "artifact:build": "node ./scripts/artifact/build.mjs --output ./release-artifacts",
+    "artifact:verify": "node ./scripts/artifact/verify.mjs",
     "test:package": "npm run build && node ./scripts/package-smoke.mjs",
     "check": "npm run build && npm test && npm run test:package && npm run release:verify && npm pack --dry-run --cache .npm-cache",
     "release:verify": "node ./scripts/release-check.mjs",
