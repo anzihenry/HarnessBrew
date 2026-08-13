@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { access, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
+import { installCandidate } from "../artifact/install-candidate.mjs";
 import { verifyArtifact } from "../artifact/verify.mjs";
 
-const execFileAsync = promisify(execFile);
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const markerFilename = ".harnessbrew-e2e-root";
 const sensitiveEnvironmentPattern = /(?:OPENAI|ANTHROPIC|CLAUDE|CODEX_API|API_KEY|AUTH_TOKEN|ACCESS_TOKEN|SECRET)/iu;
 
@@ -106,17 +106,13 @@ export async function createE2EEnvironment({
   ].join("\n"), "utf8");
 
   const environment = isolatedProcessEnvironment(root, paths);
-  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  await execFileAsync(npmCommand, [
-    "install",
-    "--prefix",
-    paths.installPrefix,
-    verified.packagePath,
-    "--ignore-scripts",
-    "--package-lock=false",
-    "--cache",
-    path.resolve(cachePath ?? paths.npmCache)
-  ], { encoding: "utf8", env: environment, maxBuffer: 10 * 1024 * 1024 });
+  await installCandidate({
+    packagePath: verified.packagePath,
+    installPrefix: paths.installPrefix,
+    projectRoot,
+    cachePath: cachePath ?? path.join(projectRoot, ".npm-cache"),
+    environment
+  });
 
   const binary = path.join(
     paths.installPrefix,

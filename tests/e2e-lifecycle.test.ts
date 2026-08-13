@@ -15,6 +15,7 @@ interface RunnerModule {
     manifestPath: string;
     checksumsPath: string;
     reportDirectory: string;
+    scenarios?: string[];
   }): Promise<{ artifact: { package: { filename: string; sha256: string } }; root: string }>;
 }
 
@@ -25,7 +26,7 @@ test("packaged CLI completes the Tap-to-cleanup lifecycle", async () => {
   const outputDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-lifecycle-candidate-"));
   const reportDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-lifecycle-report-"));
   const artifact = await artifactModule.buildArtifact({ outputDirectory, allowDirty: true });
-  const result = await runnerModule.runPackagedE2E({ ...artifact, reportDirectory });
+  const result = await runnerModule.runPackagedE2E({ ...artifact, reportDirectory, scenarios: ["lifecycle"] });
 
   await assert.rejects(access(result.root), /ENOENT/u);
   const report = JSON.parse(await readFile(path.join(reportDirectory, "e2e-report.json"), "utf8")) as {

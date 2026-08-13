@@ -7,13 +7,12 @@ import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { parseNamedArguments } from "./artifact/manifest.mjs";
+import { installCandidate } from "./artifact/install-candidate.mjs";
 import { verifyArtifact } from "./artifact/verify.mjs";
 
 const execFileAsync = promisify(execFile);
 const scriptPath = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(scriptPath), "..");
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-
 async function command(commandName, args, options = {}) {
   return execFileAsync(commandName, args, {
     encoding: "utf8",
@@ -41,16 +40,13 @@ export async function smokePackage({ packagePath, manifestPath, checksumsPath, c
     const forbidden = listing.filter((entry) => /(?:^|\/)(?:tests?|scripts|\.npm-cache|\.test-dist)(?:\/|$)/u.test(entry));
     assert.deepEqual(forbidden, [], `candidate contains development-only files: ${forbidden.join(", ")}`);
 
-    await command(npmCommand, [
-      "install",
-      "--prefix",
-      installRoot,
-      verified.packagePath,
-      "--ignore-scripts",
-      "--package-lock=false",
-      "--cache",
-      npmCache
-    ]);
+    await installCandidate({
+      packagePath: verified.packagePath,
+      installPrefix: installRoot,
+      projectRoot,
+      cachePath: npmCache,
+      environment: process.env
+    });
 
     const binaryPath = path.join(
       installRoot,

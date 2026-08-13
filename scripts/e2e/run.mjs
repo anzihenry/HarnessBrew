@@ -6,10 +6,12 @@ import { PackagedCliDriver } from "./cli-driver.mjs";
 import { createE2EEnvironment } from "./environment.mjs";
 import { E2EReporter } from "./reporter.mjs";
 import { lifecycleScenario } from "./scenarios/lifecycle.mjs";
+import { targetMatrixScenario } from "./scenarios/target-matrix.mjs";
 
 const runnerPath = fileURLToPath(import.meta.url);
 const scenarioRegistry = new Map([
-  ["lifecycle", lifecycleScenario]
+  ["lifecycle", lifecycleScenario],
+  ["target-matrix", targetMatrixScenario]
 ]);
 
 async function exportReports(reportPaths, destination) {
@@ -28,7 +30,7 @@ export async function runPackagedE2E({
   checksumsPath,
   cachePath,
   reportDirectory,
-  scenarios = ["lifecycle"],
+  scenarios = ["lifecycle", "target-matrix"],
   keepOnFailure = false
 }) {
   const environment = await createE2EEnvironment({

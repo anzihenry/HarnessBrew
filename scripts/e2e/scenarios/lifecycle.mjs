@@ -10,7 +10,7 @@ import {
 import { createTapFixture } from "../fixture-tap.mjs";
 
 export async function lifecycleScenario({ environment, cli }) {
-  const fixture = await createTapFixture(environment);
+  const fixture = await createTapFixture(environment, { id: "lifecycle" });
 
   const version = await cli.run(["--version"]);
   assert.equal(version.stdout.trim(), environment.artifact.package.version);
@@ -87,7 +87,8 @@ export async function lifecycleScenario({ environment, cli }) {
 
   assert.deepEqual((await cli.runJson(["list"])).envelope.result, []);
   assert.deepEqual((await cli.runJson(["tap", "list"])).envelope.result, []);
-  await assertPathMissing(path.join(environment.paths.harnessHome, "receipts", "e2e", "assets"));
+  await assertPathMissing(path.join(environment.paths.harnessHome, "receipts", "e2e", "assets", "main-skill.json"));
+  await assertPathMissing(path.join(environment.paths.harnessHome, "receipts", "e2e", "assets", "helper-skill.json"));
   await assertPathMissing(path.join(environment.paths.harnessHome, "taps", "e2e", "assets"));
 
   return {

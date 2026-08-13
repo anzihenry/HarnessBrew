@@ -108,10 +108,11 @@ async function writeFixtureVersion(repository, version) {
   for (const definition of definitions) await writeFormula(repository, definition, version);
 }
 
-export async function createTapFixture(environment) {
+export async function createTapFixture(environment, options = {}) {
   const root = environment.root;
-  const author = assertPathInside(root, environment.paths.tapAuthor, "Tap author repository");
-  const remote = assertPathInside(root, environment.paths.tapRemote, "Tap bare remote");
+  const suffix = options.id === undefined ? "" : `-${options.id}`;
+  const author = assertPathInside(root, `${environment.paths.tapAuthor}${suffix}`, "Tap author repository");
+  const remote = assertPathInside(root, `${environment.paths.tapRemote}${suffix}`, "Tap bare remote");
   await git(root, environment.environment, "init", "--bare", "--initial-branch=main", remote);
   await git(root, environment.environment, "init", "--initial-branch=main", author);
   await writeFile(path.join(author, "tap.json"), '{"schemaVersion":1}\n', "utf8");
