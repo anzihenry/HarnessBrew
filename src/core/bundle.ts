@@ -519,6 +519,9 @@ async function desiredCoordinates(home: string, manifest: Harnessfile): Promise<
 
 function removalOrder(receipts: InstallReceipt[]): InstallReceipt[] {
   const byCoordinate = new Map(receipts.map((receipt) => [receipt.coordinate, receipt]));
+  const dependencies = new Set(
+    receipts.flatMap((receipt) => receipt.dependencies.filter((dependency) => byCoordinate.has(dependency)))
+  );
   const ordered: InstallReceipt[] = [];
   const visited = new Set<string>();
   function visit(receipt: InstallReceipt): void {
@@ -530,7 +533,9 @@ function removalOrder(receipts: InstallReceipt[]): InstallReceipt[] {
       if (item !== undefined) visit(item);
     });
   }
-  receipts.forEach(visit);
+  const roots = receipts.filter((receipt) => !dependencies.has(receipt.coordinate));
+  roots.sort((left, right) => left.coordinate.localeCompare(right.coordinate)).forEach(visit);
+  receipts.sort((left, right) => left.coordinate.localeCompare(right.coordinate)).forEach(visit);
   return ordered;
 }
 

@@ -46,6 +46,34 @@ assets: []
   assert.deepEqual(await listInstalled(home), []);
 });
 
+test("bundle cleanup removes dependents before alphabetically earlier dependencies", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-bundle-order-"));
+  const home = path.join(root, "home");
+  const repository = await createTapRepository(root);
+  await addFormula(repository, "skills", "a-helper");
+  await addFormula(repository, "skills", "z-main", { dependencies: ["personal/agents/a-helper"] });
+  const harnessfile = path.join(root, "Harnessfile");
+  await writeFile(harnessfile, `schemaVersion: 1
+taps:
+  - name: personal/agents
+    git: ${JSON.stringify(repository)}
+assets:
+  - formula: personal/agents/z-main
+    targets: []
+`, "utf8");
+  await bundleInstall(home, harnessfile);
+  await writeFile(harnessfile, `schemaVersion: 1
+taps:
+  - name: personal/agents
+    git: ${JSON.stringify(repository)}
+assets: []
+`, "utf8");
+
+  const cleanup = await bundleCleanup(home, harnessfile);
+  assert.deepEqual(cleanup.removed, ["personal/agents/z-main", "personal/agents/a-helper"]);
+  assert.deepEqual(await listInstalled(home), []);
+});
+
 test("bundle lock reproduces an exact Tap commit in a new home", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-bundle-"));
   const repository = await createTapRepository(root);
