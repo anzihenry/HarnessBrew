@@ -50,3 +50,17 @@ test("CI uses current Node-based Actions on the supported Node version", async (
   assert.match(workflow, /needs\.candidate\.outputs\.sha256/u);
   assert.doesNotMatch(workflow, /\b(?:codex|claude)\b/iu);
 });
+
+test("release candidate workflow builds once and retains cross-platform evidence", async () => {
+  const workflow = await readFile(path.resolve(".github/workflows/release-candidate.yml"), "utf8");
+
+  assert.match(workflow, /workflow_dispatch:/u);
+  assert.match(workflow, /ref: \$\{\{ inputs\.ref \}\}/u);
+  assert.equal((workflow.match(/npm run artifact:build/gu) ?? []).length, 1);
+  assert.match(workflow, /matrix:\n\s+os: \[ubuntu-latest, macos-latest\]/u);
+  assert.match(workflow, /npm run release:gate/u);
+  assert.match(workflow, /release-candidate-\$\{\{ github\.run_id \}\}/u);
+  assert.match(workflow, /release-gate-\$\{\{ github\.run_id \}\}-\$\{\{ runner\.os \}\}/u);
+  assert.match(workflow, /retention-days: 30/u);
+  assert.doesNotMatch(workflow, /\b(?:codex|claude)\b/iu);
+});
