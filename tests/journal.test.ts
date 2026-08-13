@@ -13,6 +13,7 @@ import {
   withJournalPreview,
   withJournalTransaction
 } from "../src/core/journal.js";
+import { executeTargetOperations } from "../src/core/targets/transaction.js";
 
 const execFileAsync = promisify(execFile);
 const journalUrl = new URL("../src/core/journal.js", import.meta.url).href;
@@ -85,6 +86,29 @@ test("journal previews report path changes and always restore the original files
   assert.equal(preview.changes.find((change) => change.path === created)?.before.kind, "missing");
   assert.equal(await readFile(existing, "utf8"), "before\n");
   await assert.rejects(lstat(created), /ENOENT/u);
+  assert.deepEqual(await readdir(transactionsRoot(home)), []);
+});
+
+test("journal previews roll back multiple Target writes that share newly created parents", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-preview-shared-"));
+  const home = path.join(root, "home");
+  const targetRoot = path.join(root, "target");
+  const firstSource = path.join(root, "source-one");
+  const secondSource = path.join(root, "source-two");
+  await Promise.all([mkdir(firstSource, { recursive: true }), mkdir(secondSource, { recursive: true })]);
+  const destinations = [
+    path.join(targetRoot, "skills", "first"),
+    path.join(targetRoot, "skills", "second")
+  ];
+
+  const preview = await withJournalPreview(home, "shared-target-preview", () => executeTargetOperations([
+    { id: "first", type: "symlink-directory", target: "openai-codex", destination: destinations[0] as string, source: firstSource },
+    { id: "second", type: "symlink-directory", target: "openai-codex", destination: destinations[1] as string, source: secondSource }
+  ]));
+
+  assert.equal(preview.result.length, 2);
+  assert.ok(preview.changes.some((change) => change.path === targetRoot));
+  await assert.rejects(lstat(targetRoot), /ENOENT/u);
   assert.deepEqual(await readdir(transactionsRoot(home)), []);
 });
 

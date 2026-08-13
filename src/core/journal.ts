@@ -228,7 +228,12 @@ export async function markTransactionPath(candidate: string): Promise<void> {
   const target = path.resolve(candidate);
   const entry = active.record.entries.find((item) => item.path === target);
   if (entry === undefined) throw new HarnessBrewError(`Transaction path was not captured before mutation: ${target}`);
-  entry.expected = await fingerprint(target);
+  const affected = active.record.entries.filter((item) => {
+    if (item.path === target) return true;
+    const relative = path.relative(item.path, target);
+    return relative !== "" && relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+  });
+  for (const item of affected) item.expected = await fingerprint(item.path);
   await writeJournal(active);
 }
 

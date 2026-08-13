@@ -7,6 +7,7 @@ import { createE2EEnvironment } from "./environment.mjs";
 import { E2EReporter } from "./reporter.mjs";
 import { lifecycleScenario } from "./scenarios/lifecycle.mjs";
 import { bundleReproductionScenario } from "./scenarios/bundle-reproduction.mjs";
+import { cliContractScenario } from "./scenarios/cli-contract.mjs";
 import { targetMatrixScenario } from "./scenarios/target-matrix.mjs";
 import { upgradeRepairScenario } from "./scenarios/upgrade-repair.mjs";
 
@@ -14,6 +15,7 @@ const runnerPath = fileURLToPath(import.meta.url);
 const scenarioRegistry = new Map([
   ["lifecycle", lifecycleScenario],
   ["bundle-reproduction", bundleReproductionScenario],
+  ["cli-contract", cliContractScenario],
   ["target-matrix", targetMatrixScenario],
   ["upgrade-repair", upgradeRepairScenario]
 ]);
@@ -34,7 +36,7 @@ export async function runPackagedE2E({
   checksumsPath,
   cachePath,
   reportDirectory,
-  scenarios = ["lifecycle", "target-matrix", "upgrade-repair", "bundle-reproduction"],
+  scenarios = ["lifecycle", "target-matrix", "upgrade-repair", "bundle-reproduction", "cli-contract"],
   keepOnFailure = false
 }) {
   const environment = await createE2EEnvironment({
