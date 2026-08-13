@@ -10,6 +10,7 @@ interface ArtifactModule {
   buildArtifact(options: { outputDirectory: string; allowDirty?: boolean }): Promise<ArtifactResult>;
 }
 interface PreflightModule {
+  runtimeReportStatus(runtimes: Array<Record<string, unknown>>, options?: { allowSkips?: boolean }): string;
   runRuntimePreflight(options: Record<string, unknown>): Promise<{
     report: { status: string; artifact: { sha256: string }; runtimes: Array<{ status: string; probes: unknown[] }> };
     reportPath: string;
@@ -17,6 +18,29 @@ interface PreflightModule {
 }
 const artifactModule = await import(pathToFileURL(path.resolve("scripts/artifact/build.mjs")).href) as ArtifactModule;
 const preflightModule = await import(pathToFileURL(path.resolve("scripts/runtime/preflight.mjs")).href) as PreflightModule;
+
+test("runtime acceptance requires Codex and permits only explicit environment skips", () => {
+  const passed = { name: "codex", status: "passed", probes: [] };
+  const claudeUnavailable = {
+    name: "claude-code",
+    status: "skipped",
+    probes: [{ failureClass: "environment-failure" }]
+  };
+  assert.equal(preflightModule.runtimeReportStatus([passed, claudeUnavailable], { allowSkips: true }), "incomplete");
+  assert.equal(preflightModule.runtimeReportStatus([passed, claudeUnavailable]), "failed");
+  assert.equal(preflightModule.runtimeReportStatus([
+    { name: "codex", status: "skipped", probes: [{ failureClass: "environment-failure" }] },
+    { name: "claude-code", status: "passed", probes: [] }
+  ], { allowSkips: true }), "failed");
+  assert.equal(preflightModule.runtimeReportStatus([
+    passed,
+    { name: "claude-code", status: "skipped", probes: [{ failureClass: "product-failure" }] }
+  ], { allowSkips: true }), "failed");
+  assert.equal(preflightModule.runtimeReportStatus([
+    passed,
+    { name: "claude-code", status: "skipped", failureClass: "product-failure", probes: [] }
+  ], { allowSkips: true }), "failed");
+});
 
 function fakeAdapter(name: string, runtime: string) {
   return {

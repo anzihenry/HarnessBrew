@@ -321,14 +321,14 @@ npm run release:gate -- \
   --checksums /absolute/path/SHA256SUMS \
   --report-dir /absolute/path/release-reports
 
-# Authenticated local Codex and Claude Code verification of those same bytes
+# Local Codex-required and Claude-when-available verification of those same bytes
 npm run release:preflight -- \
   --package /absolute/path/harnessbrew-0.7.0.tgz \
   --manifest /absolute/path/artifact-manifest.json \
   --checksums /absolute/path/SHA256SUMS
 ```
 
-GitHub Actions builds one candidate and runs `release:gate` on Linux and macOS without model credentials. `release:preflight` intentionally runs on a trusted local workstation using existing Codex and Claude Code authentication. See the [release verification runbook](docs/releases/release-runbook.md).
+GitHub Actions builds one candidate and runs `release:gate` on Linux and macOS without model credentials. `release:preflight` intentionally runs on a trusted local workstation. Codex must pass; operators without a Claude Code account may use the documented `--allow-skips` environment exception, which produces `incomplete` evidence rather than a false pass. See the [release verification runbook](docs/releases/release-runbook.md).
 
 ## Target Adapter SDK
 

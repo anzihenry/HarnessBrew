@@ -116,6 +116,15 @@ async function runRuntime(adapter, fixture, cwd, environment) {
   return { name: adapter.name, cliVersion, status, probes: results };
 }
 
+export function runtimeReportStatus(runtimes, { allowSkips = false } = {}) {
+  if (runtimes.every((runtime) => runtime.status === "passed")) return "passed";
+  const codexPassed = runtimes.some((runtime) => runtime.name === "codex" && runtime.status === "passed");
+  const onlyPassesOrEnvironmentSkips = runtimes.every((runtime) => runtime.status === "passed"
+    || (runtime.status === "skipped" && (runtime.failureClass === "environment-failure"
+      || (runtime.probes.length > 0 && runtime.probes.every((probe) => probe.failureClass === "environment-failure")))));
+  return allowSkips && codexPassed && onlyPassesOrEnvironmentSkips ? "incomplete" : "failed";
+}
+
 async function installRuntimeAssets(cli, fixture, project) {
   await cli.run(["tap", "add", fixture.name, fixture.remote, "--trust"]);
   const formulas = [
@@ -228,8 +237,6 @@ export async function runRuntimePreflight({
         : process.env;
       runtimes.push(await runRuntime(adapter, fixture, paths.project, runtimeEnvironment));
     }
-    const requiredPass = runtimes.every((runtime) => runtime.status === "passed");
-    const tolerated = allowSkips && runtimes.every((runtime) => runtime.status === "passed" || runtime.status === "skipped");
     report = {
       schemaVersion: 1,
       artifact: {
@@ -245,7 +252,7 @@ export async function runRuntimePreflight({
       },
       startedAt,
       completedAt: new Date().toISOString(),
-      status: requiredPass ? "passed" : tolerated ? "incomplete" : "failed",
+      status: runtimeReportStatus(runtimes, { allowSkips }),
       runtimes
     };
     await mkdir(reportRoot, { recursive: true });

@@ -1,6 +1,6 @@
 # Release Verification Runbook
 
-This runbook is the operational path for `0.7.0` and later releases. It separates deterministic GitHub Actions checks from authenticated local Codex and Claude Code checks while keeping one immutable npm tarball throughout the process.
+This runbook is the operational path for `0.7.0` and later releases. It separates deterministic GitHub Actions checks from local Agent runtime checks while keeping one immutable npm tarball throughout the process. Codex is required; Claude Code runs when an authenticated account is available.
 
 ## 1. Prepare the release source
 
@@ -30,7 +30,7 @@ Do not rebuild the candidate locally. Download the `release-candidate-<run-id>` 
 
 ## 3. Run authenticated Agent checks locally
 
-Use a trusted workstation where `codex` and `claude` are already authenticated. The command uses isolated project, HarnessBrew, Codex, Claude, npm, and Git paths for installed probe assets. Authentication remains owned by each local CLI.
+Use a trusted workstation where Codex is authenticated. Claude Code is also exercised when authenticated, but operators without a Claude Code account use the explicitly documented environment-skip policy below. The command uses isolated project, HarnessBrew, Codex, Claude, npm, and Git paths for installed probe assets. Authentication remains owned by each local CLI.
 
 ```bash
 npm run release:preflight -- \
@@ -47,7 +47,9 @@ The preflight verifies four nonce-bearing probes for each runtime:
 - a delegated custom Agent with structured activity evidence
 - a credential-free local MCP tool call confirmed by both runtime events and the fixture log
 
-The default command fails unless Codex and Claude Code both pass. `--allow-skips` is only for development diagnostics; an `incomplete` report cannot approve a production release. Use `--keep` only while debugging because it retains the otherwise temporary probe workspace.
+The default command fails unless Codex and Claude Code both pass. If the release operator has no Claude Code account, rerun with `--allow-skips`. An `incomplete` report may approve a release only when Codex passed every probe and every skipped runtime probe is classified as `environment-failure`. Codex skips, Claude behavioral/product/provider failures, and all ordinary failures still block release. Use `--keep` only while debugging because it retains the otherwise temporary probe workspace.
+
+Record the exception in the release evidence: Claude Code placement and lifecycle remain covered by deterministic E2E, but authenticated Claude model execution was not verified for that release.
 
 The report records candidate identity, platform, CLI versions, statuses, failure classes, timings, and bounded event metadata. It does not store authentication, environment secrets, prompts, model reasoning, or complete runtime output.
 
@@ -56,13 +58,13 @@ The report records candidate identity, platform, CLI versions, statuses, failure
 - `product-failure`: the packaged asset, placement, configuration, or MCP integration is wrong. Fix the source and create a new candidate.
 - `behavioral-failure`: the runtime loaded the probe but did not follow the explicit request. The preflight retries once; a repeated failure blocks release.
 - `provider-failure`: rate limit, upstream service, timeout, or network failure. Retry the same candidate later.
-- `environment-failure`: CLI, authentication, or local setup is unavailable. Repair the workstation and rerun.
+- `environment-failure`: CLI, authentication, or local setup is unavailable. Repair and rerun when credentials exist; a missing Claude Code account may use the documented `--allow-skips` exception.
 
-Never reinterpret a skip or provider failure as a pass.
+Never reinterpret a skip or provider failure as a pass. The accepted Claude account exception remains `incomplete`, not `passed`.
 
 ## 5. Approve and publish
 
-After both deterministic platform gates and both local runtimes pass:
+After both deterministic platform gates pass and local runtime evidence is either `passed` or an approved Claude-account-only `incomplete` result:
 
 1. create the immutable Git tag at the candidate manifest commit
 2. push the tag

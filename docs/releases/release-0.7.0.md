@@ -1,6 +1,6 @@
 # HarnessBrew 0.7.0 Release Plan
 
-`0.7.0` establishes a repeatable release-artifact verification system. The release must prove that the exact npm tarball selected for publication completes HarnessBrew's main lifecycle, and that the same candidate can be loaded by locally authenticated Codex and Claude Code installations before a human approves publication.
+`0.7.0` establishes a repeatable release-artifact verification system. The release must prove that the exact npm tarball selected for publication completes HarnessBrew's main lifecycle and loads in an authenticated local Codex installation before human approval. Claude Code uses the same probes when an authenticated account is available; otherwise the release retains an explicit environment-skip exception rather than claiming a runtime pass.
 
 This release does not add a new Formula kind or built-in Target. Its product is a durable release gate with two complementary layers:
 
@@ -17,7 +17,7 @@ The following requirements are non-negotiable:
 - Every end-to-end HarnessBrew command runs through the executable installed from that tarball, not through `src`, repository `dist`, or an imported internal API.
 - Tests use isolated homes, Target roots, Git configuration, npm prefix, and project directories and never modify the developer's or runner's real Agent configuration.
 - Linux and macOS verify the same candidate bytes.
-- Local Codex and Claude Code runtime checks verify the same SHA-256 that passed deterministic CI.
+- Local runtime checks verify the same SHA-256 that passed deterministic CI. Codex must pass; Claude Code runs when an authenticated account is available and otherwise records an explicit environment skip.
 - The publish job verifies the candidate digest and publishes that tarball without rebuilding or repacking it.
 
 ## Verification layers
@@ -55,7 +55,7 @@ Adapter Formulas are tested separately: they may be installed in the Cellar but 
 
 ### Local Agent runtime verification
 
-Authenticated model execution is intentionally outside the unattended GitHub Actions gate. A release operator downloads the already verified candidate and runs local runtime probes using existing Codex and Claude Code authentication.
+Authenticated model execution is intentionally outside the unattended GitHub Actions gate. A release operator downloads the already verified candidate and runs local runtime probes using existing authentication. Codex authentication is required; Claude Code authentication is used when available.
 
 The runtime suite must:
 
@@ -68,7 +68,7 @@ The runtime suite must:
 - record CLI versions, platform, candidate digest, per-probe status, and completion time
 - avoid recording tokens, credentials, full user configuration, or hidden model reasoning
 
-Codex and Claude Code probes report `passed`, `failed`, or `skipped`. Missing authentication is an environment skip during development, but both runtimes must pass before approving a production release.
+Codex and Claude Code probes report `passed`, `failed`, or `skipped`. Codex must pass all four probes. When the release operator has no Claude Code account, `--allow-skips` may produce an accepted `incomplete` report only for Claude `environment-failure` skips. This exception never converts a skip to a pass; Claude behavioral, product, and provider failures still block release.
 
 ## Failure classification
 
@@ -136,7 +136,7 @@ A release candidate workflow produces a downloadable tarball, manifest, checksum
 
 1. downloads that candidate
 2. verifies its SHA-256 locally
-3. runs the Codex and Claude Code runtime preflight
+3. runs the local runtime preflight, requiring Codex and running Claude Code when authenticated
 4. reviews the runtime evidence
 5. approves the protected npm production environment
 
@@ -168,7 +168,7 @@ After publication, a registry smoke job installs `harnessbrew@0.7.0` from npm in
 ### Local runtime
 
 - [ ] Codex Skill, Agent, Instruction, and MCP probes pass
-- [ ] Claude Code Skill, Agent, Instruction, and MCP probes pass
+- [ ] Claude Code Skill, Agent, Instruction, and MCP probes pass, or an unavailable account is recorded as an approved `environment-failure` skip
 - [ ] runtime evidence records the candidate's exact SHA-256
 - [ ] no credentials or user configuration are present in evidence or logs
 
