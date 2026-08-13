@@ -313,7 +313,24 @@ npm test
 npm run check
 ```
 
-`npm run check` 会执行 TypeScript 编译、全部 Node.js 测试、安装包冒烟测试和 `npm pack --dry-run`。
+`npm run check` 会执行严格构建、源码与集成测试、已打包 CLI 测试及发布元数据校验。发布验证另有两个稳定入口：
+
+```bash
+# 对已有候选 tarball 执行确定性 CI gate
+npm run release:gate -- \
+  --package /absolute/path/harnessbrew-0.7.0.tgz \
+  --manifest /absolute/path/artifact-manifest.json \
+  --checksums /absolute/path/SHA256SUMS \
+  --report-dir /absolute/path/release-reports
+
+# 使用同一候选字节执行本地 Codex 与 Claude Code 认证验证
+npm run release:preflight -- \
+  --package /absolute/path/harnessbrew-0.7.0.tgz \
+  --manifest /absolute/path/artifact-manifest.json \
+  --checksums /absolute/path/SHA256SUMS
+```
+
+GitHub Actions 只构建一个候选，并在 Linux/macOS 上运行不需要模型凭据的 `release:gate`。`release:preflight` 则有意放在可信本地工作站，复用现有 Codex 和 Claude Code 登录状态。完整步骤见[发布验证操作手册](docs/releases/release-runbook.md)。
 
 ## Target Adapter SDK
 

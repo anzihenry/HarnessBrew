@@ -311,7 +311,24 @@ npm test
 npm run check
 ```
 
-`npm run check` runs TypeScript compilation, all Node.js tests, a package smoke test, and `npm pack --dry-run`.
+`npm run check` runs the strict build, source and integration tests, packaged-CLI harness tests, and release metadata verification. Release validation has two additional stable entry points:
+
+```bash
+# Deterministic CI gate for an existing candidate tarball
+npm run release:gate -- \
+  --package /absolute/path/harnessbrew-0.7.0.tgz \
+  --manifest /absolute/path/artifact-manifest.json \
+  --checksums /absolute/path/SHA256SUMS \
+  --report-dir /absolute/path/release-reports
+
+# Authenticated local Codex and Claude Code verification of those same bytes
+npm run release:preflight -- \
+  --package /absolute/path/harnessbrew-0.7.0.tgz \
+  --manifest /absolute/path/artifact-manifest.json \
+  --checksums /absolute/path/SHA256SUMS
+```
+
+GitHub Actions builds one candidate and runs `release:gate` on Linux and macOS without model credentials. `release:preflight` intentionally runs on a trusted local workstation using existing Codex and Claude Code authentication. See the [release verification runbook](docs/releases/release-runbook.md).
 
 ## Target Adapter SDK
 
