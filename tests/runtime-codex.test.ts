@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -24,6 +24,10 @@ async function fakeCodex(root: string): Promise<string> {
     if (prompt.includes("MCP_EVENT")) console.log(JSON.stringify({
       type: "item.completed",
       item: { type: "mcp_tool_call", server: "harnessbrew-runtime-mcp", tool: "harnessbrew_runtime_nonce" }
+    }));
+    if (prompt.includes("AGENT_EVENT")) console.log(JSON.stringify({
+      type: "item.completed",
+      item: { type: "collab_tool_call", tool: "spawn_agent", receiver_thread_ids: ["child"] }
     }));
     console.log(JSON.stringify({
       type: "item.completed",
@@ -104,5 +108,36 @@ test("Codex runtime adapter trusts only the ephemeral project through a CLI over
   const args = JSON.parse(await readFile(argumentsPath, "utf8")) as string[];
   const configIndex = args.indexOf("--config");
   assert.notEqual(configIndex, -1);
-  assert.equal(args[configIndex + 1], `projects.${JSON.stringify(root)}.trust_level="trusted"`);
+  assert.equal(args[configIndex + 1], `projects.${JSON.stringify(await realpath(root))}.trust_level="trusted"`);
+  assert.equal(args.includes("--ignore-user-config"), false);
+});
+
+test("Codex Agent probes use a persistent session, require collaboration evidence, and clean the session up", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-runtime-codex-agent-"));
+  const script = path.join(root, "fake-agent-codex.mjs");
+  const callsPath = path.join(root, "calls.jsonl");
+  await writeFile(script, `
+    import { appendFile } from "node:fs/promises";
+    await appendFile(${JSON.stringify(callsPath)}, JSON.stringify(process.argv.slice(2)) + "\\n");
+    if (process.argv.includes("delete")) process.exit(0);
+    console.log(JSON.stringify({ type: "thread.started", thread_id: "11111111-1111-4111-8111-111111111111" }));
+    console.log(JSON.stringify({ type: "item.completed", item: { type: "collab_tool_call", tool: "wait" } }));
+    console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "HB_AGENT_TESTMARK" } }));
+  `, "utf8");
+  const result = await codexModule.runCodexProbe({
+    probe: {
+      name: "agent",
+      prompt: "AGENT_EVENT",
+      marker: "HB_AGENT_TESTMARK",
+      requiredEvent: { itemType: "collab_tool_call" }
+    },
+    cwd: root,
+    binary: process.execPath,
+    prefixArgs: [script]
+  });
+  assert.equal(result.status, "passed");
+  assert.equal((result.evidence as { sessionCleanup: string }).sessionCleanup, "passed");
+  const calls = (await readFile(callsPath, "utf8")).trim().split("\n").map((line) => JSON.parse(line) as string[]);
+  assert.equal(calls[0]?.includes("--ephemeral"), false);
+  assert.deepEqual(calls[1]?.slice(-3), ["delete", "--force", "11111111-1111-4111-8111-111111111111"]);
 });

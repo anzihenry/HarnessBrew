@@ -1,4 +1,5 @@
 import { spawnCapture } from "./process.mjs";
+import { realpath } from "node:fs/promises";
 
 export function parseCodexJsonLines(stdout) {
   return stdout.split(/\r?\n/u).filter((line) => line.trim() !== "").map((line, index) => {
@@ -49,8 +50,14 @@ function matchesRequiredEvent(events, requiredEvent) {
     const item = event.item;
     if (item === undefined) return false;
     if (requiredEvent.itemType !== undefined && item.type !== requiredEvent.itemType) return false;
+    if (requiredEvent.tool !== undefined && item.tool !== requiredEvent.tool) return false;
     return requiredEvent.textIncludes === undefined || JSON.stringify(item).includes(requiredEvent.textIncludes);
   });
+}
+
+function threadId(events) {
+  const started = events.find((event) => event.type === "thread.started" && typeof event.thread_id === "string");
+  return started?.thread_id;
 }
 
 export async function runCodexProbe({
@@ -61,15 +68,16 @@ export async function runCodexProbe({
   environment = process.env,
   timeoutMs
 }) {
-  const projectTrustOverride = `projects.${JSON.stringify(cwd)}.trust_level="trusted"`;
+  const trustedProject = await realpath(cwd);
+  const projectTrustOverride = `projects.${JSON.stringify(trustedProject)}.trust_level="trusted"`;
+  const persistentSession = probe.name === "agent";
   const execution = await spawnCapture(binary, [
     ...prefixArgs,
     "exec",
     "--config",
     projectTrustOverride,
     "--json",
-    "--ephemeral",
-    "--ignore-user-config",
+    ...(persistentSession ? [] : ["--ephemeral"]),
     "--sandbox",
     "read-only",
     "--skip-git-repo-check",
@@ -82,7 +90,16 @@ export async function runCodexProbe({
   } catch (error) {
     parseError = error;
   }
+  let sessionCleanup;
+  const session = persistentSession ? threadId(events) : undefined;
+  if (session !== undefined) {
+    const cleanup = await spawnCapture(binary, [...prefixArgs, "delete", "--force", session], {
+      cwd, environment, timeoutMs: 30_000
+    });
+    sessionCleanup = cleanup.exitCode === 0 ? "passed" : "failed";
+  }
   const evidence = eventEvidence(events);
+  if (sessionCleanup !== undefined) evidence.sessionCleanup = sessionCleanup;
   const markerObserved = agentMessages(events).some((message) => message.includes(probe.marker));
   const requiredEventObserved = matchesRequiredEvent(events, probe.requiredEvent);
   if (execution.exitCode === 0 && parseError === undefined && markerObserved && requiredEventObserved) {

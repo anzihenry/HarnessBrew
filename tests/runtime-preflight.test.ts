@@ -24,11 +24,20 @@ function fakeAdapter(name: string, runtime: string) {
     runtime,
     binary: "unused",
     version: `${name} test-version`,
-    async runProbe({ probe, fixture }: {
+    async runProbe({ probe, fixture, cwd, environment }: {
       probe: { name: string };
       fixture: { mcpLog: string; markers: { mcp: string } };
+      cwd: string;
+      environment: NodeJS.ProcessEnv;
     }) {
+      if (runtime === "codex") {
+        assert.notEqual(environment.CODEX_HOME, process.env.CODEX_HOME);
+        assert.match(await readFile(path.join(environment.CODEX_HOME as string, "config.toml"), "utf8"),
+          /trust_level = "trusted"/u);
+      }
       if (probe.name === "mcp") {
+        assert.match(await readFile(path.join(cwd, ".codex", "config.toml"), "utf8"),
+          /\[mcp_servers\.harnessbrew-runtime-mcp\]\ndefault_tools_approval_mode = "approve"/u);
         await appendFile(fixture.mcpLog, `${JSON.stringify({ event: "tool-called", nonce: fixture.markers.mcp })}\n`, "utf8");
       }
       return {

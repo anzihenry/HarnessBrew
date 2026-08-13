@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { promisify } from "node:util";
@@ -36,7 +36,7 @@ function probes(markers, runtime) {
       marker: markers.agent,
       prompt: "Delegate this probe to the custom harnessbrew-runtime-agent subagent and return the marker it reports.",
       requiredEvent: runtime === "codex"
-        ? { textIncludes: "harnessbrew-runtime-agent" }
+        ? { itemType: "collab_tool_call" }
         : { toolNameIncludes: "Task", textIncludes: "harnessbrew-runtime-agent" }
     },
     {
@@ -130,6 +130,33 @@ async function installRuntimeAssets(cli, fixture, project) {
       await cli.run(["link", formula, "--target", target, "--scope", "project", "--project", project]);
     }
   }
+  const codexConfigPath = path.join(project, ".codex", "config.toml");
+  const codexConfig = await readFile(codexConfigPath, "utf8");
+  const serverHeader = "[mcp_servers.harnessbrew-runtime-mcp]\n";
+  if (!codexConfig.includes(serverHeader)) {
+    throw new Error("HarnessBrew did not render the expected Codex MCP server table.");
+  }
+  await writeFile(codexConfigPath, codexConfig.replace(
+    serverHeader,
+    `${serverHeader}default_tools_approval_mode = "approve"\n`
+  ), "utf8");
+}
+
+async function prepareCodexHome(codexHome, project) {
+  const trustedProject = await realpath(project);
+  await writeFile(path.join(codexHome, "config.toml"),
+    `[projects.${JSON.stringify(trustedProject)}]\ntrust_level = "trusted"\n`, "utf8");
+  const sourceHome = process.env.CODEX_HOME ?? path.join(homedir(), ".codex");
+  const sourceAuth = path.join(sourceHome, "auth.json");
+  const authBridge = path.join(codexHome, "auth.json");
+  try {
+    await copyFile(sourceAuth, authBridge);
+    await chmod(authBridge, 0o600);
+    return authBridge;
+  } catch (error) {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  }
 }
 
 export async function runRuntimePreflight({
@@ -153,11 +180,13 @@ export async function runRuntimePreflight({
     harnessHome: path.join(root, "harnessbrew-home"),
     installPrefix: path.join(root, "candidate"),
     project: path.join(root, "project"),
+    codexHome: path.join(root, "codex-home"),
     npmCache: path.join(root, "npm-cache"),
     gitConfig: path.join(root, "gitconfig")
   };
   const reportRoot = path.resolve(reportDirectory ?? path.join(path.dirname(artifact.manifestPath), "runtime-evidence"));
   let report;
+  let codexAuthBridge;
   try {
     await Promise.all(Object.values(paths).filter((candidate) => candidate !== paths.gitConfig)
       .map((candidate) => mkdir(candidate, { recursive: true })));
@@ -187,12 +216,18 @@ export async function runRuntimePreflight({
     });
     const cli = new PackagedCliDriver({ binary, root, paths: { project: paths.project }, environment: isolatedEnvironment });
     await installRuntimeAssets(cli, fixture, paths.project);
+    codexAuthBridge = await prepareCodexHome(paths.codexHome, paths.project);
     const adapters = runtimeAdapters ?? [
       { name: "codex", runtime: "codex", binary: "codex", runProbe: runCodexProbe },
       { name: "claude-code", runtime: "claude-code", binary: "claude", runProbe: runClaudeProbe }
     ];
     const runtimes = [];
-    for (const adapter of adapters) runtimes.push(await runRuntime(adapter, fixture, paths.project, process.env));
+    for (const adapter of adapters) {
+      const runtimeEnvironment = adapter.runtime === "codex"
+        ? { ...process.env, CODEX_HOME: paths.codexHome }
+        : process.env;
+      runtimes.push(await runRuntime(adapter, fixture, paths.project, runtimeEnvironment));
+    }
     const requiredPass = runtimes.every((runtime) => runtime.status === "passed");
     const tolerated = allowSkips && runtimes.every((runtime) => runtime.status === "passed" || runtime.status === "skipped");
     report = {
@@ -218,6 +253,7 @@ export async function runRuntimePreflight({
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
     return { report, reportPath, root };
   } finally {
+    if (codexAuthBridge !== undefined) await rm(codexAuthBridge, { force: true });
     if (!keep) await rm(root, { recursive: true, force: true });
   }
 }
