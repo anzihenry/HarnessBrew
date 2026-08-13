@@ -25,15 +25,21 @@ test("release source verification rejects a mismatched tag", async () => {
   );
 });
 
-test("release workflow publishes an explicit local tarball path", async () => {
+test("release workflow publishes the approved candidate without rebuilding", async () => {
   const workflow = await readFile(path.resolve(".github/workflows/release.yml"), "utf8");
 
   assert.match(workflow, /uses: actions\/checkout@v6/u);
   assert.match(workflow, /uses: actions\/setup-node@v6/u);
   assert.match(workflow, /node-version: 22/u);
   assert.doesNotMatch(workflow, /actions\/(?:checkout|setup-node)@v4/u);
-  assert.match(workflow, /echo "tarball=\.\/release-artifacts\/\$\{tarball\}"/);
-  assert.match(workflow, /npm publish "\$\{\{ steps\.pack\.outputs\.tarball \}\}"/);
+  assert.match(workflow, /environment: npm-production/u);
+  assert.match(workflow, /candidate-run-id:/u);
+  assert.match(workflow, /run-id: \$\{\{ inputs\['candidate-run-id'\] \}\}/u);
+  assert.match(workflow, /--expected-commit "\$commit"/u);
+  assert.match(workflow, /--expected-tag "\$\{\{ inputs\.tag \}\}"/u);
+  assert.match(workflow, /npm publish "\$\{\{ steps\.identity\.outputs\.package \}\}"/u);
+  assert.match(workflow, /scripts\/registry-smoke\.mjs/u);
+  assert.doesNotMatch(workflow, /npm (?:pack|run build|run check)/u);
 });
 
 test("CI uses current Node-based Actions on the supported Node version", async () => {

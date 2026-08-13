@@ -1,24 +1,38 @@
-name: Publish npm package
+name: Publish approved npm candidate
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Exact release tag, for example v0.7.0
+        required: true
+        type: string
+      candidate-run-id:
+        description: Successful Release candidate workflow run ID
+        required: true
+        type: string
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
-  group: npm-${{ github.event.release.tag_name }}
+  group: npm-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
   publish:
+    environment: npm-production
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ inputs.tag }}
           fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
@@ -28,15 +42,42 @@ jobs:
       - name: Use the repository npm version
         run: npm install --global npm@11.17.0
       - run: npm ci
-      - name: Verify the tagged release source
-        run: npm run release:verify -- "${GITHUB_REF_NAME}"
-      - run: npm run check
-      - name: Build the immutable release tarball
-        id: pack
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-candidate-${{ inputs['candidate-run-id'] }}
+          path: release-artifacts
+          run-id: ${{ inputs['candidate-run-id'] }}
+          github-token: ${{ github.token }}
+      - name: Verify approved candidate identity
+        id: identity
         shell: bash
         run: |
-          mkdir release-artifacts
-          tarball="$(npm pack --pack-destination release-artifacts --silent)"
-          echo "tarball=./release-artifacts/${tarball}" >> "${GITHUB_OUTPUT}"
-      - name: Publish the verified tarball with npm provenance
-        run: npm publish "${{ steps.pack.outputs.tarball }}" --provenance --access public
+          tarball="$(find release-artifacts -maxdepth 1 -name '*.tgz' -type f -print -quit)"
+          test -n "$tarball"
+          version="${{ inputs.tag }}"
+          version="${version#v}"
+          commit="$(git rev-parse HEAD)"
+          npm run artifact:verify -- \
+            --package "$tarball" \
+            --manifest ./release-artifacts/artifact-manifest.json \
+            --checksums ./release-artifacts/SHA256SUMS \
+            --expected-commit "$commit" \
+            --expected-tag "${{ inputs.tag }}" \
+            --expected-version "$version"
+          npm run release:verify -- "${{ inputs.tag }}"
+          echo "package=$tarball" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Publish the approved tarball with npm provenance
+        run: npm publish "${{ steps.identity.outputs.package }}" --provenance --access public
+
+  registry-smoke:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Verify the published registry package
+        run: node ./scripts/registry-smoke.mjs --version "${{ needs.publish.outputs.version }}"

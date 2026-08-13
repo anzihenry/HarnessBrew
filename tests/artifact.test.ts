@@ -24,6 +24,9 @@ interface VerifyModule {
     packagePath: string;
     manifestPath: string;
     checksumsPath?: string;
+    expectedCommit?: string;
+    expectedTag?: string;
+    expectedVersion?: string;
   }): Promise<unknown>;
 }
 
@@ -45,6 +48,24 @@ test("artifact builder packs once and records a verifiable candidate manifest", 
     manifestPath: result.manifestPath,
     checksumsPath: result.checksumsPath
   });
+});
+
+test("artifact verification enforces expected release identity", async () => {
+  const outputDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-artifact-identity-"));
+  const result = await artifactModule.buildArtifact({ outputDirectory, allowDirty: true });
+  await verifyModule.verifyArtifact({
+    packagePath: result.packagePath,
+    manifestPath: result.manifestPath,
+    checksumsPath: result.checksumsPath,
+    expectedCommit: result.manifest.source.commit,
+    expectedTag: result.manifest.source.tag,
+    expectedVersion: result.manifest.package.version
+  });
+  await assert.rejects(verifyModule.verifyArtifact({
+    packagePath: result.packagePath,
+    manifestPath: result.manifestPath,
+    expectedCommit: "0".repeat(40)
+  }), /source commit must match/u);
 });
 
 test("artifact verification rejects candidate byte changes", async () => {

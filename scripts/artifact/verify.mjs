@@ -8,7 +8,14 @@ import { parseNamedArguments, readArtifactManifest, sha256File } from "./manifes
 
 const execFileAsync = promisify(execFile);
 
-export async function verifyArtifact({ packagePath, manifestPath, checksumsPath }) {
+export async function verifyArtifact({
+  packagePath,
+  manifestPath,
+  checksumsPath,
+  expectedCommit,
+  expectedTag,
+  expectedVersion
+}) {
   const resolvedPackage = path.resolve(packagePath);
   const resolvedManifest = path.resolve(manifestPath);
   await access(resolvedPackage);
@@ -17,6 +24,15 @@ export async function verifyArtifact({ packagePath, manifestPath, checksumsPath 
   assert.equal(path.basename(resolvedPackage), manifest.package.filename, "candidate filename must match its manifest");
   assert.equal(await sha256File(resolvedPackage), manifest.package.sha256, "candidate SHA-256 must match its manifest");
   assert.equal(manifest.source.tag, `v${manifest.package.version}`, "candidate tag must match its package version");
+  if (expectedCommit !== undefined) {
+    assert.equal(manifest.source.commit, expectedCommit, "candidate source commit must match the expected commit");
+  }
+  if (expectedTag !== undefined) {
+    assert.equal(manifest.source.tag, expectedTag, "candidate source tag must match the expected tag");
+  }
+  if (expectedVersion !== undefined) {
+    assert.equal(manifest.package.version, expectedVersion, "candidate package version must match the expected version");
+  }
 
   const { stdout } = await execFileAsync("tar", ["-xOf", resolvedPackage, "package/package.json"], {
     encoding: "utf8",
@@ -40,7 +56,9 @@ export async function verifyArtifact({ packagePath, manifestPath, checksumsPath 
 }
 
 async function main() {
-  const { values } = parseNamedArguments(process.argv.slice(2), ["--package", "--manifest", "--checksums"]);
+  const { values } = parseNamedArguments(process.argv.slice(2), [
+    "--package", "--manifest", "--checksums", "--expected-commit", "--expected-tag", "--expected-version"
+  ]);
   const packagePath = values.get("--package");
   const manifestPath = values.get("--manifest");
   if (packagePath === undefined || manifestPath === undefined) {
@@ -49,7 +67,10 @@ async function main() {
   const result = await verifyArtifact({
     packagePath,
     manifestPath,
-    ...(values.get("--checksums") === undefined ? {} : { checksumsPath: values.get("--checksums") })
+    ...(values.get("--checksums") === undefined ? {} : { checksumsPath: values.get("--checksums") }),
+    ...(values.get("--expected-commit") === undefined ? {} : { expectedCommit: values.get("--expected-commit") }),
+    ...(values.get("--expected-tag") === undefined ? {} : { expectedTag: values.get("--expected-tag") }),
+    ...(values.get("--expected-version") === undefined ? {} : { expectedVersion: values.get("--expected-version") })
   });
   console.log(`Verified ${result.manifest.package.filename} (${result.manifest.package.sha256}).`);
 }
