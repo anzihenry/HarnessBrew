@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { promisify } from "node:util";
@@ -11,6 +11,32 @@ import { verifyArtifact } from "./verify.mjs";
 const execFileAsync = promisify(execFile);
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "../..");
+const buildLockPath = path.join(projectRoot, ".npm-cache", "artifact-build.lock");
+
+async function withArtifactBuildLock(action) {
+  const deadline = Date.now() + 120_000;
+  await mkdir(path.dirname(buildLockPath), { recursive: true });
+  while (true) {
+    try {
+      await mkdir(buildLockPath);
+      break;
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      const ageMs = Date.now() - (await stat(buildLockPath)).mtimeMs;
+      if (ageMs > 5 * 60_000) {
+        await rm(buildLockPath, { recursive: true, force: true });
+        continue;
+      }
+      if (Date.now() >= deadline) throw new Error("Timed out waiting for the artifact build lock.");
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+  try {
+    return await action();
+  } finally {
+    await rm(buildLockPath, { recursive: true, force: true });
+  }
+}
 
 async function command(commandName, args, options = {}) {
   return execFileAsync(commandName, args, {
@@ -41,14 +67,14 @@ export async function buildArtifact({ outputDirectory, allowDirty = false }) {
   const npmVersion = (await command(process.platform === "win32" ? "npm.cmd" : "npm", ["--version"])).stdout.trim();
 
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  const packResult = await command(npmCommand, [
-    "pack",
-    "--json",
-    "--pack-destination",
-    output,
-    "--cache",
-    path.join(projectRoot, ".npm-cache")
-  ]);
+  const packResult = await withArtifactBuildLock(() => command(npmCommand, [
+      "pack",
+      "--json",
+      "--pack-destination",
+      output,
+      "--cache",
+      path.join(projectRoot, ".npm-cache")
+    ]));
   const packEntries = JSON.parse(packResult.stdout);
   assert.equal(packEntries.length, 1, "npm pack must produce exactly one package");
   const filename = packEntries[0]?.filename;
