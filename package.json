@@ -27,6 +27,7 @@
     "artifact:build": "node ./scripts/artifact/build.mjs --output ./release-artifacts",
     "artifact:verify": "node ./scripts/artifact/verify.mjs",
     "test:package": "node ./scripts/package-smoke.mjs",
+    "test:e2e": "node ./scripts/e2e/run.mjs",
     "check": "npm run build && npm test && npm run release:verify",
     "release:verify": "node ./scripts/release-check.mjs",
     "prepack": "npm run build"

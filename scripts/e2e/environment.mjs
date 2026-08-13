@@ -128,15 +128,18 @@ export async function createE2EEnvironment({
   assertPathInside(root, binary, "candidate executable");
 
   let cleaned = false;
+  let preserved = keep;
   return {
     root,
     paths,
     environment,
     binary,
     artifact: verified.manifest,
-    keep,
+    preserve() {
+      preserved = true;
+    },
     async cleanup() {
-      if (cleaned || keep) return;
+      if (cleaned || preserved) return;
       const markerPath = assertPathInside(root, path.join(root, markerFilename), "cleanup marker");
       assert.equal((await readFile(markerPath, "utf8")).trim(), marker, "E2E cleanup marker changed");
       assert.ok(path.basename(root).startsWith("harnessbrew-e2e-") || requestedRoot !== undefined, "refusing to clean an unrecognized E2E root");
