@@ -20,7 +20,11 @@ test("runtime fixture creates nonce-bearing Skill, Instruction, Agent, and MCP f
   const fixture = await fixtureModule.createRuntimeFixture({
     root,
     nonce,
-    mcpServerPath: path.resolve("scripts/runtime/mcp-fixture.mjs")
+    mcpServerPath: path.resolve("scripts/runtime/mcp-fixture.mjs"),
+    environment: {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: path.join(root, "missing-global-gitconfig")
+    }
   });
   assert.match(await readFile(path.join(fixture.repository, "skills", "harnessbrew-runtime-skill", "SKILL.md"), "utf8"),
     new RegExp(fixture.markers.skill as string, "u"));

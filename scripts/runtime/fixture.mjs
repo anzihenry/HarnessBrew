@@ -75,6 +75,8 @@ export async function createRuntimeFixture({ root, nonce, mcpServerPath, environ
     args: [path.resolve(mcpServerPath), markers.mcp, mcpLog],
     envVars: []
   }, null, 2)}\n`);
+  await git(repository, environment, "config", "user.name", "HarnessBrew Runtime Fixture");
+  await git(repository, environment, "config", "user.email", "runtime-fixture@harnessbrew.invalid");
   await git(repository, environment, "add", ".");
   await git(repository, environment, "commit", "-m", "fixture: add runtime probes");
   await git(repository, environment, "remote", "add", "origin", remote);
