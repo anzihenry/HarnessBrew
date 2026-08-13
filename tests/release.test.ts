@@ -43,4 +43,10 @@ test("CI uses current Node-based Actions on the supported Node version", async (
   assert.match(workflow, /uses: actions\/setup-node@v6/u);
   assert.match(workflow, /node-version: 22/u);
   assert.doesNotMatch(workflow, /actions\/(?:checkout|setup-node)@v4/u);
+  assert.match(workflow, /name: release-candidate/u);
+  assert.match(workflow, /matrix:\n\s+os: \[ubuntu-latest, macos-latest\]/u);
+  assert.match(workflow, /npm run artifact:build/u);
+  assert.match(workflow, /npm run release:gate/u);
+  assert.match(workflow, /needs\.candidate\.outputs\.sha256/u);
+  assert.doesNotMatch(workflow, /\b(?:codex|claude)\b/iu);
 });
