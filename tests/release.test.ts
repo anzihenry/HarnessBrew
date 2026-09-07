@@ -9,9 +9,9 @@ const execFileAsync = promisify(execFile);
 const releaseCheck = path.resolve("scripts/release-check.mjs");
 
 test("release source metadata is synchronized", async () => {
-  const result = await execFileAsync(process.execPath, [releaseCheck, "v0.7.0"], { encoding: "utf8" });
+  const result = await execFileAsync(process.execPath, [releaseCheck, "v0.7.1"], { encoding: "utf8" });
 
-  assert.match(result.stdout, /harnessbrew@0\.7\.0 \(v0\.7\.0\)/);
+  assert.match(result.stdout, /harnessbrew@0\.7\.1 \(v0\.7\.1\)/);
 });
 
 test("release source verification rejects a mismatched tag", async () => {
@@ -19,7 +19,7 @@ test("release source verification rejects a mismatched tag", async () => {
     execFileAsync(process.execPath, [releaseCheck, "v0.6.2"], { encoding: "utf8" }),
     (error: unknown) => {
       assert.ok(error instanceof Error);
-      assert.match(error.message, /release tag v0\.6\.2 must match v0\.7\.0/);
+      assert.match(error.message, /release tag v0\.6\.2 must match v0\.7\.1/);
       return true;
     }
   );
@@ -43,12 +43,15 @@ test("release workflow publishes the approved candidate without rebuilding", asy
   assert.doesNotMatch(workflow, /npm (?:pack|run build|run check)/u);
 });
 
-test("CI uses current Node-based Actions on the supported Node version", async () => {
+test("CI pins release tooling and checks the supported Node and npm matrix", async () => {
   const workflow = await readFile(path.resolve(".github/workflows/ci.yml"), "utf8");
 
   assert.match(workflow, /uses: actions\/checkout@v6/u);
   assert.match(workflow, /uses: actions\/setup-node@v6/u);
   assert.match(workflow, /node-version: 22/u);
+  assert.match(workflow, /node: 24\n\s+npm: 12\.0\.2/u);
+  assert.match(workflow, /npm install --global npm@\$\{\{ matrix\.npm \}\}/u);
+  assert.match(workflow, /npm install --global npm@11\.17\.0/u);
   assert.doesNotMatch(workflow, /actions\/(?:checkout|setup-node)@v4/u);
   assert.match(workflow, /name: release-candidate/u);
   assert.match(workflow, /matrix:\n\s+os: \[ubuntu-latest, macos-latest\]/u);
@@ -67,6 +70,7 @@ test("release candidate workflow builds once and retains cross-platform evidence
   assert.equal((workflow.match(/npm run artifact:build/gu) ?? []).length, 1);
   assert.match(workflow, /matrix:\n\s+os: \[ubuntu-latest, macos-latest\]/u);
   assert.match(workflow, /npm run release:gate/u);
+  assert.equal((workflow.match(/npm install --global npm@11\.17\.0/gu) ?? []).length, 2);
   assert.match(workflow, /release-candidate-\$\{\{ github\.run_id \}\}/u);
   assert.match(workflow, /release-gate-\$\{\{ github\.run_id \}\}-\$\{\{ runner\.os \}\}/u);
   assert.match(workflow, /retention-days: 30/u);

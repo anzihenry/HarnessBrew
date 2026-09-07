@@ -2,7 +2,7 @@
 
 English | [简体中文](architecture.zh-CN.md)
 
-> This document describes the target architecture of HarnessBrew. The implementation is migrating from the workspace/asset model toward the Tap/Formula/install model defined here.
+> This document describes the current Tap/Formula/install architecture. Historical workspace/asset releases before 0.4.0 are no longer represented by the implementation.
 
 ## 1. Product position
 
@@ -384,7 +384,7 @@ The plugin contract takes an installed Receipt and Target Context and returns a 
 
 Adapter API v1 is deliberately narrow: third-party Adapters may declare one `symlink-file` or `symlink-directory` operation, or `unsupported`. The core transaction layer performs, records, diagnoses, and rolls back the operation. Rendering, managed blocks, and configuration merging remain built-in. The SDK exposes no write callback and never loads JavaScript from a Tap.
 
-The standalone CLI manages installed, trusted npm modules through `adapter add/list/remove`; explicit absolute paths and `file://` URLs are also accepted. `adapter add` authorizes code execution: it imports the module, runs SDK validation, and records the module specifier plus reviewed name, version, and API version in `adapters.json`. Later commands load it only when a Target plan is needed and require the exported identity to match the snapshot exactly. Identity drift fails closed until the module is removed, reviewed, and added again. List and remove do not import modules, and the CLI never runs `npm install`. Because a plugin has Node.js host privileges, this trust list makes loading explicit and identity drift detectable but does not replace code review.
+The standalone CLI manages installed, trusted npm modules through `adapter add/list/remove`; explicit absolute paths and `file://` URLs are also accepted. `adapter add` authorizes code execution: it resolves the entry point, records its SHA-256 digest, imports the module, runs SDK validation, and records the module specifier plus reviewed name, version, and API version in `adapters.json`. Later commands verify the entry-point digest before execution, load it only when a Target plan is needed, and require the exported identity to match the snapshot exactly. Content or identity drift fails closed until the module is removed, reviewed, and added again. Legacy records without a digest remain readable and retain identity checks. List and remove do not import modules, and the CLI never runs `npm install`. Because a plugin has Node.js host privileges, these checks do not replace code review or attest every transitive dependency.
 
 ## 11. HarnessBrew boundaries
 

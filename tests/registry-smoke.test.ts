@@ -8,8 +8,8 @@ const module = await import(pathToFileURL(path.resolve("scripts/registry-smoke.m
 };
 
 test("registry smoke accepts only exact npm versions", () => {
-  assert.equal(module.assertRegistryVersion("0.7.0"), "0.7.0");
-  assert.equal(module.assertRegistryVersion("0.7.0-rc.1"), "0.7.0-rc.1");
+  assert.equal(module.assertRegistryVersion("0.7.1"), "0.7.1");
+  assert.equal(module.assertRegistryVersion("0.7.1-rc.1"), "0.7.1-rc.1");
   assert.throws(() => module.assertRegistryVersion("latest"), /exact npm version/u);
-  assert.throws(() => module.assertRegistryVersion("^0.7.0"), /exact npm version/u);
+  assert.throws(() => module.assertRegistryVersion("^0.7.1"), /exact npm version/u);
 });

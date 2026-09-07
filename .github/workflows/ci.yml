@@ -11,6 +11,14 @@ permissions:
 
 jobs:
   source:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: 22
+            npm: 11.17.0
+          - node: 24
+            npm: 12.0.2
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -18,8 +26,9 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
           cache: npm
+      - run: npm install --global npm@${{ matrix.npm }}
       - run: npm ci
       - run: npm run check
 
@@ -35,6 +44,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - run: npm install --global npm@11.17.0
       - run: npm ci
       - name: Build candidate exactly once
         id: artifact
@@ -65,6 +75,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - run: npm install --global npm@11.17.0
       - run: npm ci
       - uses: actions/download-artifact@v8
         with:

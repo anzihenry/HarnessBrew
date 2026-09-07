@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { HarnessBrewError } from "./errors.js";
 import { captureMissingParents, captureTransactionPath } from "./journal.js";
 import { resolveAdapterPluginsPath } from "./paths.js";
@@ -12,6 +13,7 @@ export interface AdapterPluginRecord {
   name: string;
   version: string;
   apiVersion: 1;
+  integrity?: string;
   addedAt: string;
 }
 
@@ -49,6 +51,7 @@ function validRecord(candidate: unknown): candidate is AdapterPluginRecord {
   const record = candidate as Partial<AdapterPluginRecord>;
   return typeof record.module === "string" && typeof record.name === "string"
     && typeof record.version === "string" && record.apiVersion === 1
+    && (record.integrity === undefined || /^[0-9a-f]{64}$/u.test(record.integrity))
     && typeof record.addedAt === "string" && !Number.isNaN(Date.parse(record.addedAt));
 }
 
@@ -107,6 +110,35 @@ async function importAdapter(specifier: string): Promise<TargetAdapter> {
   return candidate as TargetAdapter;
 }
 
+async function moduleIntegrity(specifier: string): Promise<string> {
+  let resolved: string;
+  try {
+    resolved = import.meta.resolve(specifier);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new HarnessBrewError(`Cannot resolve Adapter module ${specifier}: ${detail}`);
+  }
+  const url = new URL(resolved);
+  if (url.protocol !== "file:") {
+    throw new HarnessBrewError(`Adapter module must resolve to a local file: ${specifier}`);
+  }
+  try {
+    return createHash("sha256").update(await readFile(fileURLToPath(url))).digest("hex");
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new HarnessBrewError(`Cannot read Adapter module ${specifier}: ${detail}`);
+  }
+}
+
+async function assertModuleIntegrity(record: AdapterPluginRecord): Promise<void> {
+  if (record.integrity === undefined) return;
+  if (await moduleIntegrity(record.module) !== record.integrity) {
+    throw new HarnessBrewError(
+      `Adapter module ${record.module} changed content; remove and add it again after review.`
+    );
+  }
+}
+
 function verifyIdentity(record: AdapterPluginRecord, adapter: TargetAdapter): void {
   if (adapter.name !== record.name || adapter.version !== record.version || adapter.apiVersion !== record.apiVersion) {
     throw new HarnessBrewError(
@@ -125,6 +157,7 @@ export async function addAdapterPlugin(home: string, moduleSpecifier: string): P
   if (state.adapters.some((record) => record.module === specifier)) {
     throw new HarnessBrewError(`Adapter module is already added: ${specifier}`);
   }
+  const integrity = await moduleIntegrity(specifier);
   const adapter = await importAdapter(specifier);
   const unregister = registerTargetAdapter(adapter);
   try {
@@ -136,6 +169,7 @@ export async function addAdapterPlugin(home: string, moduleSpecifier: string): P
       name: adapter.name,
       version: adapter.version,
       apiVersion: adapter.apiVersion,
+      integrity,
       addedAt: new Date().toISOString()
     };
     state.adapters.push(record);
@@ -162,6 +196,7 @@ export async function loadAdapterPlugins(home: string): Promise<() => void> {
   const unregister: Array<() => void> = [];
   try {
     for (const record of records) {
+      await assertModuleIntegrity(record);
       const adapter = await importAdapter(record.module);
       verifyIdentity(record, adapter);
       unregister.push(registerTargetAdapter(adapter));

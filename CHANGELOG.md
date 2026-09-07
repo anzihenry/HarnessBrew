@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.7.1 - 2026-09-07
+
+### Added
+
+- verify source compatibility on Node.js 22 with npm 11 and Node.js 24 with npm 12
+- record and verify the SHA-256 digest of each trusted Adapter module entry point before execution
+
+### Changed
+
+- pin npm 11.17.0 for deterministic candidate builds and cross-platform release gates
+- document the implemented Tap/Formula architecture as current rather than aspirational
+
+### Fixed
+
+- accept both npm 11 array output and npm 12 keyed-object output from `npm pack --json`
+- make concurrent artifact locking resilient to release and abandoned-lock races
+
 ## 0.7.0 - 2026-08-13
 
 ### Added

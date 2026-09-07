@@ -318,14 +318,14 @@ npm run check
 ```bash
 # 对已有候选 tarball 执行确定性 CI gate
 npm run release:gate -- \
-  --package /absolute/path/harnessbrew-0.7.0.tgz \
+  --package /absolute/path/harnessbrew-0.7.1.tgz \
   --manifest /absolute/path/artifact-manifest.json \
   --checksums /absolute/path/SHA256SUMS \
   --report-dir /absolute/path/release-reports
 
 # 使用同一候选字节执行本地 Codex 与 Claude Code 认证验证
 npm run release:preflight -- \
-  --package /absolute/path/harnessbrew-0.7.0.tgz \
+  --package /absolute/path/harnessbrew-0.7.1.tgz \
   --manifest /absolute/path/artifact-manifest.json \
   --checksums /absolute/path/SHA256SUMS
 ```
@@ -376,9 +376,9 @@ harnessbrew install review --target cursor
 harnessbrew adapter remove cursor
 ```
 
-`adapter add` 是一次显式的代码执行授权。HarnessBrew 将模块标识及审核时的 name、version、API version 写入
-`~/.harnessbrew/adapters.json`；后续只在 install/link/unlink/relink/upgrade/bundle 需要 Target 时加载，并在每次加载时核对身份。
-如果包升级改变身份，命令会关闭失败，要求先 remove、审查后再 add。`adapter list/remove` 本身不执行插件，HarnessBrew 也不会自动运行 `npm install`。
+`adapter add` 是一次显式的代码执行授权。HarnessBrew 将模块标识、入口 SHA-256 及审核时的 name、version、API version 写入
+`~/.harnessbrew/adapters.json`；后续执行前会同时核对内容和身份。发生漂移时命令会关闭失败，要求先 remove、审查后再 add。
+没有摘要的旧记录保持兼容并继续核对身份。`adapter list/remove` 本身不执行插件，HarnessBrew 也不会自动运行 `npm install`。
 CLI 加载的 Target 同样进入 Harnessfile v2 lock 的 Adapter 签名。
 
 ## 架构

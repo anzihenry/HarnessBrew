@@ -316,14 +316,14 @@ npm run check
 ```bash
 # Deterministic CI gate for an existing candidate tarball
 npm run release:gate -- \
-  --package /absolute/path/harnessbrew-0.7.0.tgz \
+  --package /absolute/path/harnessbrew-0.7.1.tgz \
   --manifest /absolute/path/artifact-manifest.json \
   --checksums /absolute/path/SHA256SUMS \
   --report-dir /absolute/path/release-reports
 
 # Local Codex-required and Claude-when-available verification of those same bytes
 npm run release:preflight -- \
-  --package /absolute/path/harnessbrew-0.7.0.tgz \
+  --package /absolute/path/harnessbrew-0.7.1.tgz \
   --manifest /absolute/path/artifact-manifest.json \
   --checksums /absolute/path/SHA256SUMS
 ```
@@ -370,7 +370,7 @@ harnessbrew install review --target cursor
 harnessbrew adapter remove cursor
 ```
 
-`adapter add` explicitly authorizes code execution. HarnessBrew records the module specifier and reviewed name, version, and API version in `~/.harnessbrew/adapters.json`. It loads the module only when install, link, unlink, relink, upgrade, or bundle operations need that Target, and verifies its identity every time. If a package upgrade changes identity, the command fails closed until the module is removed, reviewed, and added again. `adapter list` and `adapter remove` do not execute plugins, and HarnessBrew never runs `npm install` automatically. CLI-loaded Targets are also included in the Harnessfile v2 Adapter signature.
+`adapter add` explicitly authorizes code execution. HarnessBrew records the module specifier, entry-point SHA-256, and reviewed name, version, and API version in `~/.harnessbrew/adapters.json`. Before later execution it verifies both content and identity. Drift fails closed until the module is removed, reviewed, and added again. Legacy records without a digest remain compatible and retain identity checks. `adapter list` and `adapter remove` do not execute plugins, and HarnessBrew never runs `npm install` automatically. CLI-loaded Targets are also included in the Harnessfile v2 Adapter signature.
 
 ## Architecture
 

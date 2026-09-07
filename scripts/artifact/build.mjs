@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -13,20 +14,66 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "../..");
 const buildLockPath = path.join(projectRoot, ".npm-cache", "artifact-build.lock");
 
+function processIsAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code !== "ESRCH";
+  }
+}
+
+async function reclaimAbandonedArtifactBuildLock() {
+  const reclaimPath = `${buildLockPath}.reclaim`;
+  try {
+    await mkdir(reclaimPath);
+  } catch (error) {
+    if (error.code === "EEXIST") return false;
+    throw error;
+  }
+  try {
+    const owner = await readFile(path.join(buildLockPath, "owner.json"), "utf8")
+      .then((content) => JSON.parse(content))
+      .catch(() => undefined);
+    if (Number.isInteger(owner?.pid) && owner.pid > 0) {
+      if (processIsAlive(owner.pid)) return false;
+      await rm(buildLockPath, { recursive: true, force: true });
+      return true;
+    }
+    const metadata = await stat(buildLockPath).catch((error) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    });
+    if (metadata !== undefined && Date.now() - metadata.mtimeMs > 5 * 60_000) {
+      await rm(buildLockPath, { recursive: true, force: true });
+      return true;
+    }
+    return metadata === undefined;
+  } finally {
+    await rm(reclaimPath, { recursive: true, force: true });
+  }
+}
+
 async function withArtifactBuildLock(action) {
   const deadline = Date.now() + 120_000;
+  const token = randomUUID();
+  const ownerPath = path.join(buildLockPath, "owner.json");
   await mkdir(path.dirname(buildLockPath), { recursive: true });
   while (true) {
     try {
       await mkdir(buildLockPath);
+      try {
+        await writeFile(ownerPath, `${JSON.stringify({ token, pid: process.pid, acquiredAt: new Date().toISOString() })}\n`, {
+          flag: "wx"
+        });
+      } catch (error) {
+        await rm(buildLockPath, { recursive: true, force: true });
+        throw error;
+      }
       break;
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
-      const ageMs = Date.now() - (await stat(buildLockPath)).mtimeMs;
-      if (ageMs > 5 * 60_000) {
-        await rm(buildLockPath, { recursive: true, force: true });
-        continue;
-      }
+      if (await reclaimAbandonedArtifactBuildLock()) continue;
       if (Date.now() >= deadline) throw new Error("Timed out waiting for the artifact build lock.");
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
@@ -34,8 +81,23 @@ async function withArtifactBuildLock(action) {
   try {
     return await action();
   } finally {
-    await rm(buildLockPath, { recursive: true, force: true });
+    const currentToken = await readFile(ownerPath, "utf8")
+      .then((content) => JSON.parse(content).token)
+      .catch(() => undefined);
+    if (currentToken === token) await rm(buildLockPath, { recursive: true, force: true });
   }
+}
+
+export function parsePackEntries(output) {
+  const parsed = JSON.parse(output);
+  if (Array.isArray(parsed)) return parsed;
+  if (typeof parsed !== "object" || parsed === null) {
+    throw new Error("npm pack --json returned an unsupported response.");
+  }
+  if (typeof parsed.error === "object" && parsed.error !== null) {
+    throw new Error(`npm pack failed: ${parsed.error.summary ?? parsed.error.code ?? "unknown error"}`);
+  }
+  return Object.values(parsed);
 }
 
 async function command(commandName, args, options = {}) {
@@ -75,7 +137,7 @@ export async function buildArtifact({ outputDirectory, allowDirty = false }) {
       "--cache",
       path.join(projectRoot, ".npm-cache")
     ]));
-  const packEntries = JSON.parse(packResult.stdout);
+  const packEntries = parsePackEntries(packResult.stdout);
   assert.equal(packEntries.length, 1, "npm pack must produce exactly one package");
   const filename = packEntries[0]?.filename;
   assert.equal(typeof filename, "string", "npm pack must report the candidate filename");

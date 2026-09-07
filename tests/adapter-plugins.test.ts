@@ -74,6 +74,7 @@ test("Adapter plugin state explicitly adds, loads, and removes trusted modules",
   const added = await addAdapterPlugin(home, modulePath);
   assert.equal(added.name, "plugin-lifecycle");
   assert.match(added.module, /^file:/u);
+  assert.match(added.integrity ?? "", /^[0-9a-f]{64}$/u);
   assert.deepEqual((await listAdapterPlugins(home)).map((record) => record.name), ["plugin-lifecycle"]);
   assert.equal(hasTargetAdapter("plugin-lifecycle"), false);
 
@@ -131,6 +132,34 @@ test("configured Adapter identity changes fail closed until explicitly reviewed"
   assert.equal(await runCli(["install", "missing", "--target", "identity-test"], output.io, { home }), 1);
   assert.match(output.stderr.join("\n"), /changed identity.*remove and add it again after review/u);
   assert.equal(hasTargetAdapter("identity-test"), false);
+});
+
+test("configured Adapter content changes fail closed even when identity is unchanged", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-adapter-integrity-"));
+  const home = path.join(root, "home");
+  const modulePath = await createAdapterModule(root, "integrity-test");
+  await addAdapterPlugin(home, modulePath);
+  await writeFile(modulePath, `${await readFile(modulePath, "utf8")}\n// changed after review\n`, "utf8");
+
+  await assert.rejects(loadAdapterPlugins(home), /changed content.*remove and add it again after review/u);
+  assert.equal(hasTargetAdapter("integrity-test"), false);
+});
+
+test("legacy Adapter records without integrity retain identity validation", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-adapter-legacy-"));
+  const home = path.join(root, "home");
+  const modulePath = await createAdapterModule(root, "legacy-test");
+  await addAdapterPlugin(home, modulePath);
+  const statePath = path.join(home, "adapters.json");
+  const state = JSON.parse(await readFile(statePath, "utf8")) as {
+    adapters: Array<{ integrity?: string }>;
+  };
+  delete state.adapters[0]?.integrity;
+  await writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+
+  const unload = await loadAdapterPlugins(home);
+  assert.equal(hasTargetAdapter("legacy-test"), true);
+  unload();
 });
 
 test("Adapter plugin mutations support dry-run rollback", async () => {

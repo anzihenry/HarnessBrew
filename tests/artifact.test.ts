@@ -17,6 +17,7 @@ interface ArtifactBuildResult {
 
 interface ArtifactModule {
   buildArtifact(options: { outputDirectory: string; allowDirty?: boolean }): Promise<ArtifactBuildResult>;
+  parsePackEntries(output: string): Array<{ filename?: string }>;
 }
 
 interface VerifyModule {
@@ -32,6 +33,16 @@ interface VerifyModule {
 
 const artifactModule = await import(pathToFileURL(path.resolve("scripts/artifact/build.mjs")).href) as ArtifactModule;
 const verifyModule = await import(pathToFileURL(path.resolve("scripts/artifact/verify.mjs")).href) as VerifyModule;
+
+test("artifact builder accepts npm 11 and npm 12 pack JSON", () => {
+  const entry = { filename: "harnessbrew-0.7.1.tgz" };
+  assert.deepEqual(artifactModule.parsePackEntries(JSON.stringify([entry])), [entry]);
+  assert.deepEqual(artifactModule.parsePackEntries(JSON.stringify({ harnessbrew: entry })), [entry]);
+  assert.throws(
+    () => artifactModule.parsePackEntries(JSON.stringify({ error: { code: "EPERM", summary: "cache denied" } })),
+    /npm pack failed: cache denied/u
+  );
+});
 
 test("artifact builder packs once and records a verifiable candidate manifest", async () => {
   const outputDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-artifact-"));

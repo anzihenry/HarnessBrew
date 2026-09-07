@@ -1,6 +1,6 @@
 # Release Verification Runbook
 
-This runbook is the operational path for `0.7.0` and later releases. It separates deterministic GitHub Actions checks from local Agent runtime checks while keeping one immutable npm tarball throughout the process. Codex is required; Claude Code runs when an authenticated account is available.
+This runbook is the operational path for `0.7.1` and later releases. It separates deterministic GitHub Actions checks from local Agent runtime checks while keeping one immutable npm tarball throughout the process. Codex is required; Claude Code runs when an authenticated account is available.
 
 ## 1. Prepare the release source
 
@@ -34,7 +34,7 @@ Use a trusted workstation where Codex is authenticated. Claude Code is also exer
 
 ```bash
 npm run release:preflight -- \
-  --package /absolute/path/harnessbrew-0.7.0.tgz \
+  --package /absolute/path/harnessbrew-0.7.1.tgz \
   --manifest /absolute/path/artifact-manifest.json \
   --checksums /absolute/path/SHA256SUMS \
   --report-dir /absolute/path/runtime-evidence
