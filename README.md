@@ -17,7 +17,7 @@ HarnessBrew does not host assets. Personal, team, and third-party assets remain 
 - Validate and search skill, agent, workflow, instruction, prompt, MCP, and adapter Formulae
 - Resolve dependencies, cycles, missing entries, and conflicts
 - Install immutable content into the Cellar at a specific Git commit
-- Link assets into OpenAI Codex and Claude Code
+- Link assets into OpenAI Codex
 - Deliver Skills, Agents, Workflows, Prompts, Instructions, and MCP configuration in native formats
 - Support user and project scopes, including multiple instances of one Target
 - Track file, configuration-key, managed-block, and SHA-256 ownership in Receipts
@@ -92,7 +92,7 @@ HarnessBrew stops if a managed file or link has changed. Pass `--force` explicit
 | Tap | Git asset-source repository |
 | Formula / Cask | Agent asset Formula |
 | Cellar | Commit-isolated local installation area |
-| Link | Link into Codex, Claude Code, or another Target |
+| Link | Link into Codex or a third-party Target |
 | `Brewfile` | `Harnessfile` |
 | Receipt | Installation source, digest, and ownership record |
 
@@ -132,7 +132,7 @@ The Formula directory name must match `name`, and its parent directory must matc
   "kind": "skill",
   "description": "Review code changes with a consistent rubric.",
   "entry": "SKILL.md",
-  "targets": ["openai-codex", "claude-code"],
+  "targets": ["openai-codex"],
   "dependencies": [
     "your-name/agents/repository-guardrails"
   ],
@@ -154,7 +154,8 @@ An `adapter` Formula is a Git/Cellar-managed extension asset, but it is never ex
 Built-in Targets:
 
 - `openai-codex`
-- `claude-code`
+
+Retired Target receipts remain available to `doctor` and `uninstall`. Linking, relinking, or upgrading a retired Target requires a compatible registered Adapter; remove its placements from your Harnessfile before reproducing the environment.
 
 Select a Target during installation:
 
@@ -162,9 +163,9 @@ Select a Target during installation:
 harnessbrew install code-review --target openai-codex
 ```
 
-Codex Skills are installed in `~/.agents/skills` by default, while other Codex configuration uses `~/.codex`; Claude Code uses `~/.claude`. Skills are linked as complete directories, preserving relative resources such as `scripts/`, `references/`, and `assets/` alongside `SKILL.md`.
+Codex Skills are installed in `~/.agents/skills` by default, while other Codex configuration uses `~/.codex`. Skills are linked as complete directories, preserving relative resources such as `scripts/`, `references/`, and `assets/` alongside `SKILL.md`.
 
-Workflows and Prompts are projected as Target Skills with standard frontmatter. Agents use portable Markdown source and are rendered deterministically to `.codex/agents/<name>.toml` for Codex or `.claude/agents/<name>.md` for Claude Code. Instructions use owned managed blocks in Codex `AGENTS.md` and links under `.claude/rules/<name>.md` in Claude Code. MCP configuration is merged as TOML blocks or JSON keys. Removing shared configuration never overwrites user-owned content.
+Workflows and Prompts are projected as Target Skills with standard frontmatter. Agents use portable Markdown source and are rendered deterministically to `.codex/agents/<name>.toml` for Codex. Instructions use owned managed blocks in Codex `AGENTS.md`. MCP configuration is merged as owned TOML blocks. Removing shared configuration never overwrites user-owned content.
 
 Use an isolated Target root when needed:
 
@@ -182,7 +183,7 @@ harnessbrew link code-review --target openai-codex --scope project --project /pa
 harnessbrew unlink code-review --target openai-codex --scope project --project /path/to/repo
 ```
 
-Project-scoped Codex assets use `.agents/skills`, `.codex/agents`, the root `AGENTS.md`, and `.codex/config.toml`. Claude Code uses `.claude/skills`, `.claude/agents`, `.claude/rules`, and the root `.mcp.json`. When a Target has multiple instances, `unlink` requires an explicit scope.
+Project-scoped Codex assets use `.agents/skills`, `.codex/agents`, the root `AGENTS.md`, and `.codex/config.toml`. When a Target has multiple instances, `unlink` requires an explicit scope.
 
 `harnessbrew doctor [formula]` validates Cellar file digests and every Target operation, distinguishing missing targets from modified ones. If the Cellar is intact, `harnessbrew relink <formula>` forcibly reconstructs HarnessBrew-owned targets using the scope and root recorded in the Receipt. Use `--target`, `--scope`, and `--project` to repair one instance.
 
@@ -210,7 +211,7 @@ assets:
     targets:
       - target: openai-codex
         scope: user
-      - target: claude-code
+      - target: openai-codex
         scope: project
         project: .
 ```
@@ -321,14 +322,14 @@ npm run release:gate -- \
   --checksums /absolute/path/SHA256SUMS \
   --report-dir /absolute/path/release-reports
 
-# Local Codex-required and Claude-when-available verification of those same bytes
+# Local Codex verification of those same bytes
 npm run release:preflight -- \
   --package /absolute/path/harnessbrew-0.7.1.tgz \
   --manifest /absolute/path/artifact-manifest.json \
   --checksums /absolute/path/SHA256SUMS
 ```
 
-GitHub Actions builds one candidate and runs `release:gate` on Linux and macOS without model credentials. `release:preflight` intentionally runs on a trusted local workstation. Codex must pass; operators without a Claude Code account may use the documented `--allow-skips` environment exception, which produces `incomplete` evidence rather than a false pass. See the [release verification runbook](docs/releases/release-runbook.md).
+GitHub Actions builds one candidate and runs `release:gate` on Linux and macOS without model credentials. `release:preflight` intentionally runs on a trusted local workstation. Every Codex probe must pass; missing credentials or skipped probes block release. See the [release verification runbook](docs/releases/release-runbook.md).
 
 ## Target Adapter SDK
 

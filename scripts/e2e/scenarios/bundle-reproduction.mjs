@@ -20,7 +20,7 @@ ${includeAssets ? `  - formula: e2e/assets/main-skill
       - target: openai-codex
         scope: user
         root: ./codex-user
-      - target: claude-code
+      - target: openai-codex
         scope: project
         project: ./project
 ` : "  []\n"}`;
@@ -59,7 +59,7 @@ export async function bundleReproductionScenario({ environment, cli }) {
     /v1/u
   );
   assert.match(
-    await readFile(path.join(secondRoot, "project", ".claude", "skills", "main-skill", "references", "version.txt"), "utf8"),
+    await readFile(path.join(secondRoot, "project", ".agents", "skills", "main-skill", "references", "version.txt"), "utf8"),
     /v1/u
   );
 
@@ -80,7 +80,7 @@ export async function bundleReproductionScenario({ environment, cli }) {
   ]));
   assert.deepEqual((await cli.runJson(["list"], homeOptions(secondHome, secondRoot))).envelope.result, []);
   await assertPathMissing(path.join(secondRoot, "codex-user", "skills", "main-skill"));
-  await assertPathMissing(path.join(secondRoot, "project", ".claude", "skills", "main-skill"));
+  await assertPathMissing(path.join(secondRoot, "project", ".agents", "skills", "main-skill"));
 
   return { tap: fixture.name, pinnedCommit: fixture.v1Commit, latestCommit: fixture.v2Commit };
 }

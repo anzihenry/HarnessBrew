@@ -73,7 +73,7 @@ export async function registrySmoke({ version }) {
       kind: "skill",
       description: "Registry smoke fixture.",
       entry: "SKILL.md",
-      targets: ["openai-codex", "claude-code"],
+      targets: ["openai-codex"],
       dependencies: [], conflicts: [], tags: ["smoke"]
     }, null, 2)}\n`, "utf8");
     await writeFile(path.join(skill, "SKILL.md"), "---\nname: registry-smoke\ndescription: Registry smoke fixture.\n---\n", "utf8");

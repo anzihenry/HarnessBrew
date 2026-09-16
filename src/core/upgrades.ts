@@ -85,14 +85,6 @@ function targetPlacements(receipt: InstallReceipt): TargetPlacement[] {
       if (receipt.kind === "skill" || receipt.kind === "agent") {
         return { target, options: { root: path.dirname(path.dirname(operation.destination)) } };
       }
-      if (receipt.kind === "instruction" && target === "claude-code") {
-        return { target, options: { root: path.dirname(path.dirname(operation.destination)) } };
-      }
-      if (receipt.kind === "mcp" && target === "claude-code") {
-        return path.basename(operation.destination) === ".claude.json"
-          ? { target, options: {} }
-          : { target, options: { root: path.dirname(operation.destination) } };
-      }
       return { target, options: { root: path.dirname(operation.destination) } };
     });
   }

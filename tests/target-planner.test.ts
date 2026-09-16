@@ -18,7 +18,7 @@ function receipt(kind: string, entry = "content.md"): InstallReceipt {
     conflicts: [],
     requested: true,
     files: [],
-    supportedTargets: ["openai-codex", "claude-code"],
+    supportedTargets: ["openai-codex"],
     targets: [],
     links: [],
     operations: [],
@@ -42,24 +42,9 @@ test("Codex planner produces native destinations without touching the filesystem
   );
 });
 
-test("Claude Code planner maps assets to native destinations", () => {
-  assert.equal(
-    planTargetInstall(receipt("skill", "SKILL.md"), "claude-code", { root: "/target/claude" }).operations[0]?.destination,
-    path.resolve("/target/claude/skills/example")
-  );
-  assert.equal(
-    planTargetInstall(receipt("agent"), "claude-code", { root: "/target/claude" }).operations[0]?.destination,
-    path.resolve("/target/claude/agents/example.md")
-  );
-  assert.equal(
-    planTargetInstall(receipt("mcp"), "claude-code", { root: "/project" }).operations[0]?.destination,
-    path.resolve("/project/.mcp.json")
-  );
-});
-
 test("planner rejects unsupported and unknown formula kinds", () => {
   assert.throws(() => planTargetInstall(receipt("adapter"), "openai-codex"), /unsupported/);
-  assert.throws(() => planTargetInstall(receipt("unknown"), "claude-code"), /Unsupported formula kind/);
+  assert.throws(() => planTargetInstall(receipt("unknown"), "openai-codex"), /Unsupported formula kind/);
 });
 
 test("planners distinguish user and project scope roots", () => {
@@ -79,10 +64,10 @@ test("planners distinguish user and project scope roots", () => {
     path.join(projectRoot, "AGENTS.md")
   );
   assert.equal(
-    planTargetInstall(receipt("mcp"), "claude-code", {
+    planTargetInstall(receipt("mcp"), "openai-codex", {
       scope: "project",
       projectRoot
     }).operations[0]?.destination,
-    path.join(projectRoot, ".mcp.json")
+    path.join(projectRoot, ".codex", "config.toml")
   );
 });

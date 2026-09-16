@@ -17,7 +17,7 @@ HarnessBrew 不托管资产。个人、团队和第三方资产都保存在各�
 - 校验并搜索 skill、agent、workflow、instruction、prompt、MCP 和 adapter Formula
 - 解析依赖、循环、缺失项与冲突
 - 按 Git commit 将不可变内容安装到 Cellar
-- 链接到 OpenAI Codex 和 Claude Code
+- 链接到 OpenAI Codex
 - 以原生格式投递 Skill、Agent、Workflow、Prompt、Instruction 和 MCP
 - 支持 user/project scope，以及同一 Target 的多实例
 - 通过 Receipt 跟踪文件、配置键、受管区块所有权和 SHA-256 摘要
@@ -92,7 +92,7 @@ harnessbrew uninstall code-review
 | Tap | Git 资产源仓库 |
 | Formula / Cask | Agent 资产 Formula |
 | Cellar | 按 Git commit 隔离的本地安装区 |
-| Link | 到 Codex、Claude Code 等 target 的链接 |
+| Link | 到 Codex 或第三方 target 的链接 |
 | `Brewfile` | `Harnessfile` |
 | Receipt | 安装来源、文件摘要与所有权记录 |
 
@@ -132,7 +132,7 @@ Formula 的目录名称必须与 `name` 一致，目录类型必须与 `kind` �
   "kind": "skill",
   "description": "Review code changes with a consistent rubric.",
   "entry": "SKILL.md",
-  "targets": ["openai-codex", "claude-code"],
+  "targets": ["openai-codex"],
   "dependencies": [
     "your-name/agents/repository-guardrails"
   ],
@@ -155,7 +155,8 @@ MCP Formula 的入口是统一 JSON。stdio 配置使用 `command`、可选 `arg
 当前内置：
 
 - `openai-codex`
-- `claude-code`
+
+已移除 Target 的旧安装记录仍可通过 `doctor` 检查、通过 `uninstall` 安全卸载。重新链接、修复或升级这类 Target 需要兼容且已注册的 Adapter；重新构建环境前，请先移除 Harnessfile 中对应的投递配置。
 
 可以在安装时指定 target：
 
@@ -163,7 +164,7 @@ MCP Formula 的入口是统一 JSON。stdio 配置使用 `command`、可选 `arg
 harnessbrew install code-review --target openai-codex
 ```
 
-Codex Skill 默认安装到 `~/.agents/skills`，其他 Codex 配置使用 `~/.codex`；Claude Code 使用 `~/.claude`。Skill 以完整目录软链安装，因此 `scripts/`、`references/` 和 `assets/` 等相对资源会与 `SKILL.md` 一起生效。Workflow 和 Prompt 会被投影为带标准 frontmatter 的 Target Skill。Agent 则以统一 Markdown 作为源码：投递到 Codex 时确定性渲染为 `.codex/agents/<name>.toml`，投递到 Claude Code 时渲染为 `.claude/agents/<name>.md`。Instruction 在 Codex 的 `AGENTS.md` 中使用带所有权标记的受管区块，在 Claude Code 中链接为 `.claude/rules/<name>.md`；MCP 分别按 TOML 区块或 JSON 键合并。卸载这些共享配置不会覆盖用户内容。需要隔离安装时可使用：
+Codex Skill 默认安装到 `~/.agents/skills`，其他 Codex 配置使用 `~/.codex`。Skill 以完整目录软链安装，因此 `scripts/`、`references/` 和 `assets/` 等相对资源会与 `SKILL.md` 一起生效。Workflow 和 Prompt 会被投影为带标准 frontmatter 的 Target Skill。Agent 则以统一 Markdown 作为源码：投递到 Codex 时确定性渲染为 `.codex/agents/<name>.toml`。Instruction 在 Codex 的 `AGENTS.md` 中使用带所有权标记的受管区块；MCP 按 TOML 区块合并。卸载这些共享配置不会覆盖用户内容。需要隔离安装时可使用：
 
 ```bash
 harnessbrew install code-review \
@@ -179,7 +180,7 @@ harnessbrew link code-review --target openai-codex --scope project --project /pa
 harnessbrew unlink code-review --target openai-codex --scope project --project /path/to/repo
 ```
 
-项目级 Codex 资产使用项目中的 `.agents/skills`、`.codex/agents`、根 `AGENTS.md` 和 `.codex/config.toml`；Claude Code 使用 `.claude/skills`、`.claude/agents`、`.claude/rules` 和根 `.mcp.json`。当同一 Target 有多个实例时，unlink 必须指定 scope。
+项目级 Codex 资产使用项目中的 `.agents/skills`、`.codex/agents`、根 `AGENTS.md` 和 `.codex/config.toml`。当同一 Target 有多个实例时，unlink 必须指定 scope。
 
 `harnessbrew doctor [formula]` 会校验 Cellar 文件摘要和每条 Target operation，区分目标缺失与被修改；`harnessbrew relink <formula>` 会在 Cellar 完整的前提下，按 Receipt 记录的 scope/root 强制重建 HarnessBrew 拥有的目标。可用 `--target`、`--scope` 和 `--project` 只修复一个实例。
 
@@ -207,7 +208,7 @@ assets:
     targets:
       - target: openai-codex
         scope: user
-      - target: claude-code
+      - target: openai-codex
         scope: project
         project: .
 ```
@@ -323,14 +324,14 @@ npm run release:gate -- \
   --checksums /absolute/path/SHA256SUMS \
   --report-dir /absolute/path/release-reports
 
-# 使用同一候选字节执行本地 Codex 与 Claude Code 认证验证
+# 使用同一候选字节执行本地 Codex 认证验证
 npm run release:preflight -- \
   --package /absolute/path/harnessbrew-0.7.1.tgz \
   --manifest /absolute/path/artifact-manifest.json \
   --checksums /absolute/path/SHA256SUMS
 ```
 
-GitHub Actions 只构建一个候选，并在 Linux/macOS 上运行不需要模型凭据的 `release:gate`。`release:preflight` 则有意放在可信本地工作站，复用现有 Codex 和 Claude Code 登录状态。完整步骤见[发布验证操作手册](docs/releases/release-runbook.md)。
+GitHub Actions 只构建一个候选，并在 Linux/macOS 上运行不需要模型凭据的 `release:gate`。`release:preflight` 则有意放在可信本地工作站，复用现有 Codex 登录状态。完整步骤见[发布验证操作手册](docs/releases/release-runbook.md)。
 
 ## Target Adapter SDK
 

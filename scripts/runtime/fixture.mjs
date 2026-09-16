@@ -40,7 +40,7 @@ export async function createRuntimeFixture({ root, nonce, mcpServerPath, environ
     kind: "skill",
     description: "Release probe used only when explicitly invoked to verify Skill loading.",
     entry: "SKILL.md",
-    targets: ["openai-codex", "claude-code"],
+    targets: ["openai-codex"],
     dependencies: [], conflicts: [], tags: ["release-probe"]
   }, `---\nname: harnessbrew-runtime-skill\ndescription: Release probe used only when explicitly invoked to verify Skill loading.\n---\n\nWhen explicitly invoked, reply with the exact marker \`${markers.skill}\`.\n`);
   await writeFormula(repository, "instructions", {
@@ -49,7 +49,7 @@ export async function createRuntimeFixture({ root, nonce, mcpServerPath, environ
     kind: "instruction",
     description: "Release probe instruction for active-context verification.",
     entry: "content.md",
-    targets: ["openai-codex", "claude-code"],
+    targets: ["openai-codex"],
     dependencies: [], conflicts: [], tags: ["release-probe"]
   }, `For every release probe response, include the exact marker \`${markers.instruction}\`.\n`);
   await writeFormula(repository, "agents", {
@@ -58,7 +58,7 @@ export async function createRuntimeFixture({ root, nonce, mcpServerPath, environ
     kind: "agent",
     description: "Release probe subagent used to verify custom Agent loading.",
     entry: "content.md",
-    targets: ["openai-codex", "claude-code"],
+    targets: ["openai-codex"],
     dependencies: [], conflicts: [], tags: ["release-probe"]
   }, `You are the HarnessBrew release probe subagent. Return the exact marker \`${markers.agent}\` and no other prose.\n`);
   await writeFormula(repository, "mcp", {
@@ -67,7 +67,7 @@ export async function createRuntimeFixture({ root, nonce, mcpServerPath, environ
     kind: "mcp",
     description: "Credential-free local MCP release probe.",
     entry: "server.json",
-    targets: ["openai-codex", "claude-code"],
+    targets: ["openai-codex"],
     dependencies: [], conflicts: [], tags: ["release-probe"]
   }, `${JSON.stringify({
     transport: "stdio",

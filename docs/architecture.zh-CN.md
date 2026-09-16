@@ -27,7 +27,7 @@ HarnessBrew 自身不拥有用户资产。个人资产与第三方资产使用�
 3. **声明与安装分离**：formula 描述资产，Cellar 保存安装实例，adapter 负责投递到目标 Agent。
 4. **安装必须可逆**：每次安装都生成 receipt；卸载只删除 HarnessBrew 拥有的文件，并能检测冲突。
 5. **结果必须可复现**：声明文件表达期望状态，lock 文件固定实际 Git commit 和解析后的依赖版本。
-6. **目标平台解耦**：同一资产通过 adapter 安装到 Codex、Claude Code、Cursor 等不同环境。
+6. **目标平台解耦**：同一资产通过 adapter 安装到 Codex 等不同环境。
 7. **默认不执行不受信任代码**：第三方 formula 和资产首先视为数据；需要执行脚本时必须显式声明并获得授权。
 
 ## 3. Homebrew 概念映射
@@ -53,9 +53,9 @@ Harnessfile + Lockfile ───────────────────
                                                     │
                                       Target Adapter / Linker
                                                     │
-                          ┌─────────────────────────┼─────────────────────┐
-                          v                         v                     v
-                       Codex                  Claude Code              Cursor
+                          ┌─────────────────────────┐
+                          v                         v
+                       Codex               Third-party Adapters
 ```
 
 控制面由 tap、formula、`Harnessfile` 和 lockfile 构成；数据面由 Cellar 中的不可变安装内容及其到目标 Agent 的链接或渲染结果构成。
@@ -102,7 +102,7 @@ Formula 描述一个可安装资产，不承载 Git 已经提供的历史记录�
   "kind": "skill",
   "description": "Review code changes with a consistent rubric.",
   "entry": "SKILL.md",
-  "targets": ["openai-codex", "claude-code"],
+  "targets": ["openai-codex"],
   "dependencies": [
     "your-name/agents/repository-guardrails"
   ]
@@ -168,7 +168,7 @@ assets:
     targets:
       - target: openai-codex
         scope: user
-      - target: claude-code
+      - target: openai-codex
         scope: project
         project: .
 ```
@@ -190,7 +190,7 @@ Manifest 或 Adapter 版本变化时默认拒绝隐式改写，必须通过 `bun
 
 ### 5.5 Target 与 Adapter
 
-Target 表示具体 Agent 环境，例如 `openai-codex`、`claude-code` 或 `cursor`。Adapter 负责：
+Target 表示具体 Agent 环境，例如 `openai-codex` 或第三方 Target。Adapter 负责：
 
 - 校验资产与 target 是否兼容
 - 把统一 formula 映射到目标目录和文件格式
@@ -205,15 +205,15 @@ Adapter 只处理平台差异，不负责 Git 版本管理或依赖求解。
 
 Target Adapter 必须为每一种 Formula 类型声明确定的安装策略。不允许通过 `${kind}s` 猜测目标目录；没有平台依据的组合必须明确标记为 `unsupported`。
 
-| Formula | OpenAI Codex | Claude Code |
-| --- | --- | --- |
-| `skill` | `symlink-directory` | `symlink-directory` |
-| `workflow` | `render-skill` | `render-skill` |
-| `agent` | `render-file` | `render-file` |
-| `instruction` | `managed-block` | `symlink-file` |
-| `prompt` | `render-skill` | `render-skill` |
-| `mcp` | `merge-config` | `merge-config` |
-| `adapter` | `unsupported` | `unsupported` |
+| Formula | OpenAI Codex |
+| --- | --- |
+| `skill` | `symlink-directory` |
+| `workflow` | `render-skill` |
+| `agent` | `render-file` |
+| `instruction` | `managed-block` |
+| `prompt` | `render-skill` |
+| `mcp` | `merge-config` |
+| `adapter` | `unsupported` |
 
 策略含义：
 
@@ -225,21 +225,21 @@ Target Adapter 必须为每一种 Formula 类型声明确定的安装策略。�
 - `merge-config`：按配置键合并，并在 Receipt 中记录键级所有权。
 - `unsupported`：拒绝投递；资产仍可保存在 Cellar 中。
 
-Skill 必须使用以 `SKILL.md` 为入口的标准目录结构。Codex 用户级 Skill 投递到 `~/.agents/skills/<name>`，Claude Code 用户级 Skill 投递到 `~/.claude/skills/<name>`；两者都链接完整 Cellar 目录，而不是只链接入口文件，以保留 `scripts/`、`references/` 和 `assets/` 等相对资源。
+Skill 必须使用以 `SKILL.md` 为入口的标准目录结构。Codex 用户级 Skill 投递到 `~/.agents/skills/<name>`；Adapter 链接完整 Cellar 目录，而不是只链接入口文件，以保留 `scripts/`、`references/` 和 `assets/` 等相对资源。
 
-Agent Formula 使用统一 Markdown 入口作为可移植源码。Adapter 读取 Formula 的名称、描述与正文，确定性生成 Target 原生文件：Codex 写入 `~/.codex/agents/<name>.toml`，Claude Code 写入 `~/.claude/agents/<name>.md`。渲染文件的摘要与操作所有权记录在 Receipt 中；重复 link 会验证摘要，upgrade 会从新版本源码重新生成，检测到用户修改时默认拒绝覆盖或删除。
+Agent Formula 使用统一 Markdown 入口作为可移植源码。Adapter 读取 Formula 的名称、描述与正文，确定性生成 Target 原生文件：Codex 写入 `~/.codex/agents/<name>.toml`。渲染文件的摘要与操作所有权记录在 Receipt 中；重复 link 会验证摘要，upgrade 会从新版本源码重新生成，检测到用户修改时默认拒绝覆盖或删除。
 
-Instruction Formula 同样使用 Markdown 入口。Codex Adapter 将内容写入 `~/.codex/AGENTS.md` 中以 Formula 坐标命名的受管区块，允许多个资产和用户原有内容安全共存；Claude Code Adapter 将入口软链到 `~/.claude/rules/<name>.md`。Receipt 记录区块标记和内容摘要，因而 unlink、uninstall 和 upgrade 只处理 HarnessBrew 拥有的区块，并在区块被修改时默认中止。
+Instruction Formula 同样使用 Markdown 入口。Codex Adapter 将内容写入 `~/.codex/AGENTS.md` 中以 Formula 坐标命名的受管区块，允许多个资产和用户原有内容安全共存。Receipt 记录区块标记和内容摘要，因而 unlink、uninstall 和 upgrade 只处理 HarnessBrew 拥有的区块，并在区块被修改时默认中止。
 
-Workflow 与 Prompt Formula 通过 `render-skill` 统一投影为 `<target-skill-root>/<name>/SKILL.md`。生成文件包含标准的 `name`、`description` frontmatter，以及记录原始 Formula 类型和坐标的 HarnessBrew metadata；正文保持为 Formula 的 Markdown 入口。Codex 和 Claude Code 使用相同的可移植投影模型，不依赖某个平台专有且可能废弃的 commands 目录。
+Workflow 与 Prompt Formula 通过 `render-skill` 统一投影为 `<target-skill-root>/<name>/SKILL.md`。生成文件包含标准的 `name`、`description` frontmatter，以及记录原始 Formula 类型和坐标的 HarnessBrew metadata；正文保持为 Formula 的 Markdown 入口。Codex 使用相同的可移植投影模型，不依赖某个平台专有且可能废弃的 commands 目录。
 
-MCP Formula 使用统一 JSON 描述 stdio 或 HTTP transport。凭据字段只能引用环境变量名称：stdio 使用 `envVars`，HTTP 使用 `bearerTokenEnvVar` 和 `headersFromEnv`，不允许 Formula 保存明文密钥。Codex Adapter 在 `config.toml` 中生成带坐标标记的 `[mcp_servers.<name>]` 区块；Claude Code Adapter 合并 `.claude.json` 或项目 `.mcp.json` 的 `mcpServers.<name>` 键。Receipt 保存区块/键所有权及值摘要，冲突键、拥有值篡改和无效配置都会中止操作，卸载只移除对应键或区块。
+MCP Formula 使用统一 JSON 描述 stdio 或 HTTP transport。凭据字段只能引用环境变量名称：stdio 使用 `envVars`，HTTP 使用 `bearerTokenEnvVar` 和 `headersFromEnv`，不允许 Formula 保存明文密钥。Codex Adapter 在 `config.toml` 中生成带坐标标记的 `[mcp_servers.<name>]` 区块。Receipt 保存区块/键所有权及值摘要，冲突键、拥有值篡改和无效配置都会中止操作，卸载只移除对应键或区块。
 
 Adapter Formula 在当前版本仅作为 Git/Cellar 资产保存，不允许投递到任何内置 Target。执行层必须根据能力矩阵返回明确的 `unsupported` 错误，不得退回通用目录或 `${kind}s` 路径。第三方 Target 通过宿主显式注册的版本化 Adapter SDK 参与安装计划；HarnessBrew 不从 Tap 自动执行 Adapter Formula。
 
 #### Target Scope 与实例标识
 
-Target Context 明确区分 `user` 和 `project` scope。project scope 必须带规范化后的项目根目录；用户显式提供的 `target-root` 作为更高优先级的隔离覆盖。Codex 项目级目录为 `.agents/skills`、`.codex/agents`、项目根 `AGENTS.md` 与 `.codex/config.toml`；Claude Code 项目级目录为 `.claude/skills`、`.claude/agents`、`.claude/rules` 与项目根 `.mcp.json`。
+Target Context 明确区分 `user` 和 `project` scope。project scope 必须带规范化后的项目根目录；用户显式提供的 `target-root` 作为更高优先级的隔离覆盖。Codex 项目级目录为 `.agents/skills`、`.codex/agents`、项目根 `AGENTS.md` 与 `.codex/config.toml`。
 
 Target 实例的身份由 `target + destination` 决定，而不是仅由 Target 名称决定。Receipt 的每条 operation 记录 scope、显式 root 和 project root，因此同一 Formula 可以同时投递到 user/project，upgrade 会逐实例重建，unlink 只删除所选实例。如果调用方未指定 scope 且只有一个实例，为兼容旧 API 可以自动选择；存在多个实例时必须拒绝歧义操作。
 
@@ -386,7 +386,6 @@ HarnessBrew 使用以下优先级解析版本：
 Agent 平台变化应与核心包管理能力解耦。Adapter 最终以插件形式提供，例如：
 
 - `@harnessbrew/adapter-openai-codex`
-- `@harnessbrew/adapter-claude-code`
 - `@harnessbrew/adapter-cursor`
 
 插件接口以“输入已安装 Receipt 和 Target Context，输出确定性安装计划”为核心。注册时校验 API/插件版本和完整 Formula 能力矩阵；

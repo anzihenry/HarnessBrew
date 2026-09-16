@@ -27,6 +27,6 @@ test("packaged CLI installs all Formula, Target, and scope placements", async ()
   };
   assert.equal(report.scenarios[0]?.name, "target-matrix");
   assert.equal(report.scenarios[0]?.status, "passed");
-  assert.equal(report.commands.filter((command) => command.args[0] === "link" && command.exitCode === 0).length, 24);
+  assert.equal(report.commands.filter((command) => command.args[0] === "link" && command.exitCode === 0).length, 12);
   assert.ok(report.commands.some((command) => command.args[0] === "doctor"));
 });

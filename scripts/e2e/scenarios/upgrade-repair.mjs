@@ -18,7 +18,7 @@ export async function upgradeRepairScenario({ environment, cli }) {
     "install", "runtime-instruction", "--target", "openai-codex", "--target-root", environment.paths.codexRoot
   ])).envelope, "install");
   assertSuccessfulEnvelope((await cli.runJson([
-    "install", "runtime-workflow", "--target", "claude-code", "--target-root", environment.paths.claudeRoot
+    "install", "runtime-workflow", "--target", "openai-codex", "--target-root", environment.paths.codexRoot
   ])).envelope, "install");
 
   const v2Commit = await fixture.pushV2();
@@ -36,7 +36,7 @@ export async function upgradeRepairScenario({ environment, cli }) {
   const projectSkillRoot = path.join(environment.paths.project, ".agents", "skills", "main-skill");
   const projectSkill = path.join(projectSkillRoot, "references", "version.txt");
   const instruction = path.join(environment.paths.codexRoot, "AGENTS.md");
-  const workflow = path.join(environment.paths.claudeRoot, "skills", "runtime-workflow", "SKILL.md");
+  const workflow = path.join(environment.paths.codexRoot, "skills", "runtime-workflow", "SKILL.md");
   assert.match(await readFile(userSkill, "utf8"), /v2/u);
   assert.match(await readFile(projectSkill, "utf8"), /v2/u);
   assert.match(await readFile(instruction, "utf8"), /runtime-instruction v2/u);

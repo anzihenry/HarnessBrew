@@ -10,7 +10,6 @@ import { installCandidate } from "../artifact/install-candidate.mjs";
 import { parseNamedArguments } from "../artifact/manifest.mjs";
 import { verifyArtifact } from "../artifact/verify.mjs";
 import { PackagedCliDriver } from "../e2e/cli-driver.mjs";
-import { runClaudeProbe } from "./claude.mjs";
 import { runCodexProbe } from "./codex.mjs";
 import { createRuntimeFixture } from "./fixture.mjs";
 import { spawnCapture } from "./process.mjs";
@@ -19,7 +18,7 @@ const execFileAsync = promisify(execFile);
 const scriptPath = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(scriptPath), "../..");
 
-function probes(markers, runtime) {
+function probes(markers) {
   return [
     {
       name: "skill",
@@ -35,17 +34,13 @@ function probes(markers, runtime) {
       name: "agent",
       marker: markers.agent,
       prompt: "Delegate this probe to the custom harnessbrew-runtime-agent subagent and return the marker it reports.",
-      requiredEvent: runtime === "codex"
-        ? { itemType: "collab_tool_call" }
-        : { toolNameIncludes: "Task", textIncludes: "harnessbrew-runtime-agent" }
+      requiredEvent: { itemType: "collab_tool_call" }
     },
     {
       name: "mcp",
       marker: markers.mcp,
       prompt: "Call the harnessbrew-runtime-mcp tool harnessbrew_runtime_nonce and include its exact result in the final response.",
-      requiredEvent: runtime === "codex"
-        ? { itemType: "mcp_tool_call", textIncludes: "harnessbrew_runtime_nonce" }
-        : { toolNameIncludes: "harnessbrew_runtime_nonce", textIncludes: "harnessbrew-runtime-mcp" }
+      requiredEvent: { itemType: "mcp_tool_call", textIncludes: "harnessbrew_runtime_nonce" }
     }
   ];
 }
@@ -88,7 +83,7 @@ async function runRuntime(adapter, fixture, cwd, environment) {
     };
   }
   const results = [];
-  for (const probe of probes(fixture.markers, adapter.runtime)) {
+  for (const probe of probes(fixture.markers)) {
     const beforeMcpCalls = probe.name === "mcp" ? await mcpCalls(fixture.mcpLog, fixture.markers.mcp) : 0;
     let result = await adapter.runProbe({ probe, cwd, binary: adapter.binary, environment, fixture });
     let attempts = 1;
@@ -116,13 +111,9 @@ async function runRuntime(adapter, fixture, cwd, environment) {
   return { name: adapter.name, cliVersion, status, probes: results };
 }
 
-export function runtimeReportStatus(runtimes, { allowSkips = false } = {}) {
-  if (runtimes.every((runtime) => runtime.status === "passed")) return "passed";
-  const codexPassed = runtimes.some((runtime) => runtime.name === "codex" && runtime.status === "passed");
-  const onlyPassesOrEnvironmentSkips = runtimes.every((runtime) => runtime.status === "passed"
-    || (runtime.status === "skipped" && (runtime.failureClass === "environment-failure"
-      || (runtime.probes.length > 0 && runtime.probes.every((probe) => probe.failureClass === "environment-failure")))));
-  return allowSkips && codexPassed && onlyPassesOrEnvironmentSkips ? "incomplete" : "failed";
+export function runtimeReportStatus(runtimes) {
+  return runtimes.length === 1 && runtimes[0].name === "codex" && runtimes[0].status === "passed"
+    ? "passed" : "failed";
 }
 
 async function installRuntimeAssets(cli, fixture, project) {
@@ -135,9 +126,7 @@ async function installRuntimeAssets(cli, fixture, project) {
   ];
   for (const formula of formulas) {
     await cli.run(["install", formula]);
-    for (const target of ["openai-codex", "claude-code"]) {
-      await cli.run(["link", formula, "--target", target, "--scope", "project", "--project", project]);
-    }
+    await cli.run(["link", formula, "--target", "openai-codex", "--scope", "project", "--project", project]);
   }
   const codexConfigPath = path.join(project, ".codex", "config.toml");
   const codexConfig = await readFile(codexConfigPath, "utf8");
@@ -173,7 +162,6 @@ export async function runRuntimePreflight({
   manifestPath,
   checksumsPath,
   reportDirectory,
-  allowSkips = false,
   keep = false,
   runtimeAdapters
 }) {
@@ -227,14 +215,11 @@ export async function runRuntimePreflight({
     await installRuntimeAssets(cli, fixture, paths.project);
     codexAuthBridge = await prepareCodexHome(paths.codexHome, paths.project);
     const adapters = runtimeAdapters ?? [
-      { name: "codex", runtime: "codex", binary: "codex", runProbe: runCodexProbe },
-      { name: "claude-code", runtime: "claude-code", binary: "claude", runProbe: runClaudeProbe }
+      { name: "codex", runtime: "codex", binary: "codex", runProbe: runCodexProbe }
     ];
     const runtimes = [];
     for (const adapter of adapters) {
-      const runtimeEnvironment = adapter.runtime === "codex"
-        ? { ...process.env, CODEX_HOME: paths.codexHome }
-        : process.env;
+      const runtimeEnvironment = { ...process.env, CODEX_HOME: paths.codexHome };
       runtimes.push(await runRuntime(adapter, fixture, paths.project, runtimeEnvironment));
     }
     report = {
@@ -252,7 +237,7 @@ export async function runRuntimePreflight({
       },
       startedAt,
       completedAt: new Date().toISOString(),
-      status: runtimeReportStatus(runtimes, { allowSkips }),
+      status: runtimeReportStatus(runtimes),
       runtimes
     };
     await mkdir(reportRoot, { recursive: true });
@@ -269,19 +254,18 @@ async function main() {
   const { values, flags } = parseNamedArguments(
     process.argv.slice(2),
     ["--package", "--manifest", "--checksums", "--report-dir"],
-    ["--allow-skips", "--keep"]
+    ["--keep"]
   );
   const packagePath = values.get("--package");
   const manifestPath = values.get("--manifest");
   if (packagePath === undefined || manifestPath === undefined) {
-    throw new Error("Usage: npm run release:preflight -- --package <candidate.tgz> --manifest <artifact-manifest.json> [--checksums <SHA256SUMS>] [--report-dir <directory>] [--allow-skips] [--keep]");
+    throw new Error("Usage: npm run release:preflight -- --package <candidate.tgz> --manifest <artifact-manifest.json> [--checksums <SHA256SUMS>] [--report-dir <directory>] [--keep]");
   }
   const result = await runRuntimePreflight({
     packagePath,
     manifestPath,
     ...(values.get("--checksums") === undefined ? {} : { checksumsPath: values.get("--checksums") }),
     ...(values.get("--report-dir") === undefined ? {} : { reportDirectory: values.get("--report-dir") }),
-    allowSkips: flags.has("--allow-skips"),
     keep: flags.has("--keep")
   });
   console.log(`Runtime preflight ${result.report.status}: ${result.reportPath}`);

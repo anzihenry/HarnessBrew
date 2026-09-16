@@ -1,13 +1,11 @@
 import { HarnessBrewError } from "../errors.js";
 import { formulaKinds } from "../formulas.js";
 import { targetOperationKinds } from "../target-capabilities.js";
-import { claudeCodeAdapter } from "./claude-code.js";
 import { codexAdapter } from "./codex.js";
 import { TARGET_ADAPTER_API_VERSION, type TargetAdapter, type TargetName } from "./types.js";
 
 const adapters = new Map<TargetName, TargetAdapter>([
-  [codexAdapter.name, codexAdapter],
-  [claudeCodeAdapter.name, claudeCodeAdapter]
+  [codexAdapter.name, codexAdapter]
 ]);
 
 export const TARGET_ADAPTER_VERSION = "1";
@@ -17,7 +15,7 @@ export function targetAdapterVersion(targets?: Iterable<TargetName>): string {
     ? listTargetAdapters()
     : [...new Set(targets)].map((target) => getTargetAdapter(target));
   const plugins = selected
-    .filter((adapter) => adapter.name !== "openai-codex" && adapter.name !== "claude-code")
+    .filter((adapter) => adapter.name !== "openai-codex")
     .sort((left, right) => left.name.localeCompare(right.name))
     .map((adapter) => `${adapter.name}@${adapter.version}`);
   return plugins.length === 0 ? TARGET_ADAPTER_VERSION : `${TARGET_ADAPTER_VERSION};${plugins.join(",")}`;

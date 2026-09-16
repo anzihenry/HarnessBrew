@@ -95,18 +95,11 @@ function placementSpecified(options: RelinkOptions): boolean {
 }
 
 function legacyLinkOptions(receipt: InstallReceipt, operation: InstalledOperation): LinkOptions {
-  const target = operation.target;
   if (receipt.kind === "workflow" || receipt.kind === "prompt") {
     return { root: path.dirname(path.dirname(path.dirname(operation.destination))) };
   }
   if (receipt.kind === "skill" || receipt.kind === "agent") {
     return { root: path.dirname(path.dirname(operation.destination)) };
-  }
-  if (receipt.kind === "instruction" && target === "claude-code") {
-    return { root: path.dirname(path.dirname(operation.destination)) };
-  }
-  if (receipt.kind === "mcp" && target === "claude-code" && path.basename(operation.destination) === ".claude.json") {
-    return {};
   }
   return { root: path.dirname(operation.destination) };
 }

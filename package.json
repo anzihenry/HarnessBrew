@@ -20,8 +20,8 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "build:test": "tsc -p tsconfig.test.json",
+    "build": "node ./scripts/clean-build.mjs dist && tsc -p tsconfig.json",
+    "build:test": "node ./scripts/clean-build.mjs .test-dist && tsc -p tsconfig.test.json",
     "start": "node ./dist/bin.js",
     "test": "npm run build:test && node --test .test-dist/tests/*.test.js",
     "artifact:build": "node ./scripts/artifact/build.mjs --output ./release-artifacts",

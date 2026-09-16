@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- focus built-in Target support and runtime preflight on OpenAI Codex; remove the Claude Code Adapter and runtime probes
+- cover all 12 Codex Formula/scope placements and require every Codex runtime probe to pass
+- clean generated build output before compilation so removed modules cannot enter release packages
+
+Existing receipts retain generic ownership-based cleanup; removed Targets cannot be linked, relinked, or upgraded without a compatible Adapter.
+
 ## 0.7.1 - 2026-09-07
 
 ### Added

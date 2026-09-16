@@ -75,7 +75,6 @@ export async function createE2EEnvironment({
     installPrefix: path.join(root, "install-prefix"),
     project: path.join(root, "project"),
     codexRoot: path.join(root, "codex-root"),
-    claudeRoot: path.join(root, "claude-root"),
     tapAuthor: path.join(root, "tap-author"),
     tapRemote: path.join(root, "tap-remote.git"),
     reports: path.join(root, "reports"),
@@ -90,7 +89,6 @@ export async function createE2EEnvironment({
     mkdir(paths.harnessHome, { recursive: true }),
     mkdir(paths.project, { recursive: true }),
     mkdir(paths.codexRoot, { recursive: true }),
-    mkdir(paths.claudeRoot, { recursive: true }),
     mkdir(paths.reports, { recursive: true }),
     mkdir(paths.logs, { recursive: true }),
     mkdir(paths.npmCache, { recursive: true })

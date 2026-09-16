@@ -27,7 +27,7 @@ HarnessBrew does not own user assets. Personal and third-party assets use the sa
 3. **Declaration is separate from installation.** A Formula describes an asset, the Cellar stores installed instances, and an Adapter delivers them to an Agent Target.
 4. **Installation must be reversible.** Every installation creates a Receipt. Uninstallation removes only files owned by HarnessBrew and detects conflicts.
 5. **Results must be reproducible.** A manifest declares desired state, while a lockfile pins exact Git commits and resolved dependency versions.
-6. **Target platforms are decoupled.** One asset can be installed into Codex, Claude Code, Cursor, and other environments through Adapters.
+6. **Target platforms are decoupled.** One asset can be installed into Codex and other environments through Adapters.
 7. **Untrusted code is not executed by default.** Third-party Formulae and assets begin as data. Executable code requires an explicit declaration and authorization.
 
 ## 3. Mapping to Homebrew
@@ -53,9 +53,9 @@ Harnessfile + Lockfile ───────────────────
                                                     │
                                       Target Adapter / Linker
                                                     │
-                          ┌─────────────────────────┼─────────────────────┐
-                          v                         v                     v
-                       Codex                  Claude Code              Cursor
+                          ┌─────────────────────────┐
+                          v                         v
+                       Codex               Third-party Adapters
 ```
 
 The control plane consists of Taps, Formulae, the `Harnessfile`, and its lockfile. The data plane consists of immutable content in the Cellar and its links or rendered output in Agent Targets.
@@ -102,7 +102,7 @@ A Formula describes an installable asset without duplicating history already pro
   "kind": "skill",
   "description": "Review code changes with a consistent rubric.",
   "entry": "SKILL.md",
-  "targets": ["openai-codex", "claude-code"],
+  "targets": ["openai-codex"],
   "dependencies": [
     "your-name/agents/repository-guardrails"
   ]
@@ -168,7 +168,7 @@ assets:
     targets:
       - target: openai-codex
         scope: user
-      - target: claude-code
+      - target: openai-codex
         scope: project
         project: .
 ```
@@ -188,7 +188,7 @@ Lockfile v2 also stores the normalized Harnessfile digest, content digest of eve
 
 ### 5.5 Target and Adapter
 
-A Target is a concrete Agent environment such as `openai-codex`, `claude-code`, or `cursor`. An Adapter:
+A Target is a concrete Agent environment such as `openai-codex` or a third-party Target. An Adapter:
 
 - Validates compatibility between an asset and a Target
 - Maps a common Formula to Target directories and formats
@@ -203,15 +203,15 @@ An Adapter handles platform differences only. It does not manage Git versions or
 
 A Target Adapter declares a deterministic installation strategy for every Formula kind. Target paths must not be guessed from `${kind}s`; unsupported combinations must be explicit.
 
-| Formula | OpenAI Codex | Claude Code |
-| --- | --- | --- |
-| `skill` | `symlink-directory` | `symlink-directory` |
-| `workflow` | `render-skill` | `render-skill` |
-| `agent` | `render-file` | `render-file` |
-| `instruction` | `managed-block` | `symlink-file` |
-| `prompt` | `render-skill` | `render-skill` |
-| `mcp` | `merge-config` | `merge-config` |
-| `adapter` | `unsupported` | `unsupported` |
+| Formula | OpenAI Codex |
+| --- | --- |
+| `skill` | `symlink-directory` |
+| `workflow` | `render-skill` |
+| `agent` | `render-file` |
+| `instruction` | `managed-block` |
+| `prompt` | `render-skill` |
+| `mcp` | `merge-config` |
+| `adapter` | `unsupported` |
 
 Strategy meanings:
 
@@ -223,21 +223,21 @@ Strategy meanings:
 - `merge-config`: merge by configuration key and record key-level ownership in the Receipt.
 - `unsupported`: reject Target delivery while allowing the asset to remain in the Cellar.
 
-A Skill uses the standard directory layout with `SKILL.md` as its entry. User-scoped Codex Skills go to `~/.agents/skills/<name>` and Claude Code Skills to `~/.claude/skills/<name>`. Both link the complete Cellar directory so resources under `scripts/`, `references/`, and `assets/` remain available.
+A Skill uses the standard directory layout with `SKILL.md` as its entry. User-scoped Codex Skills go to `~/.agents/skills/<name>`. The Adapter links the complete Cellar directory so resources under `scripts/`, `references/`, and `assets/` remain available.
 
-An Agent Formula uses common Markdown as portable source. The Adapter reads its name, description, and body and renders deterministic native output: `~/.codex/agents/<name>.toml` for Codex or `~/.claude/agents/<name>.md` for Claude Code. The Receipt records rendered-file digests and ownership. Repeated links verify the digest; upgrades regenerate from new source; user modifications block overwrite or removal by default.
+An Agent Formula uses common Markdown as portable source. The Adapter reads its name, description, and body and renders deterministic native output: `~/.codex/agents/<name>.toml` for Codex. The Receipt records rendered-file digests and ownership. Repeated links verify the digest; upgrades regenerate from new source; user modifications block overwrite or removal by default.
 
-An Instruction Formula also uses a Markdown entry. The Codex Adapter writes an owned block, named by Formula coordinate, into `~/.codex/AGENTS.md`. The Claude Code Adapter links the entry to `~/.claude/rules/<name>.md`. Because block markers and content digests are recorded, unlink, uninstall, and upgrade touch only HarnessBrew-owned content and stop if it has been modified.
+An Instruction Formula also uses a Markdown entry. The Codex Adapter writes an owned block, named by Formula coordinate, into `~/.codex/AGENTS.md`. Because block markers and content digests are recorded, unlink, uninstall, and upgrade touch only HarnessBrew-owned content and stop if it has been modified.
 
-Workflow and Prompt Formulae use `render-skill` to project into `<target-skill-root>/<name>/SKILL.md`. Generated files contain standard `name` and `description` frontmatter plus HarnessBrew metadata for the original Formula kind and coordinate. The body remains the Formula's Markdown entry. Codex and Claude Code use the same portable model instead of platform-specific command directories.
+Workflow and Prompt Formulae use `render-skill` to project into `<target-skill-root>/<name>/SKILL.md`. Generated files contain standard `name` and `description` frontmatter plus HarnessBrew metadata for the original Formula kind and coordinate. The body remains the Formula's Markdown entry. Codex uses the same portable model instead of platform-specific command directories.
 
-An MCP Formula uses common JSON for stdio or HTTP transport. Credential fields reference environment-variable names only: stdio uses `envVars`, while HTTP uses `bearerTokenEnvVar` and `headersFromEnv`. Formulae cannot store plaintext secrets. Codex receives coordinate-marked `[mcp_servers.<name>]` blocks in `config.toml`; Claude Code receives a merged `mcpServers.<name>` key in `.claude.json` or project `.mcp.json`. The Receipt tracks block or key ownership and value digests. Conflicting keys, modified owned values, or invalid configuration abort the operation. Uninstallation removes only the corresponding block or key.
+An MCP Formula uses common JSON for stdio or HTTP transport. Credential fields reference environment-variable names only: stdio uses `envVars`, while HTTP uses `bearerTokenEnvVar` and `headersFromEnv`. Formulae cannot store plaintext secrets. Codex receives coordinate-marked `[mcp_servers.<name>]` blocks in `config.toml`. The Receipt tracks block or key ownership and value digests. Conflicting keys, modified owned values, or invalid configuration abort the operation. Uninstallation removes only the corresponding block or key.
 
 An Adapter Formula is currently stored only as a Git/Cellar asset and cannot be delivered to a built-in Target. The capability matrix must return `unsupported`; no generic directory fallback is permitted. Third-party Targets participate through a versioned Adapter SDK explicitly registered by the host. HarnessBrew never executes Adapter Formulae from a Tap automatically.
 
 #### Target scope and instance identity
 
-Target Context distinguishes `user` and `project` scopes. Project scope requires a normalized project root. An explicit `target-root` has higher priority as an isolation override. Project-scoped Codex paths are `.agents/skills`, `.codex/agents`, root `AGENTS.md`, and `.codex/config.toml`. Claude Code uses `.claude/skills`, `.claude/agents`, `.claude/rules`, and root `.mcp.json`.
+Target Context distinguishes `user` and `project` scopes. Project scope requires a normalized project root. An explicit `target-root` has higher priority as an isolation override. Project-scoped Codex paths are `.agents/skills`, `.codex/agents`, root `AGENTS.md`, and `.codex/config.toml`.
 
 A Target instance is identified by `target + destination`, not by Target name alone. Each Receipt operation stores scope, explicit root, and project root. One Formula can therefore be delivered to user and project scope at the same time. Upgrade rebuilds each instance and unlink removes only the selected instance. For compatibility, an omitted scope may select the only existing instance; multiple instances make the request ambiguous and must be rejected.
 
@@ -377,7 +377,6 @@ Recommended publication flow for personal assets:
 Changes in Agent platforms should be decoupled from core package management. Adapters can eventually be distributed as plugins such as:
 
 - `@harnessbrew/adapter-openai-codex`
-- `@harnessbrew/adapter-claude-code`
 - `@harnessbrew/adapter-cursor`
 
 The plugin contract takes an installed Receipt and Target Context and returns a deterministic installation plan. Registration validates API and plugin versions and a complete Formula capability matrix. Every plan validates Target, coordinate, strategy, absolute destination, and that each source remains inside the Cellar. Capability snapshots are frozen after registration, and third-party Adapter name and version enter the Harnessfile v2 Adapter signature.

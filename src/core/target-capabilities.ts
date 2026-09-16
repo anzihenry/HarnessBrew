@@ -1,6 +1,6 @@
 import type { FormulaKind } from "./formulas.js";
 
-export const builtinTargets = ["openai-codex", "claude-code"] as const;
+export const builtinTargets = ["openai-codex"] as const;
 export type BuiltinTarget = (typeof builtinTargets)[number];
 
 export const targetOperationKinds = [
@@ -22,15 +22,6 @@ export const targetCapabilities = {
     agent: "render-file",
     workflow: "render-skill",
     instruction: "managed-block",
-    prompt: "render-skill",
-    mcp: "merge-config",
-    adapter: "unsupported"
-  },
-  "claude-code": {
-    skill: "symlink-directory",
-    agent: "render-file",
-    workflow: "render-skill",
-    instruction: "symlink-file",
     prompt: "render-skill",
     mcp: "merge-config",
     adapter: "unsupported"

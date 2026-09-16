@@ -59,7 +59,7 @@ async function writeFormula(repository, definition, version) {
     kind: definition.kind,
     description: `HarnessBrew E2E ${definition.name} ${version}`,
     entry,
-    targets: definition.targets ?? ["openai-codex", "claude-code"],
+    targets: definition.targets ?? ["openai-codex"],
     dependencies: definition.dependencies ?? [],
     conflicts: definition.conflicts ?? [],
     tags: ["e2e", version]

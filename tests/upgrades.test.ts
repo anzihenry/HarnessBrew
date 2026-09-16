@@ -82,11 +82,11 @@ test("instruction upgrades replace only their managed Codex block", async () => 
 test("workflow upgrades regenerate their projected skill", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-upgrade-"));
   const home = path.join(root, "home");
-  const targetRoot = path.join(root, ".claude");
+  const targetRoot = path.join(root, ".codex");
   const repository = await createTapRepository(root);
-  await addFormula(repository, "workflows", "release", { targets: ["claude-code"] });
+  await addFormula(repository, "workflows", "release", { targets: ["openai-codex"] });
   await addTap(home, "personal/agents", repository, { trust: true });
-  await installForTarget(home, "release", "claude-code", { root: targetRoot });
+  await installForTarget(home, "release", "openai-codex", { root: targetRoot });
 
   await commitFile(repository, "workflows/release/content.md", "# release\nRun updated checks.\n");
   await updateTaps(home);
@@ -98,30 +98,27 @@ test("workflow upgrades regenerate their projected skill", async () => {
   assert.equal(receipt?.operations[0]?.type, "render-file");
 });
 
-test("MCP upgrades replace only the owned Claude config key", async () => {
+test("MCP upgrades replace only the owned Codex config block", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-upgrade-"));
   const home = path.join(root, "home");
-  const targetRoot = path.join(root, ".claude");
+  const targetRoot = path.join(root, ".codex");
   const repository = await createTapRepository(root);
-  await addFormula(repository, "mcp", "docs", { targets: ["claude-code"] });
+  await addFormula(repository, "mcp", "docs", { targets: ["openai-codex"] });
   await commitFile(repository, "mcp/docs/content.md", JSON.stringify({ command: "docs-v1", envVars: ["DOCS_TOKEN"] }));
   await addTap(home, "personal/agents", repository, { trust: true });
   await mkdir(targetRoot, { recursive: true });
-  const destination = path.join(targetRoot, ".mcp.json");
-  await writeFile(destination, `${JSON.stringify({ userSetting: true }, null, 2)}\n`);
-  await installForTarget(home, "docs", "claude-code", { root: targetRoot });
+  const destination = path.join(targetRoot, "config.toml");
+  await writeFile(destination, 'model = "user-model"\n');
+  await installForTarget(home, "docs", "openai-codex", { root: targetRoot });
 
   await commitFile(repository, "mcp/docs/content.md", JSON.stringify({ command: "docs-v2", args: ["serve"] }));
   await updateTaps(home);
   await upgradeFormulas(home, "docs");
 
-  const configuration = JSON.parse(await readFile(destination, "utf8")) as {
-    userSetting: boolean;
-    mcpServers: Record<string, { command: string; args: string[] }>;
-  };
-  assert.equal(configuration.userSetting, true);
-  assert.equal(configuration.mcpServers.docs?.command, "docs-v2");
-  assert.deepEqual(configuration.mcpServers.docs?.args, ["serve"]);
+  const configuration = await readFile(destination, "utf8");
+  assert.match(configuration, /model = "user-model"/u);
+  assert.match(configuration, /command = "docs-v2"/u);
+  assert.match(configuration, /args = \["serve"\]/u);
 });
 
 test("upgrades preserve multiple scopes for the same target", async () => {

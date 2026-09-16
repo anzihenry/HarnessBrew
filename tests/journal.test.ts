@@ -30,7 +30,7 @@ async function crashTargetWrite(home: string, destination: string, label: string
       await executeTargetOperations([{
         id: "docs",
         type: "merge-config",
-        target: "claude-code",
+        target: "legacy-target",
         destination,
         configFormat: "json",
         ownedKeys: ["mcpServers", "docs"],

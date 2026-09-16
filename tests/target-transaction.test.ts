@@ -100,9 +100,9 @@ test("merge-config operations own only their TOML block or JSON key", async () =
       content: "[mcp_servers.docs]\ncommand = \"docs-server\"\n"
     },
     {
-      id: "claude-mcp",
+      id: "legacy-mcp",
       type: "merge-config",
-      target: "claude-code",
+      target: "legacy-target",
       destination: jsonPath,
       configFormat: "json",
       ownedKeys: ["mcpServers", "docs"],
@@ -130,7 +130,7 @@ test("concurrent target config merges preserve updates from separate transaction
   const operation = (name: string) => executeTargetOperations([{
     id: name,
     type: "merge-config" as const,
-    target: "claude-code",
+    target: "legacy-target",
     destination,
     configFormat: "json" as const,
     ownedKeys: ["mcpServers", name],

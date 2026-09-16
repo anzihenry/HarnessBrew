@@ -97,9 +97,9 @@ assets:
 test("Harnessfile v2 reproduces structured user and project placements with content metadata", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-bundle-v2-"));
   const repository = await createTapRepository(root);
-  await addFormula(repository, "skills", "guardrails", { targets: ["openai-codex", "claude-code"] });
+  await addFormula(repository, "skills", "guardrails", { targets: ["openai-codex"] });
   await addFormula(repository, "skills", "code-review", {
-    targets: ["openai-codex", "claude-code"],
+    targets: ["openai-codex"],
     dependencies: ["personal/agents/guardrails"]
   });
   const manifest = `schemaVersion: 2
@@ -113,7 +113,7 @@ assets:
       - target: openai-codex
         scope: user
         root: ./codex-user
-      - target: claude-code
+      - target: openai-codex
         scope: project
         project: ./project
 `;

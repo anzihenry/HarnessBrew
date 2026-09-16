@@ -44,8 +44,7 @@ export async function renderAgent(receipt: InstallReceipt, target: BuiltinTarget
       ""
     ].join("\n");
   }
-  const frontmatter = stringify({ name, description: receipt.description }).trimEnd();
-  return `---\n${frontmatter}\n---\n\n${body}`;
+  throw new HarnessBrewError(`Unsupported built-in target: ${target}`);
 }
 
 export async function renderSkillProjection(receipt: InstallReceipt): Promise<string> {
@@ -141,30 +140,6 @@ function renderCodexMcp(name: string, definition: McpDefinition): string {
   return `${lines.join("\n")}\n`;
 }
 
-function renderClaudeMcp(definition: McpDefinition): Record<string, unknown> {
-  if (definition.transport === "stdio") {
-    return {
-      type: "stdio",
-      command: definition.command,
-      ...(definition.args.length === 0 ? {} : { args: definition.args }),
-      ...(definition.envVars.length === 0
-        ? {}
-        : { env: Object.fromEntries(definition.envVars.map((name) => [name, `\${${name}}`])) })
-    };
-  }
-  const headers = {
-    ...(definition.bearerTokenEnvVar === undefined
-      ? {}
-      : { Authorization: `Bearer \${${definition.bearerTokenEnvVar}}` }),
-    ...Object.fromEntries(Object.entries(definition.headersFromEnv).map(([header, name]) => [header, `\${${name}}`]))
-  };
-  return {
-    type: "http",
-    url: definition.url,
-    ...(Object.keys(headers).length === 0 ? {} : { headers })
-  };
-}
-
 export async function renderMcpConfig(receipt: InstallReceipt, target: BuiltinTarget): Promise<RenderedMcpConfig> {
   const [, , name] = parseCoordinate(receipt.coordinate);
   const definition = parseMcpDefinition(await readFile(path.join(receipt.cellarPath, receipt.entry), "utf8"));
@@ -176,9 +151,5 @@ export async function renderMcpConfig(receipt: InstallReceipt, target: BuiltinTa
       marker: receipt.coordinate
     };
   }
-  return {
-    content: JSON.stringify(renderClaudeMcp(definition)),
-    configFormat: "json",
-    ownedKeys: ["mcpServers", name]
-  };
+  throw new HarnessBrewError(`Unsupported built-in target: ${target}`);
 }

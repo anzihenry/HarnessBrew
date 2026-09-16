@@ -230,19 +230,19 @@ test("link and unlink CLI commands select user or project scope", async () => {
 test("doctor and relink CLI commands repair a missing target", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-cli-"));
   const home = path.join(root, "home");
-  const targetRoot = path.join(root, ".claude");
+  const targetRoot = path.join(root, ".codex");
   const repository = await createTapRepository(root);
-  await addFormula(repository, "skills", "review", { targets: ["claude-code"] });
+  await addFormula(repository, "skills", "review", { targets: ["openai-codex"] });
   const output = captureIO();
   await runCli(["tap", "add", "personal/agents", repository, "--trust"], output.io, { home });
-  await runCli(["install", "review", "--target", "claude-code", "--target-root", targetRoot], output.io, { home });
+  await runCli(["install", "review", "--target", "openai-codex", "--target-root", targetRoot], output.io, { home });
   const destination = path.join(targetRoot, "skills", "review");
   await rm(destination);
 
   assert.equal(await runCli(["doctor", "review"], output.io, { home }), 1);
   assert.match(output.stderr.join("\n"), /target-missing/u);
   assert.equal(await runCli([
-    "relink", "review", "--target", "claude-code", "--target-root", targetRoot
+    "relink", "review", "--target", "openai-codex", "--target-root", targetRoot
   ], output.io, { home }), 0);
   assert.equal((await lstat(destination)).isSymbolicLink(), true);
   assert.equal(await runCli(["doctor", "review"], output.io, { home }), 0);

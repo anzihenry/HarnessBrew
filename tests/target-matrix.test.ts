@@ -29,12 +29,12 @@ const kindDirectories: Record<DeliverableKind, string> = {
 };
 
 const operationTypes: Record<DeliverableKind, Record<BuiltinTarget, InstalledOperationType>> = {
-  skill: { "openai-codex": "symlink-directory", "claude-code": "symlink-directory" },
-  agent: { "openai-codex": "render-file", "claude-code": "render-file" },
-  workflow: { "openai-codex": "render-file", "claude-code": "render-file" },
-  instruction: { "openai-codex": "managed-block", "claude-code": "symlink-file" },
-  prompt: { "openai-codex": "render-file", "claude-code": "render-file" },
-  mcp: { "openai-codex": "merge-config", "claude-code": "merge-config" }
+  skill: { "openai-codex": "symlink-directory" },
+  agent: { "openai-codex": "render-file" },
+  workflow: { "openai-codex": "render-file" },
+  instruction: { "openai-codex": "managed-block" },
+  prompt: { "openai-codex": "render-file" },
+  mcp: { "openai-codex": "merge-config" }
 };
 
 function expectedDestination(
@@ -47,9 +47,7 @@ function expectedDestination(
 ): string {
   const root = scope === "user"
     ? userRoot
-    : target === "openai-codex"
-      ? path.join(projectRoot, ".codex")
-      : path.join(projectRoot, ".claude");
+    : path.join(projectRoot, ".codex");
   if (target === "openai-codex") {
     switch (kind) {
       case "skill": return path.join(scope === "project" ? projectRoot : root, scope === "project" ? ".agents/skills" : "skills", name);
@@ -60,14 +58,8 @@ function expectedDestination(
       case "mcp": return path.join(root, "config.toml");
     }
   }
-  switch (kind) {
-    case "skill": return path.join(root, "skills", name);
-    case "workflow":
-    case "prompt": return path.join(root, "skills", name, "SKILL.md");
-    case "agent": return path.join(root, "agents", `${name}.md`);
-    case "instruction": return path.join(root, "rules", `${name}.md`);
-    case "mcp": return scope === "project" ? path.join(projectRoot, ".mcp.json") : path.join(root, ".mcp.json");
-  }
+  throw new Error(`Unsupported target: ${target}`);
+
 }
 
 test("formula x target x scope matrix installs, verifies, and unlinks every supported placement", async () => {
@@ -77,7 +69,7 @@ test("formula x target x scope matrix installs, verifies, and unlinks every supp
   for (const kind of deliverableKinds) {
     const name = `${kind}-matrix`;
     await addFormula(repository, kindDirectories[kind], name, {
-      targets: ["openai-codex", "claude-code"]
+      targets: ["openai-codex"]
     });
     if (kind === "mcp") {
       await writeFile(path.join(repository, "mcp", name, "content.md"), JSON.stringify({
@@ -90,11 +82,11 @@ test("formula x target x scope matrix installs, verifies, and unlinks every supp
     }
   }
   await addFormula(repository, "adapters", "adapter-matrix", {
-    targets: ["openai-codex", "claude-code"]
+    targets: ["openai-codex"]
   });
   await addTap(home, "personal/agents", repository, { trust: true });
 
-  const targets: BuiltinTarget[] = ["openai-codex", "claude-code"];
+  const targets: BuiltinTarget[] = ["openai-codex"];
   const scopes: TargetScope[] = ["user", "project"];
   const projectRoot = path.join(root, "project");
   for (const kind of deliverableKinds) {
@@ -120,8 +112,8 @@ test("formula x target x scope matrix installs, verifies, and unlinks every supp
       }
     }
     const receipt = await readReceipt(home, `personal/agents/${name}`);
-    assert.equal(receipt?.operations.length, 4);
-    assert.deepEqual(receipt?.targets.sort(), ["claude-code", "openai-codex"]);
+    assert.equal(receipt?.operations.length, 2);
+    assert.deepEqual(receipt?.targets.sort(), ["openai-codex"]);
   }
 
   await installFormula(home, "adapter-matrix");

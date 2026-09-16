@@ -9,6 +9,7 @@ import {
 } from "../src/core/target-capabilities.js";
 
 test("target capability matrix explicitly covers every formula kind", () => {
+  assert.deepEqual(builtinTargets, ["openai-codex"]);
   for (const target of builtinTargets) {
     assert.deepEqual(Object.keys(targetCapabilities[target]).sort(), [...formulaKinds].sort());
     for (const kind of formulaKinds) {
@@ -20,7 +21,5 @@ test("target capability matrix explicitly covers every formula kind", () => {
 test("target capability matrix captures platform-specific installation strategies", () => {
   assert.equal(targetCapability("openai-codex", "skill"), "symlink-directory");
   assert.equal(targetCapability("openai-codex", "instruction"), "managed-block");
-  assert.equal(targetCapability("claude-code", "instruction"), "symlink-file");
   assert.equal(targetCapability("openai-codex", "mcp"), "merge-config");
-  assert.equal(targetCapability("claude-code", "adapter"), "unsupported");
 });

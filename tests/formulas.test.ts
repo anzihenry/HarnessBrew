@@ -12,7 +12,7 @@ test("formula catalog validates, searches, and resolves formulas", async () => {
   const home = path.join(root, "home");
   const repository = await createTapRepository(root);
   await addFormula(repository, "skills", "code-review", { tags: ["review", "quality"] });
-  await addFormula(repository, "workflows", "release", { targets: ["claude-code"] });
+  await addFormula(repository, "workflows", "release", { targets: ["custom-target"] });
   await addTap(home, "personal/agents", repository);
 
   const review = await getFormula(home, "code-review");
@@ -20,7 +20,7 @@ test("formula catalog validates, searches, and resolves formulas", async () => {
   assert.equal(review.kind, "skill");
   assert.deepEqual((await searchFormulas(home, "quality")).map((formula) => formula.name), ["code-review"]);
   assert.deepEqual(
-    (await searchFormulas(home, "", { target: "claude-code" })).map((formula) => formula.name),
+    (await searchFormulas(home, "", { target: "custom-target" })).map((formula) => formula.name),
     ["release"]
   );
 });

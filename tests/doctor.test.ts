@@ -38,11 +38,11 @@ test("doctor classifies missing and modified targets and relink repairs them", a
 test("doctor reports Cellar modifications and relink refuses a modified source", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-doctor-"));
   const home = path.join(root, "home");
-  const targetRoot = path.join(root, ".claude");
+  const targetRoot = path.join(root, ".codex");
   const repository = await createTapRepository(root);
-  await addFormula(repository, "skills", "review", { targets: ["claude-code"] });
+  await addFormula(repository, "skills", "review", { targets: ["openai-codex"] });
   await addTap(home, "personal/agents", repository, { trust: true });
-  const [receipt] = await installForTarget(home, "review", "claude-code", { root: targetRoot });
+  const [receipt] = await installForTarget(home, "review", "openai-codex", { root: targetRoot });
   assert.ok(receipt);
   await writeFile(path.join(receipt.cellarPath, "SKILL.md"), "tampered\n");
 

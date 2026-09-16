@@ -3,10 +3,47 @@ import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { installFormula, listInstalled, uninstallFormula } from "../src/core/installations.js";
+import { installFormula, listInstalled, uninstallFormula, writeReceipt } from "../src/core/installations.js";
+import { doctor } from "../src/core/doctor.js";
+import { getTargetAdapter, listTargetAdapters } from "../src/core/targets/registry.js";
+import { executeTargetOperations } from "../src/core/targets/transaction.js";
 import { addTap, setTapTrust } from "../src/core/taps.js";
 import { installForTarget, linkFormula, unlinkFormula } from "../src/core/targets.js";
 import { addFormula, createTapRepository, git } from "./helpers/git.js";
+
+test("only Codex is built in; retired Target receipts remain diagnosable and removable", async () => {
+  assert.deepEqual(listTargetAdapters().map((adapter) => adapter.name), ["openai-codex"]);
+  assert.throws(() => getTargetAdapter("claude-code"), /not registered/u);
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-retired-target-"));
+  try {
+    const home = path.join(root, "home");
+    const repository = await createTapRepository(root);
+    await addFormula(repository, "mcp", "docs", { targets: ["claude-code"] });
+    await addTap(home, "personal/agents", repository, { trust: true });
+    const [receipt] = await installFormula(home, "docs");
+    assert.ok(receipt);
+    const destination = path.join(root, ".mcp.json");
+    const userConfig = { theme: "dark", mcpServers: { user: { command: "user-server" } } };
+    await writeFile(destination, JSON.stringify(userConfig));
+    receipt.operations = await executeTargetOperations([{
+      id: "legacy-mcp",
+      type: "merge-config",
+      target: "claude-code",
+      destination,
+      configFormat: "json",
+      ownedKeys: ["mcpServers", "docs"],
+      content: JSON.stringify({ command: "docs-server" })
+    }]);
+    receipt.targets = ["claude-code"];
+    await writeReceipt(home, receipt);
+    assert.equal((await doctor(home)).healthy, true);
+    await uninstallFormula(home, "docs");
+    assert.deepEqual(JSON.parse(await readFile(destination, "utf8")), userConfig);
+    assert.deepEqual(await listInstalled(home), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test("untrusted taps can populate the Cellar but cannot activate Targets", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
@@ -49,28 +86,27 @@ test("Codex adapter links skill entries and uninstall removes owned links", asyn
 test("workflow and prompt formulas project to target-native skills", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
   const home = path.join(root, "home");
-  const claudeRoot = path.join(root, ".claude");
   const codexRoot = path.join(root, ".codex");
   const repository = await createTapRepository(root);
-  await addFormula(repository, "workflows", "release", { targets: ["claude-code"] });
+  await addFormula(repository, "workflows", "release", { targets: ["openai-codex"] });
   await addFormula(repository, "prompts", "summarize", { targets: ["openai-codex"] });
   await addTap(home, "personal/agents", repository, { trust: true });
 
-  await installForTarget(home, "release", "claude-code", { root: claudeRoot });
+  await installForTarget(home, "release", "openai-codex", { root: codexRoot });
   await installForTarget(home, "summarize", "openai-codex", { root: codexRoot });
-  const workflowSkill = path.join(claudeRoot, "skills", "release", "SKILL.md");
+  const workflowSkill = path.join(codexRoot, "skills", "release", "SKILL.md");
   const promptSkill = path.join(codexRoot, "skills", "summarize", "SKILL.md");
   assert.equal((await lstat(workflowSkill)).isSymbolicLink(), false);
   assert.match(await readFile(workflowSkill, "utf8"), /name: release[\s\S]*kind: workflow/u);
   assert.match(await readFile(promptSkill, "utf8"), /name: summarize[\s\S]*kind: prompt/u);
 });
 
-test("Claude adapter links complete skill directories", async () => {
+test("Codex adapter links complete skill directories", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
   const home = path.join(root, "home");
-  const targetRoot = path.join(root, ".claude");
+  const targetRoot = path.join(root, ".codex");
   const repository = await createTapRepository(root);
-  await addFormula(repository, "skills", "review", { targets: ["claude-code"], entry: "SKILL.md" });
+  await addFormula(repository, "skills", "review", { targets: ["openai-codex"], entry: "SKILL.md" });
   await writeFile(path.join(repository, "skills", "review", "SKILL.md"), "---\nname: review\ndescription: Review changes\n---\n");
   await mkdir(path.join(repository, "skills", "review", "scripts"));
   await writeFile(path.join(repository, "skills", "review", "scripts", "check.sh"), "echo checked\n");
@@ -78,7 +114,7 @@ test("Claude adapter links complete skill directories", async () => {
   await git(repository, "commit", "-m", "complete review skill");
   await addTap(home, "personal/agents", repository, { trust: true });
 
-  await installForTarget(home, "review", "claude-code", { root: targetRoot });
+  await installForTarget(home, "review", "openai-codex", { root: targetRoot });
   const destination = path.join(targetRoot, "skills", "review");
   assert.equal((await lstat(destination)).isSymbolicLink(), true);
   assert.equal(await readFile(path.join(destination, "scripts", "check.sh"), "utf8"), "echo checked\n");
@@ -102,39 +138,34 @@ test("skill linking validates the canonical SKILL.md metadata", async () => {
   );
 });
 
-test("agent formulas render native Codex TOML and Claude Code Markdown", async () => {
+test("agent formulas render native Codex TOML", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
   const home = path.join(root, "home");
   const codexRoot = path.join(root, ".codex");
-  const claudeRoot = path.join(root, ".claude");
   const repository = await createTapRepository(root);
   await addFormula(repository, "agents", "reviewer", {
     description: "Reviews risky changes",
-    targets: ["openai-codex", "claude-code"]
+    targets: ["openai-codex"]
   });
   await addTap(home, "personal/agents", repository, { trust: true });
 
   await installForTarget(home, "reviewer", "openai-codex", { root: codexRoot });
-  await linkFormula(home, "reviewer", "claude-code", { root: claudeRoot });
   const codexAgent = path.join(codexRoot, "agents", "reviewer.toml");
-  const claudeAgent = path.join(claudeRoot, "agents", "reviewer.md");
   assert.equal((await lstat(codexAgent)).isSymbolicLink(), false);
   assert.match(await readFile(codexAgent, "utf8"), /description = "Reviews risky changes"/);
   assert.match(await readFile(codexAgent, "utf8"), /developer_instructions = "# reviewer\\n"/);
-  assert.match(await readFile(claudeAgent, "utf8"), /^---\nname: reviewer\ndescription: Reviews risky changes\n---/u);
 
   await writeFile(codexAgent, "user replacement\n");
   await assert.rejects(unlinkFormula(home, "reviewer", "openai-codex"), /modified/);
 });
 
-test("instructions use Codex managed blocks and Claude Code rule links", async () => {
+test("instructions use Codex managed blocks", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
   const home = path.join(root, "home");
   const codexRoot = path.join(root, ".codex");
-  const claudeRoot = path.join(root, ".claude");
   const repository = await createTapRepository(root);
   await addFormula(repository, "instructions", "security", {
-    targets: ["openai-codex", "claude-code"]
+    targets: ["openai-codex"]
   });
   await addFormula(repository, "instructions", "style", {
     targets: ["openai-codex"]
@@ -146,13 +177,10 @@ test("instructions use Codex managed blocks and Claude Code rule links", async (
 
   await installForTarget(home, "security", "openai-codex", { root: codexRoot });
   await installForTarget(home, "style", "openai-codex", { root: codexRoot });
-  await linkFormula(home, "security", "claude-code", { root: claudeRoot });
   const installedContent = await readFile(agentsFile, "utf8");
   assert.match(installedContent, /# User-owned instructions/u);
   assert.match(installedContent, /harnessbrew:start personal\/agents\/security/u);
   assert.match(installedContent, /harnessbrew:start personal\/agents\/style/u);
-  const claudeRule = path.join(claudeRoot, "rules", "security.md");
-  assert.equal((await lstat(claudeRule)).isSymbolicLink(), true);
 
   await unlinkFormula(home, "security", "openai-codex");
   const afterUnlink = await readFile(agentsFile, "utf8");
@@ -168,9 +196,8 @@ test("MCP formulas merge owned config while preserving user settings", async () 
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-targets-"));
   const home = path.join(root, "home");
   const codexRoot = path.join(root, ".codex");
-  const claudeRoot = path.join(root, ".claude");
   const repository = await createTapRepository(root);
-  await addFormula(repository, "mcp", "docs", { targets: ["openai-codex", "claude-code"] });
+  await addFormula(repository, "mcp", "docs", { targets: ["openai-codex"] });
   await addFormula(repository, "mcp", "remote", { targets: ["openai-codex"] });
   await addFormula(repository, "mcp", "unsafe", { targets: ["openai-codex"] });
   await writeFile(path.join(repository, "mcp", "docs", "content.md"), JSON.stringify({
@@ -197,34 +224,19 @@ test("MCP formulas merge owned config while preserving user settings", async () 
   await git(repository, "commit", "-m", "define unsafe mcp");
   await addTap(home, "personal/agents", repository, { trust: true });
   await mkdir(codexRoot, { recursive: true });
-  await mkdir(claudeRoot, { recursive: true });
   const codexConfig = path.join(codexRoot, "config.toml");
-  const claudeConfig = path.join(claudeRoot, ".mcp.json");
   await writeFile(codexConfig, "model = \"gpt-5\"\n");
-  await writeFile(claudeConfig, `${JSON.stringify({ theme: "dark" }, null, 2)}\n`);
 
   await installForTarget(home, "docs", "openai-codex", { root: codexRoot });
-  await linkFormula(home, "docs", "claude-code", { root: claudeRoot });
   const codexContent = await readFile(codexConfig, "utf8");
   assert.match(codexContent, /model = "gpt-5"/u);
   assert.match(codexContent, /\[mcp_servers\.docs\][\s\S]*env_vars = \["DOCS_TOKEN"\]/u);
-  const claudeContent = JSON.parse(await readFile(claudeConfig, "utf8")) as {
-    theme: string;
-    mcpServers: Record<string, { env: Record<string, string> }>;
-  };
-  assert.equal(claudeContent.theme, "dark");
-  const docsServer = claudeContent.mcpServers.docs;
-  assert.ok(docsServer);
-  assert.equal(docsServer.env.DOCS_TOKEN, "${DOCS_TOKEN}");
 
   await unlinkFormula(home, "docs", "openai-codex");
   assert.equal(await readFile(codexConfig, "utf8"), "model = \"gpt-5\"\n");
   await installForTarget(home, "remote", "openai-codex", { root: codexRoot });
   assert.match(await readFile(codexConfig, "utf8"), /bearer_token_env_var = "MCP_TOKEN"[\s\S]*env_http_headers = \{ "X-Tenant" = "MCP_TENANT" \}/u);
   await unlinkFormula(home, "remote", "openai-codex");
-  docsServer.env.DOCS_TOKEN = "plaintext-secret";
-  await writeFile(claudeConfig, `${JSON.stringify(claudeContent, null, 2)}\n`);
-  await assert.rejects(unlinkFormula(home, "docs", "claude-code"), /modified/);
 
   await installFormula(home, "unsafe");
   await assert.rejects(
@@ -261,7 +273,7 @@ test("adapter formulas install to the Cellar but cannot link to Agent targets", 
   const home = path.join(root, "home");
   const repository = await createTapRepository(root);
   await addFormula(repository, "adapters", "custom-target", {
-    targets: ["openai-codex", "claude-code"]
+    targets: ["openai-codex"]
   });
   await addTap(home, "personal/agents", repository, { trust: true });
 
@@ -271,10 +283,6 @@ test("adapter formulas install to the Cellar but cannot link to Agent targets", 
   await assert.rejects(
     linkFormula(home, "custom-target", "openai-codex", { root: path.join(root, ".codex") }),
     /cannot be linked.*install it to the Cellar without --target/u
-  );
-  await assert.rejects(
-    linkFormula(home, "custom-target", "claude-code", { root: path.join(root, ".claude") }),
-    /cannot be linked/u
   );
   assert.equal((await listInstalled(home))[0]?.operations.length, 0);
 });
