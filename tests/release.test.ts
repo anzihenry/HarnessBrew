@@ -8,6 +8,20 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const releaseCheck = path.resolve("scripts/release-check.mjs");
 
+test("dependency downloads use the public npm registry", async () => {
+  const lock = JSON.parse(await readFile("package-lock.json", "utf8")) as {
+    packages: Record<string, { resolved?: string; integrity?: string }>;
+  };
+  for (const [name, entry] of Object.entries(lock.packages)) {
+    if (name === "") continue;
+    assert.ok(entry.resolved, `${name} must pin a download URL`);
+    assert.equal(new URL(entry.resolved).origin, "https://registry.npmjs.org", name);
+    assert.match(entry.integrity ?? "", /^sha512-/u, `${name} must retain integrity verification`);
+  }
+  const npmrc = await readFile(".npmrc", "utf8");
+  assert.match(npmrc, /^registry=https:\/\/registry\.npmjs\.org\/$/mu);
+});
+
 test("release source metadata is synchronized", async () => {
   const result = await execFileAsync(process.execPath, [releaseCheck, "v0.7.1"], { encoding: "utf8" });
 

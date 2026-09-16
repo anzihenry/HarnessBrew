@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- use the public npm registry for all locked dependencies and project installs, avoiding npm 12 EALLOWREMOTE failures on clean installations
+
 ### Changed
 
 - focus built-in Target support and runtime preflight on OpenAI Codex; remove the Claude Code Adapter and runtime probes
