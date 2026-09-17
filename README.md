@@ -319,14 +319,14 @@ npm run check
 ```bash
 # Deterministic CI gate for an existing candidate tarball
 npm run release:gate -- \
-  --package /absolute/path/harnessbrew-0.7.1.tgz \
+  --package /absolute/path/harnessbrew-0.8.0.tgz \
   --manifest /absolute/path/artifact-manifest.json \
   --checksums /absolute/path/SHA256SUMS \
   --report-dir /absolute/path/release-reports
 
 # Local Codex verification of those same bytes
 npm run release:preflight -- \
-  --package /absolute/path/harnessbrew-0.7.1.tgz \
+  --package /absolute/path/harnessbrew-0.8.0.tgz \
   --manifest /absolute/path/artifact-manifest.json \
   --checksums /absolute/path/SHA256SUMS
 ```

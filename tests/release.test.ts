@@ -24,9 +24,9 @@ test("dependency downloads use the public npm registry", async () => {
 });
 
 test("release source metadata is synchronized", async () => {
-  const result = await execFileAsync(process.execPath, [releaseCheck, "v0.7.1"], { encoding: "utf8" });
+  const result = await execFileAsync(process.execPath, [releaseCheck, "v0.8.0"], { encoding: "utf8" });
 
-  assert.match(result.stdout, /harnessbrew@0\.7\.1 \(v0\.7\.1\)/);
+  assert.match(result.stdout, /harnessbrew@0\.8\.0 \(v0\.8\.0\)/);
 });
 
 test("release source verification rejects a mismatched tag", async () => {
@@ -34,7 +34,7 @@ test("release source verification rejects a mismatched tag", async () => {
     execFileAsync(process.execPath, [releaseCheck, "v0.6.2"], { encoding: "utf8" }),
     (error: unknown) => {
       assert.ok(error instanceof Error);
-      assert.match(error.message, /release tag v0\.6\.2 must match v0\.7\.1/);
+      assert.match(error.message, /release tag v0\.6\.2 must match v0\.8\.0/);
       return true;
     }
   );

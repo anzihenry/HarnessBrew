@@ -321,14 +321,14 @@ npm run check
 ```bash
 # 对已有候选 tarball 执行确定性 CI gate
 npm run release:gate -- \
-  --package /absolute/path/harnessbrew-0.7.1.tgz \
+  --package /absolute/path/harnessbrew-0.8.0.tgz \
   --manifest /absolute/path/artifact-manifest.json \
   --checksums /absolute/path/SHA256SUMS \
   --report-dir /absolute/path/release-reports
 
 # 使用同一候选字节执行本地 Codex 认证验证
 npm run release:preflight -- \
-  --package /absolute/path/harnessbrew-0.7.1.tgz \
+  --package /absolute/path/harnessbrew-0.8.0.tgz \
   --manifest /absolute/path/artifact-manifest.json \
   --checksums /absolute/path/SHA256SUMS
 ```
