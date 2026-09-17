@@ -12,7 +12,7 @@ interface ArtifactModule {
 interface PreflightModule {
   runtimeReportStatus(runtimes: Array<Record<string, unknown>>): string;
   runRuntimePreflight(options: Record<string, unknown>): Promise<{
-    report: { status: string; artifact: { sha256: string }; runtimes: Array<{ status: string; probes: unknown[] }> };
+    report: { status: string; artifact: { sha256: string }; runtimes: Array<{ status: string; probes: Array<{ probe: string; fixtureToolCallObserved?: boolean }> }> };
     reportPath: string;
   }>;
 }
@@ -78,6 +78,7 @@ test("runtime preflight installs the exact candidate and emits redacted Codex ru
     assert.equal(result.report.status, "passed");
     assert.equal(result.report.runtimes.length, 1);
     assert.ok(result.report.runtimes.every((runtime) => runtime.status === "passed" && runtime.probes.length === 4));
+    assert.equal(result.report.runtimes[0]?.probes.find((probe) => probe.probe === "mcp")?.fixtureToolCallObserved, true);
     const evidence = await readFile(result.reportPath, "utf8");
     assert.doesNotMatch(evidence, /must-not-appear-in-runtime-evidence/u);
     const manifest = JSON.parse(await readFile(artifact.manifestPath, "utf8")) as { package: { sha256: string } };

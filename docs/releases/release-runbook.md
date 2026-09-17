@@ -1,78 +1,67 @@
 # Release Verification Runbook
 
-This runbook is the operational path for releases from the current development branch. It separates deterministic GitHub Actions checks from local Agent runtime checks while keeping one immutable npm tarball throughout the process. Codex is the only built-in Target and is required.
+## One-time prerequisites
 
-## 1. Prepare the release source
+Production releases use **Publish approved npm candidate** (`.github/workflows/release.yml`). Dispatch it from `main` once; after automated verification there is one `npm-production` approval. No candidate run ID, report upload, or manual tag creation is required.
 
-Update the package version, lockfile, source version, changelog, and release notes together. Run:
+Before enabling the workflow:
 
-```bash
-npm ci
-npm run check
-git status --short
-```
+1. Configure **required reviewers** on the GitHub `npm-production` environment. Naming an environment alone does not require approval. Choose reviewers explicitly; never remove the approval rule to get a run through. Restrict deployments to `main` and disable administrator bypass where available.
+2. Provision a dedicated, preferably ephemeral runner with labels `self-hosted` and `harnessbrew-runtime`. It must support the repository's checkout/upload Actions versions, Node 22, npm 11.17.0, Git, and the authenticated CLI used by the existing runtime preflight. Pin and review the CLI version on this runner.
+3. This runner executes reviewed code from protected `main` only. Do not let fork/PR jobs or unrelated repositories use it. Restrict its runner group to this release workflow where supported; protect changes to release workflows and scripts with repository review rules. A label is a routing selector, not an isolation boundary.
+4. Keep runtime credentials local to that dedicated runner, outside its checkout. Never upload authentication files, copy a developer's personal home into CI, or provision npm publishing credentials on the runtime runner. Use a separate runner account/environment with no personal files and rebuild it between runs.
+5. Configure npm trusted publishing for this repository's `release.yml` workflow and the `npm-production` environment. The GitHub-hosted publish job requests OIDC only after approval.
+6. After validating the runner and authentication, set repository variable `HARNESSBREW_RUNTIME_READY=true`. This is an explicit operator readiness declaration, not an online-health check. An unavailable runner leaves the runtime job queued; authentication errors fail the probes.
 
-Commit the release source before creating a candidate. The candidate builder rejects dirty release worktrees.
+The readiness job checks the actual required-reviewer rule and the readiness declaration before building. The publish job checks the reviewer rule again. GitHub, not a JSON field in a report, enforces the approval.
 
-## 2. Build and verify the candidate in GitHub
+## Prepare and trigger
 
-Run the **Release candidate** workflow with the exact commit or tag as `ref`. Record its workflow run ID.
+Update package/lock/source versions, changelog and release notes. Commit the reviewed release source to `main`. The version must be new; do not republish 0.7.1 with modified bytes.
 
-The workflow:
+Run **Publish approved npm candidate**, selecting `main`. The dispatch commit is immutable for the entire run; later pushes do not change it.
 
-- runs source validation
-- builds the npm tarball exactly once
-- records `artifact-manifest.json` and `SHA256SUMS`
-- passes the same downloaded bytes through `release:gate` on Linux and macOS
-- retains the candidate and per-platform reports for 30 days
+The workflow then:
 
-Do not rebuild the candidate locally. Download the `release-candidate-<run-id>` artifact and both `release-gate-<run-id>-<os>` artifacts. Confirm both gate reports contain the same SHA-256 as the manifest.
+1. Calls the reusable **Release candidate** workflow for the exact dispatch SHA. It validates source and builds one candidate.
+2. Runs deterministic `release:gate` jobs on Linux and macOS using that same candidate.
+3. Only after **both** jobs succeed, runs authenticated Codex skill/instruction/agent/MCP probes on the dedicated runner.
+4. Downloads the candidate and all three reports from the **same workflow run**, checks their identity and completeness, and uploads an approved evidence bundle.
+5. Waits for the single `npm-production` approval.
+6. Revalidates the approved bundle, creates or verifies an immutable tag, creates a draft Release and uploads/verifies six attachments.
+7. Publishes the exact tarball with npm provenance, runs the registry smoke test, rechecks all attachments, then makes the Release public.
 
-## 3. Run authenticated Agent checks locally
+There is no externally supplied candidate run ID to accidentally reference a failed or unrelated run. Job dependencies require the complete reusable candidate workflow and runtime job to succeed. All downloads refer to outputs of those jobs; there is no "latest artifact" lookup.
 
-Use a trusted workstation where Codex is authenticated. The command uses isolated project, HarnessBrew, Codex, npm, and Git paths for installed probe assets. Authentication remains owned by the local CLI.
+## Machine-checked evidence
 
-```bash
-npm run release:preflight -- \
-  --package /absolute/path/harnessbrew-0.7.1.tgz \
-  --manifest /absolute/path/artifact-manifest.json \
-  --checksums /absolute/path/SHA256SUMS \
-  --report-dir /absolute/path/runtime-evidence
-```
+The verifier rejects missing reports, unknown schemas, dirty source, wrong source SHA/version/filename/digest, missing or duplicate probes, skipped/failed probes, invalid timestamps, and evidence older than 72 hours (with five minutes of clock-skew tolerance). Deterministic reports must include artifact, package-smoke, and packaged-e2e checks for the correct platforms.
 
-The preflight verifies four nonce-bearing Codex probes:
+The runtime report must contain exactly four passing Codex probes, CLI version, observed markers and required events. MCP also records that the local fixture actually received the tool call. A top-level `passed` is not sufficient.
 
-- an explicitly invoked Skill
-- an Instruction observed in active context
-- a delegated custom Agent with structured activity evidence
-- a credential-free local MCP tool call confirmed by both runtime events and the fixture log
+Report integrity is rooted in the trusted workflow/runner and same-run Actions artifacts, not in self-authentication of JSON. A malicious runner or administrator remains outside this guarantee. Do not accept manually uploaded reports as a substitute.
 
-The command fails unless every Codex probe passes. Missing authentication, skipped probes, and behavioral, product, or provider failures block release. Use `--keep` only while debugging because it retains the otherwise temporary probe workspace.
+## Approval and public attachments
 
-The report records candidate identity, platform, CLI versions, statuses, failure classes, timings, and bounded event metadata. It does not store authentication, environment secrets, prompts, model reasoning, or complete runtime output.
+Review the run's successful jobs and approved evidence bundle, then approve the protected deployment. The public Release contains:
 
-## 4. Triage failures
+- the exact npm `.tgz`
+- `artifact-manifest.json`
+- `SHA256SUMS`
+- `release-gate-linux.json`
+- `release-gate-macos.json`
+- `runtime-report.json`
 
-- `product-failure`: the packaged asset, placement, configuration, or MCP integration is wrong. Fix the source and create a new candidate.
-- `behavioral-failure`: the runtime loaded the probe but did not follow the explicit request. The preflight retries once; a repeated failure blocks release.
-- `provider-failure`: rate limit, upstream service, timeout, or network failure. Retry the same candidate later.
-- `environment-failure`: CLI, authentication, or local setup is unavailable. Repair the environment and rerun; skipped probes block release.
+Uploads are downloaded again and hash-checked. Missing attachments prevent finalization; existing assets with different bytes are never overwritten. The release starts as a draft so a smoke-test failure does not announce a successful release.
 
-Never reinterpret a skip or provider failure as a pass.
+## Failure recovery
 
-## 5. Approve and publish
+- Before publication: fix source defects and create a new reviewed release commit. For transient failures, use **Re-run failed jobs** so successful candidate outputs are reused.
+- Artifact names bind the run ID and build attempt. A rerun of the entire workflow creates a new candidate; never use it to overwrite an already approved/published version with different bytes.
+- If npm accepted the version but smoke testing/finalization failed, rerun the failed publish job. It checks the registry tarball SHA-256 and skips publication only when the bytes match. Network/permission errors are not treated as "version absent".
+- Existing tags must resolve to the candidate commit. Existing assets must match local bytes. A conflict fails closed and needs investigation, not `--force` or an overwrite.
+- If the approved evidence exceeds 72 hours or Actions artifacts expire, stop and prepare a new release with fresh evidence; do not bypass the verifier.
+- A new publish-job attempt may require approval again. "One approval" describes the normal successful path, not a reusable approval for arbitrary retries.
+- npm and GitHub are not an atomic transaction. If npm succeeds but a later step fails, the npm version remains public; recovery completes the draft Release rather than pretending to roll npm back.
 
-After both deterministic platform gates pass and local runtime evidence is `passed`:
-
-1. create the immutable Git tag at the candidate manifest commit
-2. push the tag
-3. run **Publish approved npm candidate** with the exact `tag` and candidate workflow `candidate-run-id`
-4. review the pending deployment and approve the protected `npm-production` environment
-
-The publish job downloads the retained candidate from that workflow run and verifies its commit, tag, version, filename, package metadata, and SHA-256. It publishes the existing `.tgz` with npm provenance and never invokes a build or pack command.
-
-The following job installs the exact published version from npm into a clean prefix and verifies version, help, public ESM exports, and a minimal local Tap lifecycle.
-
-## 6. Recovery
-
-Before npm publication, fix the source and create a new candidate; never modify a retained candidate. After npm accepts a version, do not move its tag or try to replace its bytes. Diagnose the issue and release a new patch version.
+Standalone **Release candidate** dispatch and local `release:preflight` remain useful diagnostics, but their reports do not bypass the automated production gate. Historical Release attachments are not backfilled by this workflow.

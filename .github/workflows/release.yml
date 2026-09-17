@@ -2,82 +2,143 @@ name: Publish approved npm candidate
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: Exact release tag, for example v0.7.0
-        required: true
-        type: string
-      candidate-run-id:
-        description: Successful Release candidate workflow run ID
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: npm-${{ inputs.tag }}
+  group: harnessbrew-production-release
   cancel-in-progress: false
 
 jobs:
-  publish:
-    environment: npm-production
+  readiness:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
-      id-token: write
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.identity.outputs.version }}
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.tag }}
-          fetch-depth: 0
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
-          cache: npm
-      - name: Use the repository npm version
-        run: npm install --global npm@11.17.0
+      - name: Require configured approval and runtime infrastructure
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNTIME_READY: ${{ vars.HARNESSBREW_RUNTIME_READY }}
+        run: node scripts/release/readiness.mjs
+
+  candidate:
+    needs: readiness
+    uses: ./.github/workflows/release-candidate.yml
+    with:
+      ref: ${{ github.sha }}
+
+  runtime:
+    needs: candidate
+    runs-on: [self-hosted, harnessbrew-runtime]
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.candidate.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: npm install --global npm@11.17.0
       - run: npm ci
       - uses: actions/download-artifact@v8
         with:
-          name: release-candidate-${{ inputs['candidate-run-id'] }}
+          name: ${{ needs.candidate.outputs.artifact }}
           path: release-artifacts
-          run-id: ${{ inputs['candidate-run-id'] }}
-          github-token: ${{ github.token }}
-      - name: Verify approved candidate identity
-        id: identity
+      - name: Run authenticated probes against the exact candidate
         shell: bash
         run: |
-          tarball="$(find "${GITHUB_WORKSPACE:?}/release-artifacts" -maxdepth 1 -name '*.tgz' -type f -print -quit)"
-          test -n "$tarball"
-          version="${{ inputs.tag }}"
-          version="${version#v}"
-          commit="$(git rev-parse HEAD)"
-          npm run artifact:verify -- \
-            --package "$tarball" \
-            --manifest ./release-artifacts/artifact-manifest.json \
-            --checksums ./release-artifacts/SHA256SUMS \
-            --expected-commit "$commit" \
-            --expected-tag "${{ inputs.tag }}" \
-            --expected-version "$version"
-          npm run release:verify -- "${{ inputs.tag }}"
-          echo "package=$tarball" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-      - name: Publish the approved tarball with npm provenance
-        run: npm publish "${{ steps.identity.outputs.package }}" --provenance --access public
+          tarball="$(node -p 'require("path").resolve("release-artifacts", require("./release-artifacts/artifact-manifest.json").package.filename)')"
+          npm run release:preflight -- --package "$tarball" --manifest ./release-artifacts/artifact-manifest.json --checksums ./release-artifacts/SHA256SUMS --report-dir ./runtime-evidence
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ needs.candidate.outputs.artifact }}-runtime
+          path: runtime-evidence/runtime-report.json
+          overwrite: true
+          if-no-files-found: error
+          retention-days: 30
 
-  registry-smoke:
-    needs: publish
+  evidence:
+    needs: [candidate, runtime]
     runs-on: ubuntu-latest
+    outputs:
+      artifact: ${{ steps.bundle.outputs.artifact }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.candidate.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.candidate.outputs.artifact }}
+          path: approved-release/candidate
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.candidate.outputs.artifact }}-gate-Linux
+          path: approved-release/linux
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.candidate.outputs.artifact }}-gate-macOS
+          path: approved-release/macos
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.candidate.outputs.artifact }}-runtime
+          path: approved-release/runtime
+      - name: Require complete matching and fresh release evidence
+        env:
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: node scripts/release/evidence.mjs approved-release
+      - id: bundle
+        run: echo "artifact=approved-release-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.bundle.outputs.artifact }}
+          path: approved-release/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: [candidate, evidence]
+    environment: npm-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.candidate.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - name: Verify the published registry package
-        run: node ./scripts/registry-smoke.mjs --version "${{ needs.publish.outputs.version }}"
+      - run: npm install --global npm@11.17.0
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.evidence.outputs.artifact }}
+          path: approved-release
+      - name: Publish verified bytes, smoke-test npm, and finalize attached Release
+        env:
+          RELEASE_COMMIT: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release/publish.mjs approved-release

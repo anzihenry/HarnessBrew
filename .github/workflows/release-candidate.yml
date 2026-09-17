@@ -8,11 +8,22 @@ on:
         required: true
         type: string
 
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+    outputs:
+      commit:
+        value: ${{ jobs.build.outputs.commit }}
+      artifact:
+        value: ${{ jobs.build.outputs.artifact }}
+
 permissions:
   contents: read
 
 concurrency:
-  group: release-candidate-${{ inputs.ref }}
+  group: release-candidate-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -21,6 +32,7 @@ jobs:
     outputs:
       sha256: ${{ steps.artifact.outputs.sha256 }}
       commit: ${{ steps.artifact.outputs.commit }}
+      artifact: ${{ steps.artifact.outputs.artifact }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -42,9 +54,10 @@ jobs:
           manifest_commit="$(node -p 'require("./release-artifacts/artifact-manifest.json").source.commit')"
           echo "sha256=$manifest_sha" >> "$GITHUB_OUTPUT"
           echo "commit=$manifest_commit" >> "$GITHUB_OUTPUT"
+          echo "artifact=release-candidate-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with:
-          name: release-candidate-${{ github.run_id }}
+          name: ${{ steps.artifact.outputs.artifact }}
           path: release-artifacts/
           if-no-files-found: error
           retention-days: 30
@@ -69,7 +82,7 @@ jobs:
       - run: npm ci
       - uses: actions/download-artifact@v8
         with:
-          name: release-candidate-${{ github.run_id }}
+          name: ${{ needs.build.outputs.artifact }}
           path: release-artifacts
       - name: Resolve candidate
         id: candidate
@@ -89,7 +102,8 @@ jobs:
           --report-dir "./release-reports/${{ runner.os }}"
       - uses: actions/upload-artifact@v7
         with:
-          name: release-gate-${{ github.run_id }}-${{ runner.os }}
+          name: ${{ needs.build.outputs.artifact }}-gate-${{ runner.os }}
+          overwrite: true
           path: release-reports/${{ runner.os }}/
           if-no-files-found: error
           retention-days: 30

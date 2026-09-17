@@ -93,6 +93,7 @@ async function runRuntime(adapter, fixture, cwd, environment) {
     }
     if (probe.name === "mcp" && result.status === "passed") {
       const afterMcpCalls = await mcpCalls(fixture.mcpLog, fixture.markers.mcp);
+      result = { ...result, fixtureToolCallObserved: afterMcpCalls > beforeMcpCalls };
       if (afterMcpCalls <= beforeMcpCalls) {
         result = {
           ...result,

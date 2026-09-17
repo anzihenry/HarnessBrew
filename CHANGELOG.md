@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- orchestrate candidate build, cross-platform gates, authenticated runtime evidence, one protected approval, and exact-byte publication from one release dispatch
+- verify complete fresh release evidence and publish a GitHub Release with six hash-checked attachments; safely resume identical npm publications without overwriting tags or assets
+
 ### Fixed
 
 - reject Adapter records without an integrity baseline before importing any plugins; require explicit review and remove/re-add

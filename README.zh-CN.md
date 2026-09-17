@@ -333,7 +333,7 @@ npm run release:preflight -- \
   --checksums /absolute/path/SHA256SUMS
 ```
 
-GitHub Actions 只构建一个候选，并在 Linux/macOS 上运行不需要模型凭据的 `release:gate`。`release:preflight` 则有意放在可信本地工作站，复用现有 Codex 登录状态。完整步骤见[发布验证操作手册](docs/releases/release-runbook.md)。
+正式发布只需从 `main` 触发一次 **Publish approved npm candidate**：自动构建唯一候选、运行 Linux/macOS 门禁和专用 runner 上的认证 runtime 探针、校验全部证据，再等待一次 `npm-production` 审批，随后发布 npm 并核验 Release 附件。启用前必须配置 required reviewers 和专用 runtime runner；缺少凭据或跳过探针会阻止发布。本地 preflight 仍可用于诊断。完整步骤见[发布验证操作手册](docs/releases/release-runbook.md)。
 
 ## Target Adapter SDK
 

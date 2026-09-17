@@ -331,7 +331,7 @@ npm run release:preflight -- \
   --checksums /absolute/path/SHA256SUMS
 ```
 
-GitHub Actions builds one candidate and runs `release:gate` on Linux and macOS without model credentials. `release:preflight` intentionally runs on a trusted local workstation. Every Codex probe must pass; missing credentials or skipped probes block release. See the [release verification runbook](docs/releases/release-runbook.md).
+For production, dispatch **Publish approved npm candidate** once from `main`. It builds one candidate, runs Linux/macOS gates and authenticated runtime probes on a dedicated runner, checks all evidence, then waits for one `npm-production` approval before npm publication and verified Release attachments. Required reviewers and a dedicated runtime runner must be provisioned first; missing credentials or skipped probes block release. Local preflight remains a diagnostic tool. See the [release verification runbook](docs/releases/release-runbook.md).
 
 ## Target Adapter SDK
 
