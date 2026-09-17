@@ -272,6 +272,8 @@ harnessbrew bundle cleanup [--file <path>]
 
 Every command accepts `--json`. Standard output then contains one schema v1 JSON envelope: `result` is the command-specific structured result, `output` retains human-readable text, and failures include `error.code`, `error.message`, `diagnostics`, and a non-zero `exitCode`.
 
+Error codes are `COMMAND_FAILED` for command-reported failures, `HARNESSBREW_ERROR` for domain errors, and `INTERNAL_ERROR` for filesystem or unexpected exceptions. JSON-mode exceptions exit with code 1 and emit the envelope on stdout without a stack trace on stderr. Non-Error thrown values use a generic message rather than exposing their payload.
+
 Mutating commands also accept `--dry-run`. Under the same Home write lock, HarnessBrew runs full validation and the installation transaction, collects before/after types and digests for each path, then rolls back the Cellar, Receipts, Tap checkouts, and Agent Targets. With `--json`, the preview appears in `changes`. A dry run can still perform read-only network operations such as Git fetch or clone.
 
 ```bash
@@ -371,7 +373,7 @@ harnessbrew install review --target cursor
 harnessbrew adapter remove cursor
 ```
 
-`adapter add` explicitly authorizes code execution. HarnessBrew records the module specifier, entry-point SHA-256, and reviewed name, version, and API version in `~/.harnessbrew/adapters.json`. Before later execution it verifies both content and identity. Drift fails closed until the module is removed, reviewed, and added again. Legacy records without a digest remain compatible and retain identity checks. `adapter list` and `adapter remove` do not execute plugins, and HarnessBrew never runs `npm install` automatically. CLI-loaded Targets are also included in the Harnessfile v2 Adapter signature.
+`adapter add` explicitly authorizes code execution. HarnessBrew records the module specifier, entry-point SHA-256, and reviewed name, version, and API version in `~/.harnessbrew/adapters.json`. Before later execution it verifies both content and identity. Drift fails closed until the module is removed, reviewed, and added again. Integrity is explicitly scoped as `entry-file-sha256-v1`: it does not cover imported files, dependencies, runtime-read resources, or code fetched by the plugin, and is not a sandbox or a whole-plugin attestation. Legacy records without a digest remain listable/removable but cannot load; review the plugin and its dependencies, then explicitly remove and re-add it. Existing entry digests without a scope label are interpreted as entry-only and are never silently replaced. `adapter list` and `adapter remove` do not execute plugins, and HarnessBrew never runs `npm install` automatically. CLI-loaded Targets are also included in the Harnessfile v2 Adapter signature.
 
 ## Architecture
 

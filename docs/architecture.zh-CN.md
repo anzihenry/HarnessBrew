@@ -397,7 +397,7 @@ Adapter API v1 是最小安全接口：第三方只可声明单个 `symlink-file
 
 独立 CLI 通过 `adapter add/list/remove` 管理已安装的可信 npm 模块（也接受显式绝对路径或 `file://` URL）。`adapter add` 是代码执行授权：先解析入口并记录
 SHA-256 摘要，再导入模块、执行 SDK 注册校验，并将 module specifier 与 name/version/API version 的审核快照写入 `adapters.json`。后续会在执行模块前校验入口摘要，
-且实际导出身份必须与快照完全相同；内容或身份变化时 fail closed，要求 remove 后审查并重新 add。没有摘要的旧记录保持兼容并继续执行身份校验。
+且实际导出身份必须与快照完全相同；内容或身份变化时 fail closed，要求 remove 后审查并重新 add。记录用 `entry-file-sha256-v1` 明确入口级范围；旧入口摘要按同一范围解释。无摘要记录只可列出/移除，在任何已配置插件导入前即阻止加载，须审查后显式 remove/add 建立基线，不自动升级信任。
 list/remove 不导入模块，CLI 不负责运行 npm install。由于插件拥有 Node.js 宿主权限，这些检查不能替代代码审查，也不能证明所有传递依赖未发生变化。
 
 ## 11. HarnessBrew 的边界

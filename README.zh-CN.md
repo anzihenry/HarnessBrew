@@ -273,6 +273,8 @@ harnessbrew bundle cleanup [--file <path>]
 所有命令都可追加 `--json`，stdout 将只包含一个 schema v1 JSON envelope：`result` 是命令级结构化结果，`output` 保留人类文本，
 失败时包含 `error.code`、`error.message`、`diagnostics` 和非零 `exitCode`。
 
+错误码分为命令报告的失败 `COMMAND_FAILED`、业务错误 `HARNESSBREW_ERROR`，以及文件系统或其他意外异常 `INTERNAL_ERROR`。JSON 模式下的异常以退出码 1 结束，仅在 stdout 输出错误 envelope，不向 stderr 输出堆栈；抛出的非 Error 值使用通用提示，不暴露其内容。
+
 变更命令可追加 `--dry-run`。HarnessBrew 会在同一 Home 写锁下完整执行校验和安装事务，收集每个路径的 before/after 类型与摘要，
 随后回滚 Cellar、Receipt、Tap checkout 和 Agent Target；与 `--json` 组合时，预览位于 `changes` 数组。dry-run 可能执行 Git fetch/clone 等只读网络操作。
 
@@ -379,7 +381,7 @@ harnessbrew adapter remove cursor
 
 `adapter add` 是一次显式的代码执行授权。HarnessBrew 将模块标识、入口 SHA-256 及审核时的 name、version、API version 写入
 `~/.harnessbrew/adapters.json`；后续执行前会同时核对内容和身份。发生漂移时命令会关闭失败，要求先 remove、审查后再 add。
-没有摘要的旧记录保持兼容并继续核对身份。`adapter list/remove` 本身不执行插件，HarnessBrew 也不会自动运行 `npm install`。
+摘要范围显式标记为 `entry-file-sha256-v1`，仅覆盖解析后的入口文件，不覆盖导入文件、依赖、运行时读取的资源或下载代码，也不是沙箱或全插件完整性保证。没有摘要的旧记录仍可列出和移除，但禁止加载；审查插件及依赖后，必须显式 remove 并重新 add 来建立基线。已有入口摘要但无范围标签的记录按入口级解释，不会自动重写摘要。`adapter list/remove` 本身不执行插件，HarnessBrew 也不会自动运行 `npm install`。
 CLI 加载的 Target 同样进入 Harnessfile v2 lock 的 Adapter 签名。
 
 ## 架构

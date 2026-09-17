@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- reject Adapter records without an integrity baseline before importing any plugins; require explicit review and remove/re-add
+- label Adapter integrity as entry-file-only in records and CLI output, without claiming imported files or dependencies are covered
+
+- emit the versioned JSON error envelope for filesystem and unexpected CLI exceptions in JSON mode
+
 - use the public npm registry for all locked dependencies and project installs, avoiding npm 12 EALLOWREMOTE failures on clean installations
 
 ### Changed

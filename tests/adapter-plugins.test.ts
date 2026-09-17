@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { lstat, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -75,6 +77,7 @@ test("Adapter plugin state explicitly adds, loads, and removes trusted modules",
   assert.equal(added.name, "plugin-lifecycle");
   assert.match(added.module, /^file:/u);
   assert.match(added.integrity ?? "", /^[0-9a-f]{64}$/u);
+  assert.equal(added.integrityScope, "entry-file-sha256-v1");
   assert.deepEqual((await listAdapterPlugins(home)).map((record) => record.name), ["plugin-lifecycle"]);
   assert.equal(hasTargetAdapter("plugin-lifecycle"), false);
 
@@ -145,21 +148,80 @@ test("configured Adapter content changes fail closed even when identity is uncha
   assert.equal(hasTargetAdapter("integrity-test"), false);
 });
 
-test("legacy Adapter records without integrity retain identity validation", async () => {
+test("legacy Adapter records without integrity require explicit review and re-add", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-adapter-legacy-"));
   const home = path.join(root, "home");
   const modulePath = await createAdapterModule(root, "legacy-test");
   await addAdapterPlugin(home, modulePath);
   const statePath = path.join(home, "adapters.json");
   const state = JSON.parse(await readFile(statePath, "utf8")) as {
-    adapters: Array<{ integrity?: string }>;
+    adapters: Array<{ integrity?: string; integrityScope?: string }>;
   };
   delete state.adapters[0]?.integrity;
+  delete state.adapters[0]?.integrityScope;
   await writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 
+  await assert.rejects(loadAdapterPlugins(home), /no integrity baseline.*remove and add it again after review/u);
+  assert.equal(hasTargetAdapter("legacy-test"), false);
+  assert.equal((await listAdapterPlugins(home))[0]?.integrityScope, undefined);
+  assert.equal(await readFile(statePath, "utf8"), `${JSON.stringify(state, null, 2)}\n`);
+  await removeAdapterPlugin(home, "legacy-test");
+  const reviewed = await addAdapterPlugin(home, modulePath);
+  assert.equal(reviewed.integrityScope, "entry-file-sha256-v1");
   const unload = await loadAdapterPlugins(home);
   assert.equal(hasTargetAdapter("legacy-test"), true);
   unload();
+});
+
+test("older entry digests expose their limited scope without silently rewriting state", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-adapter-scope-"));
+  const home = path.join(root, "home");
+  await addAdapterPlugin(home, await createAdapterModule(root, "scope-test"));
+  const statePath = path.join(home, "adapters.json");
+  const state = JSON.parse(await readFile(statePath, "utf8")) as {
+    adapters: Array<{ integrityScope?: string }>;
+  };
+  delete state.adapters[0]?.integrityScope;
+  const content = JSON.stringify(state);
+  await writeFile(statePath, content);
+  assert.equal((await listAdapterPlugins(home))[0]?.integrityScope, "entry-file-sha256-v1");
+  const unload = await loadAdapterPlugins(home);
+  unload();
+  assert.equal(await readFile(statePath, "utf8"), content);
+  state.adapters[0]!.integrityScope = "full-package";
+  await writeFile(statePath, JSON.stringify(state));
+  await assert.rejects(loadAdapterPlugins(home), /Unsupported Adapter plugin state/u);
+});
+
+test("a missing baseline blocks all configured plugins before import side effects", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-adapter-preflight-"));
+  const home = path.join(root, "home");
+  const marker = path.join(root, "executed");
+  const modulePath = await createAdapterModule(root, "preflight-test");
+  const content = `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(marker)}, "executed");\n`
+    + await readFile(modulePath, "utf8");
+  await writeFile(modulePath, content);
+  await mkdir(home);
+  const record = {
+    module: pathToFileURL(modulePath).href,
+    name: "preflight-test",
+    version: "1.0.0",
+    apiVersion: 1,
+    addedAt: new Date().toISOString()
+  };
+  await writeFile(path.join(home, "adapters.json"), JSON.stringify({
+    schemaVersion: 1,
+    adapters: [
+      { ...record, integrity: createHash("sha256").update(content).digest("hex") },
+      { ...record, module: pathToFileURL(path.join(root, "legacy.mjs")).href, name: "legacy-unreviewed" }
+    ]
+  }));
+  await assert.rejects(loadAdapterPlugins(home), /no integrity baseline/u);
+  await assert.rejects(lstat(marker), { code: "ENOENT" });
+  assert.equal(hasTargetAdapter("preflight-test"), false);
+  const output = captureIO();
+  assert.equal(await runCli(["adapter", "list"], output.io, { home }), 0);
+  assert.match(output.stdout.join("\n"), /review-required/u);
 });
 
 test("Adapter plugin mutations support dry-run rollback", async () => {

@@ -14,6 +14,8 @@ export interface AdapterPluginRecord {
   version: string;
   apiVersion: 1;
   integrity?: string;
+  /** Only the resolved entry file is covered; imports and dependencies are not attested. */
+  integrityScope?: "entry-file-sha256-v1";
   addedAt: string;
 }
 
@@ -52,6 +54,8 @@ function validRecord(candidate: unknown): candidate is AdapterPluginRecord {
   return typeof record.module === "string" && typeof record.name === "string"
     && typeof record.version === "string" && record.apiVersion === 1
     && (record.integrity === undefined || /^[0-9a-f]{64}$/u.test(record.integrity))
+    && (record.integrityScope === undefined
+      || (record.integrityScope === "entry-file-sha256-v1" && record.integrity !== undefined))
     && typeof record.addedAt === "string" && !Number.isNaN(Date.parse(record.addedAt));
 }
 
@@ -131,10 +135,15 @@ async function moduleIntegrity(specifier: string): Promise<string> {
 }
 
 async function assertModuleIntegrity(record: AdapterPluginRecord): Promise<void> {
-  if (record.integrity === undefined) return;
+  if (record.integrity === undefined) {
+    throw new HarnessBrewError(
+      `Adapter module ${record.module} has no integrity baseline; remove and add it again after review. `
+      + "The new baseline covers only the entry file, not imports or dependencies."
+    );
+  }
   if (await moduleIntegrity(record.module) !== record.integrity) {
     throw new HarnessBrewError(
-      `Adapter module ${record.module} changed content; remove and add it again after review.`
+      `Adapter module ${record.module} changed content in its entry file; remove and add it again after review.`
     );
   }
 }
@@ -148,7 +157,10 @@ function verifyIdentity(record: AdapterPluginRecord, adapter: TargetAdapter): vo
 }
 
 export async function listAdapterPlugins(home: string): Promise<AdapterPluginRecord[]> {
-  return (await readPluginState(home)).adapters.map((record) => ({ ...record }));
+  return (await readPluginState(home)).adapters.map((record) => ({
+    ...record,
+    ...(record.integrity === undefined ? {} : { integrityScope: "entry-file-sha256-v1" as const })
+  }));
 }
 
 export async function addAdapterPlugin(home: string, moduleSpecifier: string): Promise<AdapterPluginRecord> {
@@ -170,6 +182,7 @@ export async function addAdapterPlugin(home: string, moduleSpecifier: string): P
       version: adapter.version,
       apiVersion: adapter.apiVersion,
       integrity,
+      integrityScope: "entry-file-sha256-v1",
       addedAt: new Date().toISOString()
     };
     state.adapters.push(record);
@@ -195,8 +208,9 @@ export async function loadAdapterPlugins(home: string): Promise<() => void> {
   const records = await listAdapterPlugins(home);
   const unregister: Array<() => void> = [];
   try {
+    // Check every baseline before importing any configured plugin.
+    for (const record of records) await assertModuleIntegrity(record);
     for (const record of records) {
-      await assertModuleIntegrity(record);
       const adapter = await importAdapter(record.module);
       verifyIdentity(record, adapter);
       unregister.push(registerTargetAdapter(adapter));

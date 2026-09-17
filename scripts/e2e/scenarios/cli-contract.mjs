@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { lstat, mkdir } from "node:fs/promises";
+import { lstat, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { assertFailedEnvelope, assertPathMissing, assertSuccessfulEnvelope, pathExists } from "../assertions.mjs";
 import { createTapFixture } from "../fixture-tap.mjs";
@@ -26,6 +26,16 @@ export async function cliContractScenario({ environment, cli }) {
   const domainFailure = await cli.runJson(["tap", "remove", "missing/tap"], { ...options, expectExitCode: 1 });
   assertFailedEnvelope(domainFailure.envelope, "tap", /Tap not found/u);
   assert.equal(domainFailure.envelope.error.code, "HARNESSBREW_ERROR");
+  const invalidHome = path.join(environment.root, "cli-contract-invalid-home");
+  await writeFile(invalidHome, "not a directory\n");
+  const systemFailure = await cli.runJson(["list"], {
+    ...options,
+    env: { HARNESSBREW_HOME: invalidHome },
+    expectExitCode: 1
+  });
+  assertFailedEnvelope(systemFailure.envelope, "list", /ENOTDIR/u);
+  assert.equal(systemFailure.envelope.error.code, "INTERNAL_ERROR");
+  assert.equal(systemFailure.stderr, "");
   const invalidDryRun = await cli.runJson(["search", "skill", "--dry-run"], { ...options, expectExitCode: 1 });
   assertFailedEnvelope(invalidDryRun.envelope, "search", /requires a mutating command/u);
 

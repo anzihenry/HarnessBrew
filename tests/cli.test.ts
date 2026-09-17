@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { runCli } from "../src/cli.js";
+import { runCli, type CliJsonEnvelope } from "../src/cli.js";
 import { lstat, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -88,6 +88,52 @@ test("JSON mode emits one versioned envelope for success and failure", async () 
   assert.equal(domainFailure.error.code, "HARNESSBREW_ERROR");
   assert.match(domainFailure.diagnostics.join("\n"), /Tap not found/u);
   assert.deepEqual(output.stderr, []);
+});
+
+test("JSON mode contains filesystem errors in read, write, and dry-run commands", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-cli-system-error-"));
+  try {
+    const home = path.join(root, "not-a-directory");
+    await writeFile(home, "keep this file\n");
+    for (const args of [["list"], ["tap", "remove", "missing/tap"], ["tap", "remove", "missing/tap", "--dry-run"]]) {
+      const output = captureIO();
+      assert.equal(await runCli([...args, "--json"], output.io, { home }), 1);
+      assert.equal(output.stdout.length, 1);
+      assert.deepEqual(output.stderr, []);
+      const envelope = JSON.parse(output.stdout[0] ?? "") as CliJsonEnvelope;
+      assert.equal(envelope.schemaVersion, 1);
+      assert.equal(envelope.ok, false);
+      assert.equal(envelope.exitCode, 1);
+      assert.equal(envelope.command, args[0]);
+      assert.equal(envelope.error?.code, "INTERNAL_ERROR");
+      assert.match(envelope.error?.message ?? "", /ENOTDIR|EEXIST/u);
+      assert.deepEqual(envelope.diagnostics, [envelope.error?.message]);
+      assert.deepEqual(envelope.output, []);
+      assert.equal(envelope.result, null);
+      assert.equal(envelope.dryRun, args.includes("--dry-run"));
+      if (envelope.dryRun) assert.deepEqual(envelope.changes, []);
+    }
+    await assert.rejects(runCli(["list"], captureIO().io, { home }), { code: "ENOTDIR" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("JSON mode contains unexpected Error and non-Error exceptions without serializing their payload", async () => {
+  for (const thrown of [new Error("Unexpected failure"), null, "private payload", { secret: "private payload" }]) {
+    const output = captureIO();
+    assert.equal(await runCli(["list", "--json"], output.io, {
+      get home(): string { throw thrown; }
+    }), 1);
+    assert.equal(output.stdout.length, 1);
+    assert.deepEqual(output.stderr, []);
+    const envelope = JSON.parse(output.stdout[0] ?? "") as CliJsonEnvelope;
+    assert.deepEqual(envelope.error, {
+      code: "INTERNAL_ERROR",
+      message: thrown instanceof Error ? thrown.message : "Unexpected error."
+    });
+    assert.doesNotMatch(output.stdout[0] ?? "", /private payload|\bat runCli\b/u);
+  }
 });
 
 test("tap commands expose the Git source lifecycle", async () => {

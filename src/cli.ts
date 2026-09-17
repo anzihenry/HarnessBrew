@@ -39,7 +39,7 @@ export interface CliOptions {
 }
 
 export interface CliJsonError {
-  code: "COMMAND_FAILED" | "HARNESSBREW_ERROR";
+  code: "COMMAND_FAILED" | "HARNESSBREW_ERROR" | "INTERNAL_ERROR";
   message: string;
 }
 
@@ -198,7 +198,9 @@ async function runAdapterCommand(args: readonly string[], home: string, io: CliI
   const [action = "list", ...rest] = args;
   if (action === "list") {
     const records = await listAdapterPlugins(home);
-    records.forEach((record) => io.stdout(`${record.name}\t${record.version}\t${record.module}`));
+    records.forEach((record) => io.stdout(
+      `${record.name}\t${record.version}\t${record.module}\t${record.integrityScope ?? "review-required"}`
+    ));
     setResult(io, records);
     return 0;
   }
@@ -209,6 +211,7 @@ async function runAdapterCommand(args: readonly string[], home: string, io: CliI
     }
     const record = await addAdapterPlugin(home, moduleSpecifier);
     io.stdout(`Added trusted Adapter ${record.name}@${record.version} from ${record.module}.`);
+    io.stdout("Integrity scope: entry-file-sha256-v1; imports and dependencies are not covered.");
     setResult(io, record);
     return 0;
   }
@@ -460,7 +463,7 @@ export async function runCli(
     || command === "upgrade" || command === "bundle"
     || (command === "tap" && tapAction !== "list")
     || (command === "adapter" && adapterAction !== "list");
-  const emitJson = (exitCode: number, changes: TransactionChange[] = [], errorCode?: CliJsonError["code"]): void => {
+  const emitJson = (exitCode: number, changes: TransactionChange[] = [], error?: CliJsonError): void => {
     const envelope: CliJsonEnvelope = {
       schemaVersion: 1,
       ok: exitCode === 0,
@@ -471,8 +474,8 @@ export async function runCli(
       output,
       diagnostics,
       ...(exitCode === 0 ? {} : {
-        error: {
-          code: errorCode ?? "COMMAND_FAILED",
+        error: error ?? {
+          code: "COMMAND_FAILED",
           message: diagnostics[0] ?? "Command failed."
         }
       }),
@@ -522,11 +525,17 @@ export async function runCli(
     if (json) emitJson(exitCode, changes);
     return exitCode;
   } catch (error) {
+    if (json) {
+      const message = error instanceof Error ? error.message : "Unexpected error.";
+      diagnostics.push(message);
+      emitJson(1, [], {
+        code: error instanceof HarnessBrewError ? "HARNESSBREW_ERROR" : "INTERNAL_ERROR",
+        message
+      });
+      return 1;
+    }
     if (error instanceof HarnessBrewError) {
-      if (json) {
-        diagnostics.push(error.message);
-        emitJson(1, [], "HARNESSBREW_ERROR");
-      } else io.stderr(error.message);
+      io.stderr(error.message);
       return 1;
     }
     throw error;
