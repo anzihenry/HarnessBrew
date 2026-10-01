@@ -4,6 +4,8 @@
 
 > 本文描述当前已经实现的 tap/formula/install 架构；0.4.0 之前的历史 workspace/asset 模型不再对应当前实现。
 
+> 下一代重构的阶段 1 设计已单独记录在[重构架构决策](design/refactor-architecture.zh-CN.md)，包含[接口契约](design/refactor-contracts.zh-CN.md)和[验收场景](design/refactor-acceptance.zh-CN.md)。这些是目标设计，尚未替代当前实现。
+
 ## 1. 产品定位
 
 HarnessBrew 是面向 AI Agent 资产的 Git 包管理器，定位类似 Homebrew，而不是资产仓库或中心化 registry。

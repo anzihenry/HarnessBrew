@@ -4,6 +4,8 @@ English | [简体中文](architecture.zh-CN.md)
 
 > This document describes the current Tap/Formula/install architecture. Historical workspace/asset releases before 0.4.0 are no longer represented by the implementation.
 
+> The next architecture is specified separately in the [phase 1 design decisions (Chinese)](design/refactor-architecture.zh-CN.md), with [interface contracts](design/refactor-contracts.zh-CN.md) and [acceptance scenarios](design/refactor-acceptance.zh-CN.md). These describe the planned refactor, not the current implementation.
+
 ## 1. Product position
 
 HarnessBrew is a Git package manager for AI agent assets. It is analogous to Homebrew, not an asset-hosting service or centralized registry.
