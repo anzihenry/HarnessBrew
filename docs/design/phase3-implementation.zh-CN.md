@@ -9,7 +9,7 @@
 | `src/sources/manager.ts` | 获取 Git branch/tag/精确 commit，检查更新连续性，准备并验证来源快照 |
 | `src/sources/inventory.ts` | 扫描相对路径、文件字节摘要与权限；拒绝符号链接及特殊文件 |
 | `src/catalog/load.ts` | 每次操作读取指定快照，校验声明和库存，产生冻结的 Catalog 数据 |
-| `src/resolution/catalog-index.ts` | 为同一解析操作索引最新候选与精确历史版本，检查来源归属 |
+| `src/domain/catalog-index.ts`（阶段 4 从 resolution 移入） | 为同一解析操作索引最新候选与精确历史版本，检查来源归属 |
 | `src/resolution/resolve.ts` | 将请求、当前状态与 Catalog 转成 DesiredState；统一版本、闭包、冲突和引用判断 |
 | `src/domain/graph.ts` | Resolver 与已提交状态校验共用依赖遍历、循环检查及冲突规则 |
 | `src/domain/bundle.ts` | Bundle manifest、可移植锁与规范化摘要 |

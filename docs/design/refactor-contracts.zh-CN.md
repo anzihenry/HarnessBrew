@@ -1,6 +1,6 @@
 # 重构接口与数据契约
 
-状态：阶段 1 目标契约。阶段 2 已实现领域与存储基础，进度见[阶段 2 实施记录](phase2-implementation.zh-CN.md)；阶段 3 已实现来源快照、Catalog 与纯 Resolver，见[阶段 3 实施记录](phase3-implementation.zh-CN.md)。业务入口仍待后续阶段接入。决策依据见 [架构决策](refactor-architecture.zh-CN.md)。
+状态：阶段 1 目标契约。阶段 2 已实现领域与存储基础，进度见[阶段 2 实施记录](phase2-implementation.zh-CN.md)；阶段 3 已实现来源快照、Catalog 与纯 Resolver，见[阶段 3 实施记录](phase3-implementation.zh-CN.md)。阶段 4 已实现 Planner 与 Adapter，见[阶段 4 实施记录](phase4-implementation.zh-CN.md)。业务入口仍待后续阶段接入。决策依据见 [架构决策](refactor-architecture.zh-CN.md)。
 
 ## 1. 版本与格式
 
@@ -102,7 +102,7 @@ interface ChangePlan {
 
 Adapter 只返回期望的正向操作。删除由 Planner 根据既有 AppliedOperation 生成，插件不能指定任意删除路径。所有源引用限定于资产内容库存。
 
-配置格式首版明确支持 JSON 与 TOML；配置 codec 必须保留非受管键和注释，不能用正则猜测 TOML 语义。多个操作修改同一共享文件时，由 Planner 合并成一个文件更新组，生成一致的 before/after fingerprint；操作记录仍保留键/区块级所有权。执行前检查同文件的所有操作和冲突。
+配置格式首版明确支持 JSON 与 TOML；配置 codec 必须保留非受管键和注释，不能用正则猜测 TOML 语义。多个操作修改同一共享文件时，由 Planner 合并成一个文件更新组，生成一致的 before/after fingerprint；操作记录仍保留键/区块级所有权。执行前检查同文件的所有操作和冲突。阶段 4 的具体载荷、fingerprint 和文件更新组定义见 `src/domain/plan.ts`；共享资源按自身内容计算 fingerprint，完整文件按内容与 mode 计算。
 
 ## 5. Adapter 协议
 

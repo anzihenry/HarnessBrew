@@ -1,6 +1,6 @@
 # 重构验收场景与阶段 1 完成清单
 
-状态：设计验收规范。阶段 2 已实现部分领域与存储测试及 3 个 TODO 回归夹具，详见[实施记录](phase2-implementation.zh-CN.md)；阶段 3 已覆盖来源与解析语义，见[阶段 3 实施记录](phase3-implementation.zh-CN.md)。本矩阵不表示全部业务验收已通过。配套：[架构决策](refactor-architecture.zh-CN.md)、[接口契约](refactor-contracts.zh-CN.md)。
+状态：设计验收规范。阶段 2 已实现部分领域与存储测试及 3 个 TODO 回归夹具，详见[实施记录](phase2-implementation.zh-CN.md)；阶段 3 已覆盖来源与解析语义，见[阶段 3 实施记录](phase3-implementation.zh-CN.md)。阶段 4 的规划层验收范围见[阶段 4 实施记录](phase4-implementation.zh-CN.md)。本矩阵不表示全部业务验收已通过。配套：[架构决策](refactor-architecture.zh-CN.md)、[接口契约](refactor-contracts.zh-CN.md)。
 
 ## 1. 场景矩阵
 

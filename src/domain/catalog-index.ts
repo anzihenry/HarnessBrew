@@ -1,9 +1,9 @@
-import { resolvedAsset, sourceSnapshot, type ResolvedAsset } from "../domain/assets.js";
-import { freezeData, type CatalogSnapshot } from "../domain/catalog.js";
-import { HarnessError } from "../domain/errors.js";
-import { canonicalJson, unique } from "../domain/validation.js";
-import type { AssetPin } from "../domain/state.js";
-import type { Coordinate } from "../domain/identity.js";
+import { resolvedAsset, sourceSnapshot, type ResolvedAsset } from "./assets.js";
+import { freezeData, type CatalogSnapshot } from "./catalog.js";
+import { HarnessError } from "./errors.js";
+import { canonicalJson, unique } from "./validation.js";
+import type { AssetPin } from "./state.js";
+import type { Coordinate } from "./identity.js";
 
 export function sameVersion(left: AssetPin, right: AssetPin): boolean {
   return left.coordinate === right.coordinate && left.contentDigest === right.contentDigest && canonicalJson(left.commit) === canonicalJson(right.commit);

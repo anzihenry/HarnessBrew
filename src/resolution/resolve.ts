@@ -9,7 +9,7 @@ import type { DesiredAsset, DesiredState, ResolutionRequest } from "../domain/re
 import type { AssetPin, UsageRequirement } from "../domain/state.js";
 import { canonicalJson, record, sortBy, text } from "../domain/validation.js";
 import { parseHomeState, type HomeState } from "../domain/home-state.js";
-import { CatalogIndex, sameVersion } from "./catalog-index.js";
+import { CatalogIndex, sameVersion } from "../domain/catalog-index.js";
 
 interface Candidate extends AssetPin {
   snapshotId: string; dependencies: Coordinate[]; conflicts: Coordinate[]; resolved?: ResolvedAsset;

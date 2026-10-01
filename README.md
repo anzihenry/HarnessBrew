@@ -321,7 +321,7 @@ npm run check
 - `npm run test:regressions`: three known refactor regressions, currently reported as TODO rather than passing tests.
 - `npm run check:all`: the complete validation sequence.
 
-See the [phase 3 implementation notes (Chinese)](docs/design/phase3-implementation.zh-CN.md). Release validation has two additional stable entry points:
+See the [phase 4 implementation notes (Chinese)](docs/design/phase4-implementation.zh-CN.md). Release validation has two additional stable entry points:
 
 ```bash
 # Deterministic CI gate for an existing candidate tarball
