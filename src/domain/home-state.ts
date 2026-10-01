@@ -1,8 +1,8 @@
-import { placementId } from "../domain/placement.js";
-import { type SourceSnapshot, sourceSnapshot } from "../domain/assets.js";
-import { commitId, coordinate, digest, identifier, tapName, type Digest } from "../domain/identity.js";
-import { emptyInstallState, parseInstallState, type InstallState } from "../domain/state.js";
-import { array, canonicalJson, format, invalid, record, sortBy, text, unique } from "../domain/validation.js";
+import { placementId } from "./placement.js";
+import { type SourceSnapshot, sourceSnapshot } from "./assets.js";
+import { commitId, coordinate, digest, identifier, tapName, type Digest } from "./identity.js";
+import { emptyInstallState, parseInstallState, type InstallState } from "./state.js";
+import { array, canonicalJson, format, invalid, record, sortBy, text, unique } from "./validation.js";
 
 export interface SourceRegistration { name: string; url: string; trusted: boolean; selectedSnapshot?: string }
 export interface SourceState {

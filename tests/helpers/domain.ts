@@ -1,7 +1,7 @@
 import { coordinate, hash, type Coordinate } from "../../src/domain/identity.js";
 import { bundleOwner, placementId, requirementId, type UsageOwner } from "../../src/domain/placement.js";
 import { type InstalledAsset, type UsageRequirement } from "../../src/domain/state.js";
-import { emptyHomeState, type HomeState } from "../../src/storage/home-state.js";
+import { emptyHomeState, type HomeState } from "../../src/domain/home-state.js";
 
 export const A = coordinate("test/assets/a");
 export const B = coordinate("test/assets/b");

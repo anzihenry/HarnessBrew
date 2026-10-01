@@ -46,7 +46,10 @@ export interface GitCommand {
   cwd: string;
   signal?: AbortSignal;
 }
-export interface GitClient { run(command: GitCommand): Promise<string> }
+export interface GitClient {
+  run(command: GitCommand): Promise<string>;
+  bytes(command: GitCommand): Promise<Uint8Array>;
+}
 const execFileAsync = promisify(execFile);
 export const nodeGitClient: GitClient = {
   async run({ args, cwd, signal }) {
@@ -55,6 +58,13 @@ export const nodeGitClient: GitClient = {
       ...(signal === undefined ? {} : { signal })
     });
     return result.stdout.trim();
+  },
+  async bytes({ args, cwd, signal }) {
+    const result = await execFileAsync("git", [...args], {
+      cwd, encoding: "buffer", maxBuffer: 64 * 1024 * 1024, timeout: 60_000,
+      ...(signal === undefined ? {} : { signal })
+    });
+    return result.stdout;
   }
 };
 export type StoreCheckpoint = "revision-durable" | "before-publish";

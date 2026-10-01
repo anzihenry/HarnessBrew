@@ -1,6 +1,6 @@
 # 重构接口与数据契约
 
-状态：阶段 1 目标契约。阶段 2 已实现领域与存储基础，进度见[阶段 2 实施记录](phase2-implementation.zh-CN.md)；其余接口仍待后续阶段接入。决策依据见 [架构决策](refactor-architecture.zh-CN.md)。
+状态：阶段 1 目标契约。阶段 2 已实现领域与存储基础，进度见[阶段 2 实施记录](phase2-implementation.zh-CN.md)；阶段 3 已实现来源快照、Catalog 与纯 Resolver，见[阶段 3 实施记录](phase3-implementation.zh-CN.md)。业务入口仍待后续阶段接入。决策依据见 [架构决策](refactor-architecture.zh-CN.md)。
 
 ## 1. 版本与格式
 
@@ -10,7 +10,7 @@
 { "format": "harnessbrew.install-state", "version": 1 }
 ```
 
-格式包括 `install-state`、`source-state`、`adapter-state`、`manifest`、`lock`、`plan`、`journal`，均加 `harnessbrew.` 前缀。格式名与 version 必须严格校验。缺少 format 的旧数据返回 `UNSUPPORTED_FORMAT`，不自动转换、覆盖或删除。
+格式包括 `install-state`、`source-state`、`adapter-state`、`tap`、`asset`、`source-snapshot`、`manifest`、`lock`、`plan`、`journal`，均加 `harnessbrew.` 前缀。格式名与 version 必须严格校验。缺少 format 的旧数据返回 `UNSUPPORTED_FORMAT`，不自动转换、覆盖或删除。
 
 新的 Home 初始化只接受空目录或有效的新格式 Home。已存在旧数据时提示使用新的 `--home`，或由用户先备份后重新初始化。原有 Target 文件仍按未受管文件处理，禁止自动接管。旧 CLI/API/插件入口移除，变更以破坏性版本发布。
 

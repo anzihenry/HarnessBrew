@@ -9,7 +9,7 @@ test("Git boundary accepts replaceable command handlers and real local repositor
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-git-port-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const calls: GitCommand[] = [];
-  const fake: GitClient = { async run(command) { calls.push(command); return "fake-commit"; } };
+  const fake: GitClient = { async run(command) { calls.push(command); return "fake-commit"; }, async bytes(command) { calls.push(command); return Buffer.from("blob"); } };
   assert.equal(await fake.run({ args: ["rev-parse", "HEAD"], cwd: root }), "fake-commit");
   assert.deepEqual(calls[0]?.args, ["rev-parse", "HEAD"]);
   await nodeGitClient.run({ args: ["init", "--initial-branch=main"], cwd: root });

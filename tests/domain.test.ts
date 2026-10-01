@@ -4,7 +4,7 @@ import { manifest, inventory, inventoryDigest, resolvedAsset } from "../src/doma
 import { commitId, coordinate, hash, relativePath, resolveAsset } from "../src/domain/identity.js";
 import { bundleOwner, placement, placementId } from "../src/domain/placement.js";
 import { parseInstallState } from "../src/domain/state.js";
-import { parseHomeState } from "../src/storage/home-state.js";
+import { parseHomeState } from "../src/domain/home-state.js";
 import { A, B, C, commit, fixtureState, installedAsset, sharedState } from "./helpers/domain.js";
 
 const code = (value: string) => ({ code: value });

@@ -5,7 +5,7 @@ import { HarnessError } from "../domain/errors.js";
 import { absolutePath, digest, hash, identifier } from "../domain/identity.js";
 import { canonicalJson, format } from "../domain/validation.js";
 import { nodeStorageIO, type FaultInjector, type StorageIO } from "../ports/io.js";
-import { emptyHomeState, parseHomeState, type HomeState } from "./home-state.js";
+import { emptyHomeState, parseHomeState, type HomeState } from "../domain/home-state.js";
 
 /** Atomic Home metadata publication, not a Target transaction coordinator. */
 export class StateStore {

@@ -1,3 +1,4 @@
+import { assertNoConflicts, dependencyClosure } from "./graph.js";
 import path from "node:path";
 import { HarnessError } from "./errors.js";
 import { absolutePath, commitId, contained, coordinate, digest, identifier, type CommitId, type Coordinate, type Digest } from "./identity.js";
@@ -118,19 +119,10 @@ export function parseInstallState(value: unknown): InstallState {
   const required = new Set<string>();
   for (const req of state.requirements) {
     if (!owners.has(req.ownerId)) invalid("requirement owner reference");
-    const closure = new Set<Coordinate>();
-    const visiting = new Set<Coordinate>();
-    function visit(name: Coordinate): void {
-      if (visiting.has(name)) throw new HarnessError("DEPENDENCY_CYCLE", `Dependency cycle at ${name}.`);
-      if (closure.has(name)) return;
+    const closure = new Set(dependencyClosure(req.rootCoordinate, name => {
       const asset = assets.get(name);
-      if (!asset || asset.status !== "active") throw new HarnessError("DEPENDENCY_MISSING", `Missing active asset: ${name}`);
-      visiting.add(name);
-      asset.dependencies.forEach(visit);
-      visiting.delete(name);
-      closure.add(name);
-    }
-    visit(req.rootCoordinate);
+      return asset?.status === "active" ? asset : undefined;
+    }).map(asset => asset.coordinate));
     if (req.resolvedAssets.length !== closure.size) invalid("requirement dependency closure");
     for (const selected of req.resolvedAssets) {
       const asset = assets.get(selected.coordinate);
@@ -144,12 +136,9 @@ export function parseInstallState(value: unknown): InstallState {
   for (const asset of state.assets) {
     if ((asset.status === "active") !== required.has(asset.coordinate)) invalid("asset activity and requirements");
     if (asset.status === "orphan" && asset.operations.length) invalid("orphan operations");
-    if (asset.status === "active") {
-      const conflict = asset.conflicts.find(name => assets.get(name)?.status === "active");
-      if (conflict) throw new HarnessError("ASSET_CONFLICT", `${asset.coordinate} conflicts with ${conflict}.`);
-    }
     for (const id of asset.operations) if (operations.get(id)?.asset !== asset.coordinate) invalid("asset operation reference");
   }
+  assertNoConflicts(state.assets.filter(asset => asset.status === "active"));
   for (let i = 0; i < state.operations.length; i++) {
     const op = state.operations[i] as AppliedOperation;
     const asset = assets.get(op.asset);

@@ -10,7 +10,7 @@
 | `src/domain/assets.ts` | AssetManifest、SourceSnapshot、ResolvedAsset、内容库存校验与摘要 | 目录父项、空目录、权限、重复路径、特殊文件拒绝 |
 | `src/domain/placement.ts` | placement 规范化、Bundle binding 和根要求标识 | user/project 约束、不同 checkout 独立绑定 |
 | `src/domain/state.ts` | 使用者、要求、安装、资源所有权及实际操作模型 | 闭包与版本一致性、共享引用、孤立记录和资源重叠 |
-| `src/storage/home-state.ts` | 将来源、授权、插件、安装状态组成一份 revision 快照 | 跨状态引用、来源版本及 Adapter 能力一致性 |
+| `src/domain/home-state.ts`（阶段 3 从 storage 移入） | 将来源、授权、插件、安装状态组成一份 revision 快照 | 跨状态引用、来源版本及 Adapter 能力一致性 |
 | `src/storage/state-store.ts` | 空 Home 初始化、快照校验、原子发布、revision 比较更新 | 不覆盖旧数据、不丢失并发更新、故障前后可读性 |
 | `src/ports/io.ts` | 文件系统、Git 和存储故障注入边界 | 无须替换全局对象即可模拟 I/O 失败；Git 支持取消 |
 | `src/transactions/file-lock.ts` | 抽出既有进程文件锁原语供新存储复用 | 独立进程互斥、故障后锁回收 |
