@@ -1,19 +1,10 @@
+import { buildTestArtifact } from "./helpers/artifact.js";
 import assert from "node:assert/strict";
 import { access, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
-
-interface ArtifactBuildResult {
-  packagePath: string;
-  manifestPath: string;
-  checksumsPath: string;
-}
-
-interface ArtifactModule {
-  buildArtifact(options: { outputDirectory: string; allowDirty?: boolean }): Promise<ArtifactBuildResult>;
-}
 
 interface E2EEnvironment {
   root: string;
@@ -51,14 +42,13 @@ interface ReporterModule {
   };
 }
 
-const artifactModule = await import(pathToFileURL(path.resolve("scripts/artifact/build.mjs")).href) as ArtifactModule;
 const environmentModule = await import(pathToFileURL(path.resolve("scripts/e2e/environment.mjs")).href) as EnvironmentModule;
 const driverModule = await import(pathToFileURL(path.resolve("scripts/e2e/cli-driver.mjs")).href) as DriverModule;
 const reporterModule = await import(pathToFileURL(path.resolve("scripts/e2e/reporter.mjs")).href) as ReporterModule;
 
 test("packaged E2E harness isolates homes and executes only the installed candidate binary", async () => {
   const outputDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-e2e-candidate-"));
-  const artifact = await artifactModule.buildArtifact({ outputDirectory, allowDirty: true });
+  const artifact = await buildTestArtifact({ outputDirectory, allowDirty: true });
   const environment = await environmentModule.createE2EEnvironment({
     packagePath: artifact.packagePath,
     manifestPath: artifact.manifestPath,

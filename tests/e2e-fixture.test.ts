@@ -1,3 +1,4 @@
+import { buildTestArtifact } from "./helpers/artifact.js";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { access, mkdtemp, readFile } from "node:fs/promises";
@@ -10,9 +11,6 @@ import { pathToFileURL } from "node:url";
 const execFileAsync = promisify(execFile);
 
 interface ArtifactBuildResult { packagePath: string; manifestPath: string; checksumsPath: string }
-interface ArtifactModule {
-  buildArtifact(options: { outputDirectory: string; allowDirty?: boolean }): Promise<ArtifactBuildResult>;
-}
 interface E2EEnvironment {
   root: string;
   environment: NodeJS.ProcessEnv;
@@ -36,13 +34,12 @@ interface FixtureModule {
   }>;
 }
 
-const artifactModule = await import(pathToFileURL(path.resolve("scripts/artifact/build.mjs")).href) as ArtifactModule;
 const environmentModule = await import(pathToFileURL(path.resolve("scripts/e2e/environment.mjs")).href) as EnvironmentModule;
 const fixtureModule = await import(pathToFileURL(path.resolve("scripts/e2e/fixture-tap.mjs")).href) as FixtureModule;
 
 test("E2E Tap fixture uses a bare remote and produces upgrade, invalid, and rewritten histories", async () => {
   const outputDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-fixture-candidate-"));
-  const artifact = await artifactModule.buildArtifact({ outputDirectory, allowDirty: true });
+  const artifact = await buildTestArtifact({ outputDirectory, allowDirty: true });
   const environment = await environmentModule.createE2EEnvironment(artifact);
   try {
     const fixture = await fixtureModule.createTapFixture(environment);

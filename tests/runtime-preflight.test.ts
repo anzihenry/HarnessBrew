@@ -1,3 +1,4 @@
+import { buildTestArtifact } from "./helpers/artifact.js";
 import assert from "node:assert/strict";
 import { appendFile, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -5,10 +6,6 @@ import path from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 
-interface ArtifactResult { packagePath: string; manifestPath: string; checksumsPath: string }
-interface ArtifactModule {
-  buildArtifact(options: { outputDirectory: string; allowDirty?: boolean }): Promise<ArtifactResult>;
-}
 interface PreflightModule {
   runtimeReportStatus(runtimes: Array<Record<string, unknown>>): string;
   runRuntimePreflight(options: Record<string, unknown>): Promise<{
@@ -16,7 +13,6 @@ interface PreflightModule {
     reportPath: string;
   }>;
 }
-const artifactModule = await import(pathToFileURL(path.resolve("scripts/artifact/build.mjs")).href) as ArtifactModule;
 const preflightModule = await import(pathToFileURL(path.resolve("scripts/runtime/preflight.mjs")).href) as PreflightModule;
 
 test("runtime acceptance requires Codex and rejects missing, failed, or skipped runs", () => {
@@ -67,7 +63,7 @@ function fakeAdapter(name: string, runtime: string) {
 test("runtime preflight installs the exact candidate and emits redacted Codex runtime evidence", async () => {
   const outputDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-preflight-candidate-"));
   const reportDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-preflight-report-"));
-  const artifact = await artifactModule.buildArtifact({ outputDirectory, allowDirty: true });
+  const artifact = await buildTestArtifact({ outputDirectory, allowDirty: true });
   process.env.HARNESSBREW_TEST_SECRET = "must-not-appear-in-runtime-evidence";
   try {
     const result = await preflightModule.runRuntimePreflight({

@@ -31,6 +31,7 @@ jobs:
       - run: npm install --global npm@${{ matrix.npm }}
       - run: npm ci
       - run: npm run check
+      - run: npm run test:regressions
 
   candidate:
     runs-on: ubuntu-latest
@@ -91,6 +92,10 @@ jobs:
           manifest_sha="$(node -p 'require("./release-artifacts/artifact-manifest.json").package.sha256')"
           echo "sha256=$manifest_sha" >> "$GITHUB_OUTPUT"
           test "${{ needs.candidate.outputs.sha256 }}" = "$manifest_sha"
+      - name: Test packaged integrations against the shared candidate
+        run: npm run test:packaged
+        env:
+          HARNESSBREW_TEST_CANDIDATE: ${{ github.workspace }}/release-artifacts
       - name: Run deterministic packaged release gate
         run: >-
           npm run release:gate --

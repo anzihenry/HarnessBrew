@@ -1,3 +1,4 @@
+import { buildTestArtifact } from "./helpers/artifact.js";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdtemp } from "node:fs/promises";
@@ -9,17 +10,6 @@ import { pathToFileURL } from "node:url";
 
 const execFileAsync = promisify(execFile);
 
-interface ArtifactBuildResult {
-  packagePath: string;
-  manifestPath: string;
-  checksumsPath: string;
-  manifest: { package: { name: string; version: string; sha256: string } };
-}
-
-interface ArtifactModule {
-  buildArtifact(options: { outputDirectory: string; allowDirty?: boolean }): Promise<ArtifactBuildResult>;
-}
-
 interface SmokeModule {
   smokePackage(options: {
     packagePath: string;
@@ -28,12 +18,11 @@ interface SmokeModule {
   }): Promise<{ package: { name: string; version: string; sha256: string }; binaryPath: string }>;
 }
 
-const artifactModule = await import(pathToFileURL(path.resolve("scripts/artifact/build.mjs")).href) as ArtifactModule;
 const smokeModule = await import(pathToFileURL(path.resolve("scripts/package-smoke.mjs")).href) as SmokeModule;
 
 test("package smoke installs and executes an explicitly provided candidate", async () => {
   const outputDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-package-candidate-"));
-  const artifact = await artifactModule.buildArtifact({ outputDirectory, allowDirty: true });
+  const artifact = await buildTestArtifact({ outputDirectory, allowDirty: true });
   const result = await smokeModule.smokePackage({
     packagePath: artifact.packagePath,
     manifestPath: artifact.manifestPath,

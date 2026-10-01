@@ -1,6 +1,6 @@
 # 重构接口与数据契约
 
-状态：阶段 1 目标契约；以下类型为接口设计，尚未加入源码。决策依据见 [架构决策](refactor-architecture.zh-CN.md)。
+状态：阶段 1 目标契约。阶段 2 已实现领域与存储基础，进度见[阶段 2 实施记录](phase2-implementation.zh-CN.md)；其余接口仍待后续阶段接入。决策依据见 [架构决策](refactor-architecture.zh-CN.md)。
 
 ## 1. 版本与格式
 
@@ -26,7 +26,7 @@
 | Placement | target、scope、projectRoot?、rootOverride? | project scope 必须有绝对项目根；user 不携带 projectRoot |
 | UsageRequirement | ownerId、rootCoordinate、resolvedAssets、placements | 每个根保留独立要求，依赖闭包派生；同一依赖可被多个根引用 |
 | InstalledAsset | coordinate、contentDigest、commit、dependencies、operations、status | status 为 active/orphan；operations 引用操作 ID，不复制操作内容 |
-| AppliedOperation | id、asset、placementId、resource、type、installedFingerprint、createdDirectories | 单一操作记录由 owner/root 引用集合引用；资源所有权唯一 |
+| AppliedOperation | id、asset、placementIds、resource、type、installedFingerprint、createdDirectories、requirementIds | 单一操作记录由 owner/root 引用集合引用；相同物理操作可对应多个 placement；资源所有权唯一 |
 | InstallState | revision、owners、requirements、assets、operations | 一次原子发布；互相引用必须存在；不保留 links/targets/requested 重复字段 |
 
 placementId 由 target、scope、规范化 projectRoot/rootOverride 生成；相同物理资源还必须通过真实路径及资源地址检测别名冲突。不同 placement 映射到同一物理操作，仅在资产版本、操作类型、内容和所有权地址一致时合并引用。

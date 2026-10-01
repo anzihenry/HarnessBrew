@@ -1,34 +1,40 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
+import { fork } from "node:child_process";
+import { once } from "node:events";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { promisify } from "node:util";
 import { runCli } from "../src/cli.js";
 import { withFileLock, withHomeLock } from "../src/core/locks.js";
 
-const execFileAsync = promisify(execFile);
-
-test("file locks serialize independent processes", async () => {
+test("file locks serialize independent processes", { timeout: 10_000 }, async t => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-lock-"));
   const lockPath = path.join(root, "shared.lock");
   const tracePath = path.join(root, "trace.txt");
-  const moduleUrl = new URL("../src/core/locks.js", import.meta.url).href;
-  const script = `
-    import { appendFile } from "node:fs/promises";
-    import { withFileLock } from ${JSON.stringify(moduleUrl)};
-    const [lockPath, tracePath, name, hold] = process.argv.slice(1);
-    await withFileLock(lockPath, async () => {
-      await appendFile(tracePath, name + ":start\\n");
-      await new Promise((resolve) => setTimeout(resolve, Number(hold)));
-      await appendFile(tracePath, name + ":end\\n");
-    });
-  `;
-  const first = execFileAsync(process.execPath, ["--input-type=module", "-e", script, lockPath, tracePath, "first", "300"]);
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  const second = execFileAsync(process.execPath, ["--input-type=module", "-e", script, lockPath, tracePath, "second", "0"]);
-  await Promise.all([first, second]);
+  const spawn = (name: string) => fork(new URL("./helpers/lock-child.js", import.meta.url), [lockPath, tracePath, name], {
+    stdio: ["ignore", "ignore", "pipe", "ipc"]
+  });
+  const first = spawn("first");
+  t.after(() => { first.kill(); });
+  const firstExit = once(first, "exit");
+  const firstReady = await Promise.race([
+    once(first, "message"), firstExit.then(() => { throw new Error("first process exited before ready"); })
+  ]);
+  assert.equal(firstReady[0], "acquired");
+  const second = spawn("second");
+  t.after(() => { second.kill(); });
+  const secondExit = once(second, "exit");
+  const blocked = await Promise.race([
+    once(second, "message"), secondExit.then(() => { throw new Error("second process exited before lock contention"); })
+  ]);
+  assert.equal(blocked[0], "blocked");
+  const secondReady = once(second, "message");
+  first.send("release");
+  assert.equal((await firstExit)[0], 0);
+  assert.equal((await secondReady)[0], "acquired");
+  second.send("release");
+  assert.equal((await secondExit)[0], 0);
   assert.deepEqual((await readFile(tracePath, "utf8")).trim().split("\n"), [
     "first:start", "first:end", "second:start", "second:end"
   ]);

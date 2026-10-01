@@ -316,7 +316,14 @@ npm test
 npm run check
 ```
 
-`npm run check` 会执行严格构建、源码与集成测试、已打包 CLI 测试及发布元数据校验。发布验证另有两个稳定入口：
+`npm run check` 执行严格构建、快速源码测试和发布元数据校验。测试分为：
+
+- `npm run test:fast`：领域、状态存储及源码测试，也是 `npm test` 的默认范围。
+- `npm run test:packaged`：复用一份候选包运行打包与 CLI 集成测试。
+- `npm run test:regressions`：运行重构期间的 3 个已知问题场景，当前明确标记为 TODO，不计入已通过测试。
+- `npm run check:all`：执行上述完整验证。
+
+重构进度见[阶段 2 实施记录](docs/design/phase2-implementation.zh-CN.md)。发布验证另有两个稳定入口：
 
 ```bash
 # 对已有候选 tarball 执行确定性 CI gate

@@ -1,3 +1,4 @@
+import { buildTestArtifact } from "./helpers/artifact.js";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -5,18 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 
-interface ArtifactBuildResult {
-  packagePath: string;
-  manifestPath: string;
-  checksumsPath: string;
-  manifest: {
-    package: { name: string; version: string; filename: string; sha256: string };
-    source: { commit: string; tag: string; dirty: boolean };
-  };
-}
-
 interface ArtifactModule {
-  buildArtifact(options: { outputDirectory: string; allowDirty?: boolean }): Promise<ArtifactBuildResult>;
   parsePackEntries(output: string): Array<{ filename?: string }>;
 }
 
@@ -44,9 +34,9 @@ test("artifact builder accepts npm 11 and npm 12 pack JSON", () => {
   );
 });
 
-test("artifact builder packs once and records a verifiable candidate manifest", async () => {
+test("shared candidate contains a verifiable build manifest", async () => {
   const outputDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-artifact-"));
-  const result = await artifactModule.buildArtifact({ outputDirectory, allowDirty: true });
+  const result = await buildTestArtifact({ outputDirectory, allowDirty: true });
   const packageJson = JSON.parse(await readFile(path.resolve("package.json"), "utf8")) as { name: string; version: string };
 
   assert.equal(result.manifest.package.name, packageJson.name);
@@ -63,7 +53,7 @@ test("artifact builder packs once and records a verifiable candidate manifest", 
 
 test("artifact verification enforces expected release identity", async () => {
   const outputDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-artifact-identity-"));
-  const result = await artifactModule.buildArtifact({ outputDirectory, allowDirty: true });
+  const result = await buildTestArtifact({ outputDirectory, allowDirty: true });
   await verifyModule.verifyArtifact({
     packagePath: result.packagePath,
     manifestPath: result.manifestPath,
@@ -81,7 +71,7 @@ test("artifact verification enforces expected release identity", async () => {
 
 test("artifact verification rejects candidate byte changes", async () => {
   const outputDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-artifact-tamper-"));
-  const result = await artifactModule.buildArtifact({ outputDirectory, allowDirty: true });
+  const result = await buildTestArtifact({ outputDirectory, allowDirty: true });
   await writeFile(result.packagePath, "tampered", "utf8");
 
   await assert.rejects(verifyModule.verifyArtifact({
