@@ -7,7 +7,13 @@ import { canonicalJson, format } from "../domain/validation.js";
 import { nodeStorageIO, type FaultInjector, type StorageIO } from "../ports/io.js";
 import { emptyHomeState, parseHomeState, type HomeState } from "../domain/home-state.js";
 
-/** Atomic Home metadata publication, not a Target transaction coordinator. */
+export interface ExclusiveStateAccess {
+  read(): Promise<HomeState>;
+  publish(expectedRevision: string, candidate: HomeState): Promise<HomeState>;
+  restore(expectedRevision: string, previous: HomeState): Promise<void>;
+}
+
+/** Atomic metadata storage; the coordinator holds the same lock for its entire transaction. */
 export class StateStore {
   private location: string;
   get home(): string { return this.location; }
@@ -73,6 +79,7 @@ export class StateStore {
     // Clone/validate before awaiting I/O so caller mutation cannot change an in-flight commit.
     const next = parseHomeState(candidate);
     return this.locked(async () => {
+      if (await this.io.kind(path.join(this.home, "transaction.json")) !== "missing") throw new HarnessError("RECOVERY_REQUIRED", "A journal must be recovered before committing state.");
       const current = await this.read();
       if (current.revision !== expectedRevision || next.revision !== expectedRevision) {
         throw new HarnessError("PLAN_STALE", "State changed since this candidate was read.", { expectedRevision, actualRevision: current.revision });
@@ -80,6 +87,37 @@ export class StateStore {
       if (canonicalJson(next) === canonicalJson(current)) return current;
       const revision = randomUUID();
       return this.publish({ ...next, revision, install: { ...next.install, revision } });
+    });
+  }
+  /** Internal coordinator port. Its lease is valid only inside this callback; no nested store lock. */
+  async withTransaction<T>(action: (access: ExclusiveStateAccess) => Promise<T>): Promise<T> {
+    return this.locked(async () => {
+      let active = true;
+      const check = () => { if (!active) throw new HarnessError("INVALID_ARGUMENT", "Expired state transaction lease."); };
+      try { return await action({
+        read: async () => { check(); return this.read(); },
+        publish: async (expectedRevision, candidate) => {
+          check();
+          const current = await this.read(), next = parseHomeState(candidate);
+          if (current.revision !== expectedRevision || next.revision === expectedRevision) throw new HarnessError("PLAN_STALE", "Invalid transaction revision transition.");
+          return this.publish(next);
+        },
+        restore: async (expectedRevision, expectedPrevious) => {
+          check();
+          const previousRevision = expectedPrevious.revision;
+          const current = await this.read();
+          if (current.revision !== expectedRevision) throw new HarnessError("RECOVERY_CONFLICT", "State changed outside this transaction.");
+          const file = path.join(this.revisions, `${identifier(previousRevision)}.json`);
+          await this.regular(file, "file");
+          const content = await this.io.read(file);
+          const previous = parseHomeState(this.json(content, previousRevision));
+          if (previous.revision !== previousRevision || canonicalJson(previous) !== canonicalJson(expectedPrevious)) throw new HarnessError("RECOVERY_CONFLICT", "Previous revision differs from journal evidence.");
+          const temporary = path.join(this.home, `.CURRENT-${randomUUID()}.tmp`);
+          await this.io.writeExclusive(temporary, `${canonicalJson({ format: "harnessbrew.current", version: 1, revision: previousRevision, digest: hash(content) })}\n`);
+          await this.io.rename(temporary, this.current);
+          await this.io.syncDirectory(this.home);
+        }
+      }); } finally { active = false; }
     });
   }
   private json(content: string, document: string): unknown {

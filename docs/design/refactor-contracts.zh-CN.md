@@ -1,6 +1,6 @@
 # 重构接口与数据契约
 
-状态：阶段 1 目标契约。阶段 2 已实现领域与存储基础，进度见[阶段 2 实施记录](phase2-implementation.zh-CN.md)；阶段 3 已实现来源快照、Catalog 与纯 Resolver，见[阶段 3 实施记录](phase3-implementation.zh-CN.md)。阶段 4 已实现 Planner 与 Adapter，见[阶段 4 实施记录](phase4-implementation.zh-CN.md)。业务入口仍待后续阶段接入。决策依据见 [架构决策](refactor-architecture.zh-CN.md)。
+状态：阶段 1 目标契约。阶段 2 已实现领域与存储基础，进度见[阶段 2 实施记录](phase2-implementation.zh-CN.md)；阶段 3 已实现来源快照、Catalog 与纯 Resolver，见[阶段 3 实施记录](phase3-implementation.zh-CN.md)。阶段 4 已实现 Planner 与 Adapter，见[阶段 4 实施记录](phase4-implementation.zh-CN.md)。阶段 5 已实现新执行链路及 Journal 恢复，见[阶段 5 实施记录](phase5-implementation.zh-CN.md)。业务入口仍待后续阶段接入。决策依据见 [架构决策](refactor-architecture.zh-CN.md)。
 
 ## 1. 版本与格式
 
@@ -78,6 +78,7 @@ interface ChangePlan {
   id: string;
   requestDigest: Digest;
   homeIdentity: string;
+  userHome: string;
   baseRevision: string;
   sourceSnapshots: readonly SnapshotIdentity[];
   adapterSignatures: readonly AdapterSignature[];

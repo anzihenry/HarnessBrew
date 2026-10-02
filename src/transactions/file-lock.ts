@@ -2,7 +2,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { HarnessBrewError } from "../core/errors.js";
+import { HarnessError } from "../domain/errors.js";
 
 export interface LockOptions {
   timeoutMs?: number;
@@ -71,7 +71,7 @@ export async function withFileLock<T>(
       }
       if (await reclaimAbandonedLock(resolvedLock)) continue;
       if (Date.now() - startedAt >= timeoutMs) {
-        throw new HarnessBrewError(`Timed out waiting for lock: ${resolvedLock}`);
+        throw new HarnessError("LOCK_TIMEOUT", `Timed out waiting for lock: ${resolvedLock}`, { path: resolvedLock });
       }
       await delay(retryMs);
     }

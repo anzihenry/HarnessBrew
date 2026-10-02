@@ -323,7 +323,7 @@ npm run check
 - `npm run test:regressions`：运行重构期间的 3 个已知问题场景，当前明确标记为 TODO，不计入已通过测试。
 - `npm run check:all`：执行上述完整验证。
 
-重构进度见[阶段 4 实施记录](docs/design/phase4-implementation.zh-CN.md)。发布验证另有两个稳定入口：
+重构进度见[阶段 5 实施记录](docs/design/phase5-implementation.zh-CN.md)。发布验证另有两个稳定入口：
 
 ```bash
 # 对已有候选 tarball 执行确定性 CI gate

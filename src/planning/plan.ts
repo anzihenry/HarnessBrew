@@ -237,7 +237,7 @@ export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
   }
   for (const asset of state.install.assets) if (asset.status === "active" && !graph.has(asset.coordinate)) assetChanges.push({ asset: asset.coordinate, type: "orphan", reason: "last-requirement-released" });
   const data = { format: "harnessbrew.plan" as const, version: 1 as const, requestDigest: input.requestDigest,
-    homeIdentity: stableId(await input.io.identify(path.join(home, "CURRENT"))), baseRevision: state.revision,
+    homeIdentity: stableId(await input.io.identify(path.join(home, "CURRENT"))), userHome: absolutePath(input.userHome), baseRevision: state.revision,
     sourceSnapshots: sortBy([...allSnapshots.values()].filter(snapshot => desired.assets.some(asset => asset.snapshotId === snapshot.id)), snapshot => snapshot.id),
     adapterSignatures: sortBy([...signatures.values()], value => value.name), preconditions: sortBy([...snapshots.values()].map(precondition), value => value.path),
     assetChanges: sortBy(assetChanges, value => value.asset), operations: ordered, fileUpdates: orderedGroups,
