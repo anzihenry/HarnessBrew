@@ -26,7 +26,7 @@ test("packaged CLI reproduces a locked Bundle in another home and cleans managed
   assert.deepEqual(report.scenarios.map(({ name, status }) => ({ name, status })), [
     { name: "bundle-reproduction", status: "passed" }
   ]);
-  assert.equal(report.commands.filter((command) => command.args[0] === "bundle" && command.args[1] === "install").length, 2);
-  assert.equal(report.commands.filter((command) => command.args[0] === "bundle" && command.args[1] === "cleanup").length, 2);
+  assert.equal(report.commands.filter((command) => command.args[0] === "bundle" && command.args[1] === "apply").length, 2);
+  assert.equal(report.commands.filter((command) => command.args[0] === "bundle" && command.args[1] === "detach").length, 2);
   assert.equal(new Set(report.commands.map((command) => command.cwd).filter((cwd) => cwd.includes("bundle-machine"))).size, 2);
 });

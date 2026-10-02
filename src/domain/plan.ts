@@ -26,7 +26,7 @@ export interface PlannedOperation {
   id: string; asset: Coordinate; placementIds: string[]; resource: Resource;
   type: AdapterOperation["type"] | "remove-owned";
   expectedBefore: TargetFingerprint; requiredCapabilities: string[];
-  dependsOn: string[]; reason: "new-placement" | "content-changed" | "requirement-released";
+  dependsOn: string[]; reason: "new-placement" | "content-changed" | "requirement-released" | "repair-missing" | "repair-owned";
   operation?: AdapterOperation; contentDigest?: Digest; existingOperationId?: string;
 }
 export interface FileUpdate {
@@ -39,5 +39,6 @@ export interface ChangePlan {
   sourceSnapshots: SourceSnapshot[]; adapterSignatures: AdapterSignature[]; preconditions: ResourcePrecondition[];
   assetChanges: AssetChange[]; operations: PlannedOperation[]; fileUpdates: FileUpdate[];
   expectedOperations: ExpectedOperation[]; retainedOperations: AppliedOperation[];
+  repair?: { operationIds: string[]; overwriteOwned: boolean };
   desiredState: DesiredState; desiredStateDigest: Digest;
 }

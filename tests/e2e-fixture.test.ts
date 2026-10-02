@@ -45,14 +45,14 @@ test("E2E Tap fixture uses a bare remote and produces upgrade, invalid, and rewr
     const fixture = await fixtureModule.createTapFixture(environment);
     assert.notEqual(fixture.author, fixture.remote);
     assert.equal(fixture.name, "e2e/assets");
-    assert.equal(fixture.definitions.length, 10);
-    assert.ok(fixture.definitions.some((definition) => definition.kind === "adapter"));
+    assert.equal(fixture.definitions.length, 9);
+    assert.ok(fixture.definitions.some((definition) => definition.kind === "mcp"));
     assert.match(fixture.v1Commit, /^[a-f0-9]{40}$/u);
     await access(path.join(fixture.remote, "HEAD"));
 
     const clone = path.join(environment.root, "fixture-consumer");
     await execFileAsync("git", ["clone", fixture.remote, clone], { env: environment.environment, encoding: "utf8" });
-    assert.match(await readFile(path.join(clone, "skills", "main-skill", "SKILL.md"), "utf8"), /v1/u);
+    assert.match(await readFile(path.join(clone, "assets", "main-skill", "SKILL.md"), "utf8"), /v1/u);
 
     const v2Commit = await fixture.pushV2();
     assert.notEqual(v2Commit, fixture.v1Commit);

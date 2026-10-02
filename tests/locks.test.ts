@@ -5,7 +5,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { runCli } from "../src/cli.js";
+import { runCli } from "./helpers/legacy-cli.js";
 import { withFileLock, withHomeLock } from "../src/core/locks.js";
 
 test("file locks serialize independent processes", { timeout: 10_000 }, async t => {

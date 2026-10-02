@@ -2,390 +2,164 @@
 
 English | [简体中文](README.zh-CN.md)
 
-[![CI](https://github.com/anzihenry/HarnessBrew/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/anzihenry/HarnessBrew/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/harnessbrew.svg?logo=npm)](https://www.npmjs.com/package/harnessbrew)
-[![Node.js](https://img.shields.io/node/v/harnessbrew.svg?logo=nodedotjs)](https://www.npmjs.com/package/harnessbrew)
-[![License](https://img.shields.io/github/license/anzihenry/HarnessBrew.svg)](https://github.com/anzihenry/HarnessBrew/blob/main/LICENSE)
+HarnessBrew manages AI agent assets from Git repositories. It resolves dependencies, plans changes, and delivers skills, agents, workflows, prompts, instructions, and MCP configuration to Codex.
 
-HarnessBrew is a Git package manager for AI agent assets. Like Homebrew, it discovers assets through Git Taps, describes them with Formulae, and uses a Cellar and Receipts to install, upgrade, and safely uninstall them.
+**This checkout uses the new architecture and command/API contracts.** The published 0.8.0 documentation is not the contract for these changes. Release versioning and final removal of the old internal implementation belong to phase 7. Existing Homes, manifests, Formulae, and plugins are not migrated; use an empty Home with new format declarations.
 
-HarnessBrew does not host assets. Personal, team, and third-party assets remain in their own Git repositories and use the same installation mechanism.
+## Run from source
 
-## Features
-
-- Register, update, and remove Git Taps
-- Validate and search skill, agent, workflow, instruction, prompt, MCP, and adapter Formulae
-- Resolve dependencies, cycles, missing entries, and conflicts
-- Install immutable content into the Cellar at a specific Git commit
-- Link assets into OpenAI Codex
-- Deliver Skills, Agents, Workflows, Prompts, Instructions, and MCP configuration in native formats
-- Support user and project scopes, including multiple instances of one Target
-- Track file, configuration-key, managed-block, and SHA-256 ownership in Receipts
-- Diagnose Target drift with `doctor` and repair it with `relink`
-- Detect upgrades while preserving Agent Target links
-- Reproduce environments across machines with a `Harnessfile` and lockfile
-- Install from npm and publish through GitHub Releases
-
-## Installation
-
-Requirements: Node.js 22 or later and Git available on the system.
+Requires Node.js 22+ and Git.
 
 ```bash
-npm install --global harnessbrew
-harnessbrew --version
+npm ci
+npm run build
+node dist/bin.js help
 ```
 
-You can also run it directly:
-
-```bash
-npx harnessbrew help
-```
-
-HarnessBrew stores managed state in `~/.harnessbrew` by default. Set `HARNESSBREW_HOME` for tests or isolated environments.
+The examples below use `harnessbrew` for the built executable. Set `--home /absolute/path` or `HARNESSBREW_HOME` to select a Home; the default is `~/.harnessbrew`.
 
 ## Quick start
 
-Register an asset Tap:
-
 ```bash
-harnessbrew tap add your-name/agents git@github.com:your-name/agent-assets.git --trust
-```
-
-Search for and inspect Formulae:
-
-```bash
+harnessbrew tap add team/assets https://example.com/team/assets.git
+harnessbrew tap trust team/assets
 harnessbrew search review
-harnessbrew search --kind skill --target openai-codex
-harnessbrew info your-name/agents/code-review
+harnessbrew install team/assets/review --scope project --project .
+harnessbrew doctor
+
+harnessbrew tap update team/assets
+harnessbrew upgrade team/assets/review --dry-run --json
+harnessbrew apply-plan <plan-id>
+
+harnessbrew remove team/assets/review
+harnessbrew cleanup
 ```
 
-Install into the Cellar and link into Codex:
+`tap add` registers an untrusted source. Trust must be granted explicitly before activation. Removing a root preserves assets required by other roots or Bundles. Unreferenced content becomes orphaned and is reclaimed by `cleanup` after inventory verification.
 
-```bash
-harnessbrew install your-name/agents/code-review \
-  --target openai-codex
-```
+## Commands
 
-Omit `--target` to keep the asset in the Cellar without modifying an Agent configuration directory.
-
-Update and upgrade:
-
-```bash
-harnessbrew update [--allow-rewind]
-harnessbrew outdated
-harnessbrew upgrade code-review
-```
-
-Safely uninstall:
-
-```bash
-harnessbrew uninstall code-review
-```
-
-HarnessBrew stops if a managed file or link has changed. Pass `--force` explicitly when the modified target should still be removed.
-
-## Homebrew concepts
-
-| Homebrew | HarnessBrew |
+| Commands | Behavior |
 | --- | --- |
-| `brew` | `harnessbrew` |
-| Tap | Git asset-source repository |
-| Formula / Cask | Agent asset Formula |
-| Cellar | Commit-isolated local installation area |
-| Link | Link into Codex or a third-party Target |
-| `Brewfile` | `Harnessfile` |
-| Receipt | Installation source, digest, and ownership record |
+| `tap add <name> <git> [--ref <ref>]` | Register a verified Git snapshot |
+| `tap update [name] [--ref <ref>] [--allow-rewind]` | Refresh candidates without upgrading installs |
+| `tap trust/untrust/remove <name>`, `tap list` | Manage local source authorization |
+| `install <asset>`, `upgrade [asset]`, `remove <asset>` | Manage manual root requirements and their dependency closure |
+| `link/unlink <asset>` | Add/release a manual root's placement |
+| `bundle apply --file <path> [--update-lock]` | Reconcile one Bundle binding and its portable lock |
+| `bundle detach --binding <id>` | Release a binding, including when its manifest is gone |
+| `repair <asset> [--overwrite-owned]` | Rebuild missing operations; explicit overwrite is limited to verified shared keys/blocks |
+| `cleanup`, `recover`, `doctor [asset]` | Reclaim orphan content, recover a transaction, or inspect consistency |
+| `list`, `search [text]`, `info <asset>`, `outdated` | Query committed state and candidate snapshots |
+| `adapter add <directory> --capabilities link-directory,link-file` | Authorize and load an already installed plugin |
+| `adapter remove <name>`, `adapter list` | Manage adapters; active placements prevent removal |
+| `apply-plan <id>` | Apply a host-saved plan without replanning |
 
-## Creating a Tap
+All commands support `--home` and `--json`. Changes support `--dry-run`; recovery and applying an existing plan do not. Placement options are `--target` (default `openai-codex`), `--scope user|project` (default user), `--project`, and `--root`. Ambiguous existing placements require explicit selection. Unknown/repeated options are errors. Old aliases such as `uninstall`, `relink`, and `bundle install` are removed.
 
-A Tap is a regular Git repository. Prefer one repository per asset collection instead of one repository per Skill.
+## Source format
 
 ```text
-my-agent-tap/
-├── tap.json
-├── skills/
-│   └── code-review/
-│       ├── formula.json
-│       └── SKILL.md
-├── workflows/
-├── agents/
-├── instructions/
-├── prompts/
-├── mcp/
-└── adapters/
+repository/
+  tap.json
+  assets/review/asset.json
+  assets/review/SKILL.md
 ```
 
-Minimal `tap.json`:
+`tap.json`:
+
+```json
+{ "format": "harnessbrew.tap", "version": 1 }
+```
+
+`asset.json`:
 
 ```json
 {
-  "schemaVersion": 1
+  "format": "harnessbrew.asset", "version": 1,
+  "kind": "skill", "entry": "SKILL.md", "description": "Review changes",
+  "dependencies": [], "conflicts": [], "targets": ["openai-codex"]
 }
 ```
 
-The Formula directory name must match `name`, and its parent directory must match `kind`:
+`SKILL.md` needs frontmatter with `name: review` and a nonempty `description`. Dependencies and conflicts use complete `owner/tap/asset` coordinates. Asset content inventories reject symlinks and escaping paths. Content bytes, paths, and permissions participate in its digest.
 
-```json
-{
-  "schemaVersion": 1,
-  "name": "code-review",
-  "kind": "skill",
-  "description": "Review code changes with a consistent rubric.",
-  "entry": "SKILL.md",
-  "targets": ["openai-codex"],
-  "dependencies": [
-    "your-name/agents/repository-guardrails"
-  ],
-  "conflicts": [],
-  "tags": ["review", "quality"]
-}
-```
-
-The full coordinate is `<owner>/<tap>/<formula>`. Dependencies and conflicts must use full coordinates to avoid ambiguity across Taps.
-
-The Git commit is the single source of truth for an installed version. Formulae do not maintain duplicate `.snapshots` or `history` data.
-
-An MCP Formula uses a common JSON entry format. Stdio configuration uses `command`, optional `args`, and `envVars` containing environment-variable names only. HTTP configuration uses `transport: "http"`, `url`, optional `bearerTokenEnvVar`, and `headersFromEnv`. HarnessBrew rejects plaintext `env` secret values in entries.
-
-An `adapter` Formula is a Git/Cellar-managed extension asset, but it is never executed automatically. Target Adapter runtime modules use a separate trust mechanism: review and install an npm package, then authorize it explicitly with `harnessbrew adapter add <module>`. Taps therefore remain declarative while third-party Targets can use the versioned Adapter SDK.
-
-## Targets
-
-Built-in Targets:
-
-- `openai-codex`
-
-Retired Target receipts remain available to `doctor` and `uninstall`. Linking, relinking, or upgrading a retired Target requires a compatible registered Adapter; remove its placements from your Harnessfile before reproducing the environment.
-
-Select a Target during installation:
-
-```bash
-harnessbrew install code-review --target openai-codex
-```
-
-Codex Skills are installed in `~/.agents/skills` by default, while other Codex configuration uses `~/.codex`. Skills are linked as complete directories, preserving relative resources such as `scripts/`, `references/`, and `assets/` alongside `SKILL.md`.
-
-Workflows and Prompts are projected as Target Skills with standard frontmatter. Agents use portable Markdown source and are rendered deterministically to `.codex/agents/<name>.toml` for Codex. Instructions use owned managed blocks in Codex `AGENTS.md`. MCP configuration is merged as owned TOML blocks. Removing shared configuration never overwrites user-owned content.
-
-Use an isolated Target root when needed:
-
-```bash
-harnessbrew install code-review \
-  --target openai-codex \
-  --target-root /path/to/sandbox/.codex
-```
-
-Targets support user and project scopes. `--project` implicitly selects project scope. The same Formula can exist in both scopes, and its Receipt records operations by their actual destination:
-
-```bash
-harnessbrew link code-review --target openai-codex --scope user
-harnessbrew link code-review --target openai-codex --scope project --project /path/to/repo
-harnessbrew unlink code-review --target openai-codex --scope project --project /path/to/repo
-```
-
-Project-scoped Codex assets use `.agents/skills`, `.codex/agents`, the root `AGENTS.md`, and `.codex/config.toml`. When a Target has multiple instances, `unlink` requires an explicit scope.
-
-`harnessbrew doctor [formula]` validates Cellar file digests and every Target operation, distinguishing missing targets from modified ones. If the Cellar is intact, `harnessbrew relink <formula>` forcibly reconstructs HarnessBrew-owned targets using the scope and root recorded in the Receipt. Use `--target`, `--scope`, and `--project` to repair one instance.
-
-Links can also be managed separately:
-
-```bash
-harnessbrew link code-review --target openai-codex
-harnessbrew unlink code-review --target openai-codex
-```
-
-## Harnessfile
-
-A `Harnessfile` can be committed to a dotfiles or project repository:
+## Bundles
 
 ```yaml
-schemaVersion: 2
-taps:
-  - name: your-name/agents
-    git: git@github.com:your-name/agent-assets.git
+format: harnessbrew.manifest
+version: 1
+id: team-tools
+sources:
+  - name: team/assets
+    git: https://example.com/team/assets.git
     ref: main
-    trust: true
-
 assets:
-  - formula: your-name/agents/code-review
-    targets:
-      - target: openai-codex
-        scope: user
+  - coordinate: team/assets/review
+    placements:
       - target: openai-codex
         scope: project
         project: .
 ```
 
-Target placements in v2 declare `user` or `project` scope and may use `project` and `root` paths relative to the `Harnessfile`. Schema v1 `targets: [openai-codex]` remains compatible and is interpreted as user scope.
+`bundle apply --file Harnessfile.yaml` writes `Harnessfile.yaml.lock.json` in the same transaction as the installation. Subsequent applies use its exact versions. Changing the manifest or adapter signatures requires `--update-lock`. The manifest cannot grant trust. Checkouts have independent bindings; binding IDs are available from `list`. A single Home permits one active version per coordinate and rejects conflicting owners.
 
-Install and generate `Harnessfile.lock`:
+## SDK and plugins
 
-```bash
-harnessbrew bundle install
+```ts
+import { createHarness } from "harnessbrew";
+
+const harness = createHarness({
+  home: "/work/harness-home", cwd: "/work/project", userHome: "/home/me"
+});
+try {
+  const preview = await harness.plan({
+    kind: "asset.install", coordinate: "team/assets/review",
+    placements: [{ target: "openai-codex", scope: "project", projectRoot: "/work/project" }]
+  });
+  await harness.apply(preview.planId);
+  const installed = await harness.query({ kind: "list" });
+} finally {
+  await harness.close();
+}
 ```
 
-The v2 lockfile records the manifest digest, HarnessBrew Adapter versions, exact commit for every Tap, Formula content digests, dependency closure, and full Target placements. Commit it together with the `Harnessfile`.
+The SDK also exposes `execute`, `recover`, and `doctor`. `HarnessError` has a stable `code`, `details`, `cause`, and recovery guidance. CLI and SDK use the same service. Internal storage and transaction functions are not public SDK exports.
 
-On another machine, the same command checks out commits pinned by the lockfile instead of silently using the latest Tap versions. After changing a v2 Harnessfile, update the lockfile explicitly:
+Plugin types come from `harnessbrew/adapter`. Plugins default-export a `TargetAdapter` with protocol `harnessbrew.adapter/1`. Their `package.json` includes:
 
-```bash
-harnessbrew bundle install --update-lock
+```json
+{
+  "type": "module",
+  "harnessbrew": {
+    "format": "harnessbrew.adapter-package", "version": 1,
+    "name": "my-adapter", "adapterVersion": "1", "entry": "index.mjs"
+  }
+}
 ```
 
-Remove managed assets not present in the manifest:
+The signed directory must contain its dependencies and `package-lock.json` when dependencies are declared; symlinks are rejected. Bundled plugins are simplest. Third-party capabilities are limited to links. Previewing a new registration reads declarations without importing code; authorized execution verifies the signature and export, then imports a verified copy. Plugins run as host code, not in a sandbox.
 
-```bash
-harnessbrew bundle cleanup
-```
+## Preview, recovery, and JSON
 
-Use a different manifest path:
+Preview may populate isolated source/plan caches next to the Home, but does not initialize a new Home, grant trust, write a Bundle lock, or alter targets. Saved plans are local to that Home; changed revisions, targets, input manifests, or plugins cause rejection. No arbitrary operation JSON is accepted.
 
-```bash
-harnessbrew bundle install --file ./config/Harnessfile
-```
+Home state uses `CURRENT` and immutable `revisions/` snapshots. Content lives in `content/<digest>/`. Transactions record before/after evidence in `transaction.json`. Pending recovery blocks ordinary reads and previews. `doctor` can report partial diagnostics, while `recover` verifies ownership before restoring or cleaning up. Orphan deletion uses a verified quarantine that can resume after interruption.
 
-## CLI
+Modified links and whole files are preserved even with `--overwrite-owned`; their continued ownership cannot be proved from a pathname. Shared key/block repair requires explicit overwrite and recognizable ownership. Damaged content is reported rather than silently replaced.
 
-```text
-harnessbrew tap add <owner/name> <git-url> [--ref <ref>] [--trust]
-harnessbrew tap list
-harnessbrew tap update [owner/name] [--allow-rewind]
-harnessbrew tap trust <owner/name>
-harnessbrew tap untrust <owner/name>
-harnessbrew tap remove <owner/name>
-harnessbrew untap <owner/name>
-harnessbrew search [query] [--kind <kind>] [--target <target>]
-harnessbrew info <formula>
-harnessbrew install <formula> [--target <target>] [--scope <user|project>] [--project <path>] [--target-root <path>]
-harnessbrew list
-harnessbrew link <formula> --target <target> [--scope <user|project>] [--project <path>] [--target-root <path>]
-harnessbrew unlink <formula> --target <target> [--scope <user|project>] [--project <path>] [--force]
-harnessbrew doctor [formula]
-harnessbrew relink <formula> [--target <target>] [--scope <user|project>] [--project <path>]
-harnessbrew update
-harnessbrew outdated
-harnessbrew upgrade [formula]
-harnessbrew uninstall <formula> [--force]
-harnessbrew bundle install [--file <path>] [--update-lock]
-harnessbrew bundle cleanup [--file <path>]
-```
-
-Every command accepts `--json`. Standard output then contains one schema v1 JSON envelope: `result` is the command-specific structured result, `output` retains human-readable text, and failures include `error.code`, `error.message`, `diagnostics`, and a non-zero `exitCode`.
-
-Error codes are `COMMAND_FAILED` for command-reported failures, `HARNESSBREW_ERROR` for domain errors, and `INTERNAL_ERROR` for filesystem or unexpected exceptions. JSON-mode exceptions exit with code 1 and emit the envelope on stdout without a stack trace on stderr. Non-Error thrown values use a generic message rather than exposing their payload.
-
-Mutating commands also accept `--dry-run`. Under the same Home write lock, HarnessBrew runs full validation and the installation transaction, collects before/after types and digests for each path, then rolls back the Cellar, Receipts, Tap checkouts, and Agent Targets. With `--json`, the preview appears in `changes`. A dry run can still perform read-only network operations such as Git fetch or clone.
-
-```bash
-harnessbrew install code-review --target openai-codex --dry-run --json
-```
-
-## Local directories
-
-```text
-~/.harnessbrew/
-├── taps/       # Git worktrees managed by HarnessBrew
-├── cellar/     # Immutable content isolated by Formula and commit
-├── receipts/   # Installation, dependency, Target-link, and digest records
-└── state.json  # Tap registration state
-```
-
-HarnessBrew owns the Tap worktrees and Cellar contents; do not edit them directly. Change personal assets in the source Tap repository, commit and push, then install the changes with `update` and `upgrade`.
-
-## Security boundaries
-
-- Formulae are declarative JSON; HarnessBrew does not execute arbitrary Tap scripts.
-- Newly registered Taps are untrusted by default. They can be searched and installed into the Cellar, but linking or rendering into an Agent Target requires `tap trust`, `tap add --trust`, or `trust: true` in Harnessfile v2. Legacy state records are treated as trusted for compatibility.
-- Tap updates accept Git fast-forwards only by default. Rewritten history must be reviewed and accepted with `--allow-rewind`. A failed candidate-commit validation restores the original checkout and state.
-- Formula entries cannot escape their containing directories.
-- Dependencies, conflicts, and Target compatibility are checked before installation.
-- HarnessBrew does not overwrite target files it does not own through a Receipt.
-- Uninstallation validates Cellar digests and symlink destinations first.
-- Credentials for private Taps are handled by the system Git/SSH credential mechanism.
+JSON stdout contains one `harnessbrew.result` version 1 document, with `ok`, `command`, `mode`, `result` or `error`, and `diagnostics`. Exit codes: 0 success, 1 business failure/unhealthy diagnosis, 2 argument/format error, 3 recovery needed/conflict, 4 unexpected failure.
 
 ## Development
 
-The project uses TypeScript 7.0 with strict type checking.
-
 ```bash
-npm ci
-npm run build
-npm test
-npm run check
+npm run check:all
 ```
 
-`npm run check` runs the strict build, fast source tests, and release metadata verification. Test suites are separated:
+This runs the build, fast tests, package tests against one candidate, and historical regressions now exercised through the new service. Some legacy backend tests remain isolated from public entry points until phase 7. Runtime preflight tests use a fake runtime; real Codex acceptance is a separate environment-dependent release check.
 
-- `npm run test:fast`: domain, state storage, and source tests; also the default for `npm test`.
-- `npm run test:packaged`: packaged and CLI integration tests sharing one candidate artifact.
-- `npm run test:regressions`: three known refactor regressions, currently reported as TODO rather than passing tests.
-- `npm run check:all`: the complete validation sequence.
-
-See the [phase 5 implementation notes (Chinese)](docs/design/phase5-implementation.zh-CN.md). Release validation has two additional stable entry points:
-
-```bash
-# Deterministic CI gate for an existing candidate tarball
-npm run release:gate -- \
-  --package /absolute/path/harnessbrew-0.8.0.tgz \
-  --manifest /absolute/path/artifact-manifest.json \
-  --checksums /absolute/path/SHA256SUMS \
-  --report-dir /absolute/path/release-reports
-
-# Local Codex verification of those same bytes
-npm run release:preflight -- \
-  --package /absolute/path/harnessbrew-0.8.0.tgz \
-  --manifest /absolute/path/artifact-manifest.json \
-  --checksums /absolute/path/SHA256SUMS
-```
-
-For production, dispatch **Publish approved npm candidate** once from `main`. It builds one candidate, runs Linux/macOS gates and authenticated runtime probes on a dedicated runner, checks all evidence, then waits for one `npm-production` approval before npm publication and verified Release attachments. Required reviewers and a dedicated runtime runner must be provisioned first; missing credentials or skipped probes block release. Local preflight remains a diagnostic tool. See the [release verification runbook](docs/releases/release-runbook.md).
-
-## Target Adapter SDK
-
-Node.js and TypeScript hosts can register third-party Agent Targets through the public API. Adapter API v1 receives only a Receipt and Target Context and returns a declarative installation plan. Writes, conflict detection, Receipts, `doctor`, `relink`, upgrades, dry runs, and rollback remain the responsibility of the HarnessBrew transaction layer.
-
-```ts
-import { registerTargetAdapter, type TargetAdapter } from "harnessbrew";
-
-const adapter: TargetAdapter = {
-  apiVersion: 1,
-  name: "cursor",
-  version: "1.0.0",
-  capabilities: {
-    skill: "symlink-directory",
-    agent: "symlink-file",
-    workflow: "symlink-file",
-    instruction: "symlink-file",
-    prompt: "symlink-file",
-    mcp: "unsupported",
-    adapter: "unsupported"
-  },
-  plan(receipt, context = {}) {
-    // Return one absolute destination and a source inside receipt.cellarPath.
-    return { target: "cursor", coordinate: receipt.coordinate, operations: [/* ... */] };
-  }
-};
-
-const unregister = registerTargetAdapter(adapter);
-```
-
-The SDK validates API version, name, version, the complete capability matrix, plan identity, absolute target paths, and Cellar source boundaries. Third-party Adapter plans in v1 may use only `symlink-file`, `symlink-directory`, and `unsupported`; they cannot write files directly or generate shared configuration. Registration is explicit and process-local. HarnessBrew never executes Adapter Formulae from a Tap automatically. A third-party Adapter has the host process's privileges and should be loaded only from a reviewed npm package.
-
-The standalone CLI can persist trusted Adapter modules. The module must already be installed and resolvable by `harnessbrew`, or be supplied as an absolute path or `file://` URL. It must default-export an Adapter or provide a named `adapter` export:
-
-```bash
-harnessbrew adapter add @harnessbrew/adapter-cursor
-harnessbrew adapter list
-harnessbrew install review --target cursor
-harnessbrew adapter remove cursor
-```
-
-`adapter add` explicitly authorizes code execution. HarnessBrew records the module specifier, entry-point SHA-256, and reviewed name, version, and API version in `~/.harnessbrew/adapters.json`. Before later execution it verifies both content and identity. Drift fails closed until the module is removed, reviewed, and added again. Integrity is explicitly scoped as `entry-file-sha256-v1`: it does not cover imported files, dependencies, runtime-read resources, or code fetched by the plugin, and is not a sandbox or a whole-plugin attestation. Legacy records without a digest remain listable/removable but cannot load; review the plugin and its dependencies, then explicitly remove and re-add it. Existing entry digests without a scope label are interpreted as entry-only and are never silently replaced. `adapter list` and `adapter remove` do not execute plugins, and HarnessBrew never runs `npm install` automatically. CLI-loaded Targets are also included in the Harnessfile v2 Adapter signature.
-
-## Architecture
-
-See [docs/architecture.md](docs/architecture.md) for the full design.
+See the [architecture decisions](docs/design/refactor-architecture.zh-CN.md), [contracts](docs/design/refactor-contracts.zh-CN.md), and [phase 6 implementation](docs/design/phase6-implementation.zh-CN.md).
 
 ## License
 
-MIT
+MIT.

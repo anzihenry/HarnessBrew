@@ -59,31 +59,30 @@ export async function registrySmoke({ version }) {
     assert.match((await command(binary, ["help"], { cwd: root, env: environment })).stdout, /Git-native package manager/u);
     assert.equal((await command(process.execPath, [
       "--input-type=module", "--eval",
-      'import { TARGET_ADAPTER_API_VERSION } from "harnessbrew"; console.log(TARGET_ADAPTER_API_VERSION);'
-    ], { cwd: prefix, env: environment })).stdout.trim(), "1");
+      'import { createHarness } from "harnessbrew"; console.log(typeof createHarness);'
+    ], { cwd: prefix, env: environment })).stdout.trim(), "function");
 
     await command("git", ["init", "--bare", "--initial-branch=main", remote], { cwd: root, env: environment });
     await command("git", ["init", "--initial-branch=main", author], { cwd: root, env: environment });
-    const skill = path.join(author, "skills", "registry-smoke");
+    const skill = path.join(author, "assets", "registry-smoke");
     await mkdir(skill, { recursive: true });
-    await writeFile(path.join(author, "tap.json"), '{"schemaVersion":1}\n', "utf8");
-    await writeFile(path.join(skill, "formula.json"), `${JSON.stringify({
-      schemaVersion: 1,
-      name: "registry-smoke",
+    await writeFile(path.join(author, "tap.json"), '{"format":"harnessbrew.tap","version":1}\n', "utf8");
+    await writeFile(path.join(skill, "asset.json"), `${JSON.stringify({
+      format: "harnessbrew.asset", version: 1,
       kind: "skill",
       description: "Registry smoke fixture.",
       entry: "SKILL.md",
       targets: ["openai-codex"],
-      dependencies: [], conflicts: [], tags: ["smoke"]
+      dependencies: [], conflicts: []
     }, null, 2)}\n`, "utf8");
     await writeFile(path.join(skill, "SKILL.md"), "---\nname: registry-smoke\ndescription: Registry smoke fixture.\n---\n", "utf8");
     await command("git", ["add", "."], { cwd: author, env: environment });
     await command("git", ["commit", "-m", "fixture: registry smoke"], { cwd: author, env: environment });
     await command("git", ["remote", "add", "origin", remote], { cwd: author, env: environment });
     await command("git", ["push", "-u", "origin", "main"], { cwd: author, env: environment });
-    await command(binary, ["tap", "add", "registry/smoke", remote, "--trust"], { cwd: root, env: environment });
+    await command(binary, ["tap", "add", "registry/smoke", remote], { cwd: root, env: environment });
     assert.match((await command(binary, ["search", "registry-smoke"], { cwd: root, env: environment })).stdout, /registry\/smoke\/registry-smoke/u);
-    await command(binary, ["untap", "registry/smoke"], { cwd: root, env: environment });
+    await command(binary, ["tap", "remove", "registry/smoke"], { cwd: root, env: environment });
     return { version };
   } finally {
     await rm(root, { recursive: true, force: true });

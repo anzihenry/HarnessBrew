@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { runCli, type CliJsonEnvelope } from "../src/cli.js";
+import { runCli, type CliJsonEnvelope } from "./helpers/legacy-cli.js";
 import { lstat, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";

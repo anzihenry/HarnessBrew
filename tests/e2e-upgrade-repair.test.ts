@@ -23,6 +23,6 @@ test("packaged CLI upgrades, rolls back invalid Taps, diagnoses drift, and repai
   };
   assert.equal(report.scenarios[0]?.status, "passed");
   assert.ok(report.commands.some((command) => command.args[0] === "upgrade"));
-  assert.ok(report.commands.some((command) => command.args[0] === "relink" && command.exitCode === 0));
-  assert.ok(report.commands.some((command) => command.args[0] === "relink" && command.exitCode === 1));
+  assert.ok(report.commands.some((command) => command.args[0] === "repair" && command.exitCode === 0));
+  assert.ok(report.commands.some((command) => command.args[0] === "repair" && command.exitCode === 1));
 });

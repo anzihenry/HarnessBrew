@@ -1,6 +1,6 @@
 # 重构接口与数据契约
 
-状态：阶段 1 目标契约。阶段 2 已实现领域与存储基础，进度见[阶段 2 实施记录](phase2-implementation.zh-CN.md)；阶段 3 已实现来源快照、Catalog 与纯 Resolver，见[阶段 3 实施记录](phase3-implementation.zh-CN.md)。阶段 4 已实现 Planner 与 Adapter，见[阶段 4 实施记录](phase4-implementation.zh-CN.md)。阶段 5 已实现新执行链路及 Journal 恢复，见[阶段 5 实施记录](phase5-implementation.zh-CN.md)。业务入口仍待后续阶段接入。决策依据见 [架构决策](refactor-architecture.zh-CN.md)。
+状态：阶段 1 目标契约。阶段 2 已实现领域与存储基础，进度见[阶段 2 实施记录](phase2-implementation.zh-CN.md)；阶段 3 已实现来源快照、Catalog 与纯 Resolver，见[阶段 3 实施记录](phase3-implementation.zh-CN.md)。阶段 4 已实现 Planner 与 Adapter，见[阶段 4 实施记录](phase4-implementation.zh-CN.md)。阶段 5 已实现新执行链路及 Journal 恢复，见[阶段 5 实施记录](phase5-implementation.zh-CN.md)。阶段 6 已接入应用服务、CLI/SDK、保存计划和 Doctor，见[阶段 6 实施记录](phase6-implementation.zh-CN.md)。决策依据见 [架构决策](refactor-architecture.zh-CN.md)。
 
 ## 1. 版本与格式
 
@@ -64,10 +64,10 @@ function createHarness(options: {
 - placement 必须显式包含 scope；CLI 可将默认 user 规范化为显式字段。
 - update-lock、allow-rewind、overwrite-owned 为各自请求的明确字段，不提供通用 force。
 - repair 不提升信任，不修改资产版本；损坏 Cellar 返回 `CONTENT_MODIFIED`，要求从锁定来源显式重建安装。
-- `ExecutionResult` 包含 transactionId、committedRevision、changes、retained、diagnostics；结果仅在提交后返回。
+- `ExecutionResult` 包含 transactionId、committedRevision、changes、operations、retained、diagnostics；结果仅在提交后返回。
 - SDK 失败抛出带 code、details、cause、recovery 的 `HarnessError`；不让调用方解析自然语言错误文本。
 
-`adapter.add` 接受已安装包路径/模块和授权能力，先检查包身份再显式加载；不执行 npm install。预览只验证可静态读取的插件声明和签名，不导入新插件代码；实际授权执行时再次验证声明与导出一致。移除仍被活动 placement 依赖的 Adapter 返回 `ADAPTER_IN_USE`，先释放 placement 或 detach 使用者。
+`adapter.add` 接受已安装包目录和授权能力，先检查包身份再显式加载；不执行 npm install。预览只验证可静态读取的插件声明和签名，不导入新插件代码；实际授权执行时再次验证声明与导出一致。移除仍被活动 placement 依赖的 Adapter 返回 `ADAPTER_IN_USE`，先释放 placement 或 detach 使用者。
 
 ## 4. 计划与操作
 
@@ -183,3 +183,5 @@ JSON stdout 只输出一个结果，进度写 stderr；JSON 模式不向 stderr 
 稳定错误码至少包括：`INVALID_ARGUMENT`、`UNSUPPORTED_FORMAT`、`ASSET_NOT_FOUND`、`AMBIGUOUS_ASSET`、`DEPENDENCY_MISSING`、`DEPENDENCY_CYCLE`、`ASSET_CONFLICT`、`VERSION_CONFLICT`、`SOURCE_UNTRUSTED`、`TARGET_UNSUPPORTED`、`OWNERSHIP_CONFLICT`、`CONTENT_MODIFIED`、`TARGET_MODIFIED`、`ADAPTER_IN_USE`、`ADAPTER_CHANGED`、`LOCK_MISMATCH`、`LOCK_TIMEOUT`、`PLAN_STALE`、`PLAN_NOT_FOUND`、`RECOVERY_REQUIRED`、`RECOVERY_CONFLICT`、`INTERNAL_ERROR`。
 
 Doctor findings 分组：content、target、dependency、ownership、state；每条记录包含稳定 code、asset/operation/resource 定位、严重程度和可用修复动作。不能修复的情况必须说明前置条件，不通过一般 force 绕过归属检查。
+
+阶段 6 补充：插件静态声明使用 package.json 中的 `harnessbrew.adapter-package` version 1，字段为 name、adapterVersion、entry；Bundle 锁路径为 `<manifest-path>.lock.json`。SDK 的 bundle.apply 接受 file，bundle.detach 接受 binding，由应用服务读取并验证文档。repair 的 overwrite-owned 在当前归属证据下只覆盖可识别的共享键/区块，修改过的整文件和链接保留。

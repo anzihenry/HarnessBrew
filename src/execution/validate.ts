@@ -64,7 +64,8 @@ export async function validateExecution(plan: ChangePlan, before: HomeState, cat
     const actual = resourceFingerprint(await nodePlanningIO.inspect(expected.operation.resource.path), expected.operation.resource);
     if (previous) {
       if (previous.asset !== expected.asset || previous.type !== expected.operation.type || expected.previousOperationId !== previous.id) invalid("Existing ownership cannot be transferred.");
-      if (!equal(actual, previous.installedFingerprint)) throw new HarnessError("TARGET_MODIFIED", "Existing target differs from its installed fingerprint.");
+      const repairing = plan.repair?.operationIds.includes(previous.id) && (actual.kind === "missing" || plan.repair.overwriteOwned && actual.kind === "file" && previous.resource.kind !== "path");
+      if (!equal(actual, previous.installedFingerprint) && !repairing) throw new HarnessError("TARGET_MODIFIED", "Existing target differs from its installed fingerprint.");
     } else if (actual.kind !== "missing") throw new HarnessError("OWNERSHIP_CONFLICT", "Cannot overwrite an unowned resource.");
     if (!equal(actual, expected.installedFingerprint) && !plan.operations.some(op => op.id === expected.id && op.type !== "remove-owned")) invalid("Expected change has no executable operation.");
   }

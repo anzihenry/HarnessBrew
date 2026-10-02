@@ -10,9 +10,10 @@ async function git(cwd, environment, ...args) {
 }
 
 async function writeFormula(repository, directory, definition, content) {
-  const target = path.join(repository, directory, definition.name);
+  const target = path.join(repository, "assets", definition.name);
   await mkdir(target, { recursive: true });
-  await writeFile(path.join(target, "formula.json"), `${JSON.stringify(definition, null, 2)}\n`, "utf8");
+  const { name, tags, schemaVersion, ...asset } = definition;
+  await writeFile(path.join(target, "asset.json"), `${JSON.stringify({ format: "harnessbrew.asset", version: 1, ...asset }, null, 2)}\n`, "utf8");
   await writeFile(path.join(target, definition.entry), content, "utf8");
 }
 
@@ -33,7 +34,7 @@ export async function createRuntimeFixture({ root, nonce, mcpServerPath, environ
   const mcpLog = path.join(root, "runtime-mcp.jsonl");
   await git(root, environment, "init", "--bare", "--initial-branch=main", remote);
   await git(root, environment, "init", "--initial-branch=main", repository);
-  await writeFile(path.join(repository, "tap.json"), '{"schemaVersion":1}\n', "utf8");
+  await writeFile(path.join(repository, "tap.json"), '{"format":"harnessbrew.tap","version":1}\n', "utf8");
   await writeFormula(repository, "skills", {
     schemaVersion: 1,
     name: "harnessbrew-runtime-skill",

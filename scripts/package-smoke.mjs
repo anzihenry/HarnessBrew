@@ -71,9 +71,9 @@ export async function smokePackage({ packagePath, manifestPath, checksumsPath, c
     const apiResult = await command(process.execPath, [
       "--input-type=module",
       "--eval",
-      'import { TARGET_ADAPTER_API_VERSION, addAdapterPlugin, registerTargetAdapter } from "harnessbrew"; console.log(`${TARGET_ADAPTER_API_VERSION}:${typeof registerTargetAdapter}:${typeof addAdapterPlugin}`);'
+      'import { createHarness, HarnessError } from "harnessbrew"; import * as adapter from "harnessbrew/adapter"; console.log(`${typeof createHarness}:${typeof HarnessError}:${typeof adapter}`);'
     ], { cwd: installRoot });
-    assert.equal(apiResult.stdout.trim(), "1:function:function");
+    assert.equal(apiResult.stdout.trim(), "function:function:object");
 
     const installedPackage = JSON.parse(await readFile(
       path.join(installRoot, "node_modules", "harnessbrew", "package.json"),

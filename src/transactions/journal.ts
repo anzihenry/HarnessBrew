@@ -1,5 +1,6 @@
 import { lstat, readFile, rm } from "node:fs/promises";
 import path from "node:path";
+import type { InventoryEntry } from "../domain/assets.js";
 import type { HomeState } from "../domain/home-state.js";
 import { parseHomeState } from "../domain/home-state.js";
 import type { PathIdentity } from "../domain/plan.js";
@@ -13,10 +14,11 @@ export interface JournalStep {
   before: FileImage; intended: FileImage; parent: PathIdentity;
   phase: "pending" | "done" | "reverting" | "reverted"; after?: FileImage;
 }
+export interface GarbageEntry { path: string; quarantine: string; image: Extract<FileImage, { kind: "content" }>; inventory: InventoryEntry[]; parent: PathIdentity }
 export interface Journal {
   format: "harnessbrew.journal"; version: 1; id: string; home: string;
   status: "prepared" | "applying" | "committed" | "rolling-back" | "rolled-back" | "recovery-required";
-  beforeState: HomeState; nextRevision: string; nextState?: HomeState; steps: JournalStep[];
+  beforeState: HomeState; nextRevision: string; nextState?: HomeState; steps: JournalStep[]; garbage?: GarbageEntry[];
 }
 export class JournalStore {
   readonly file: string;
@@ -38,6 +40,13 @@ export class JournalStore {
           || !["pending", "done", "reverting", "reverted"].includes(step.phase)) throw new Error("Invalid journal step");
         if (step.kind === "content" && (path.dirname(step.path) !== path.join(this.home, "content") || !/^[a-f0-9]{64}$/u.test(path.basename(step.path)))) throw new Error("Invalid content path");
         if (!step.before || !step.intended || !step.parent || (step.phase === "done" && !step.after)) throw new Error("Incomplete journal image");
+      }
+      for (const entry of journal.garbage ?? []) {
+        if (path.dirname(entry.path) !== path.join(this.home, "content") || !/^[a-f0-9]{64}$/u.test(path.basename(entry.path))
+          || entry.quarantine !== path.join(this.home, `.cleanup-${journal.id}-${path.basename(entry.path)}`) || entry.image.kind !== "content"
+          || entry.image.digest !== `sha256:${path.basename(entry.path)}` || !Array.isArray(entry.inventory) || !entry.parent
+          || !journal.beforeState.install.assets.some(a => a.status === "orphan" && a.contentDigest === entry.image.digest)
+          || journal.nextState?.install.assets.some(a => a.contentDigest === entry.image.digest)) throw new Error("Invalid cleanup evidence");
       }
       return journal;
     } catch (cause) { throw new HarnessError("RECOVERY_REQUIRED", "Journal is damaged; preserve it for explicit inspection.", { path: this.file }, { cause }); }

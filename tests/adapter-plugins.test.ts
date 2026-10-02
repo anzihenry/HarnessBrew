@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { runCli } from "../src/cli.js";
+import { runCli } from "./helpers/legacy-cli.js";
 import {
   addAdapterPlugin,
   listAdapterPlugins,

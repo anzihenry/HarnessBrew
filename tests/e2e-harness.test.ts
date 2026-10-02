@@ -30,7 +30,7 @@ interface DriverModule {
     options?: { onResult?: (result: unknown) => void }
   ) => {
     run(args: string[]): Promise<{ stdout: string }>;
-    runJson(args: string[]): Promise<{ envelope: { result: { version: string } } }>;
+    runJson(args: string[]): Promise<{ envelope: { result: string } }>;
   };
 }
 
@@ -70,7 +70,7 @@ test("packaged E2E harness isolates homes and executes only the installed candid
     const version = await driver.run(["--version"]);
     assert.equal(version.stdout.trim(), environment.artifact.package.version);
     const json = await driver.runJson(["version"]);
-    assert.equal(json.envelope.result.version, environment.artifact.package.version);
+    assert.equal(json.envelope.result, environment.artifact.package.version);
 
     reporter.recordScenario("harness", "passed", 1);
     const report = await reporter.write(environment.artifact);

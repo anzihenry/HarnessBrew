@@ -1,13 +1,13 @@
 import { validateExecution } from "../execution/validate.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
-import { lstat, mkdir, realpath, rm } from "node:fs/promises";
+import { lstat, mkdir, realpath, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { AdapterProvider, AssetReader } from "../domain/adapter.js";
 import type { CatalogSnapshot } from "../domain/catalog.js";
 import { CatalogIndex } from "../domain/catalog-index.js";
-import type { HomeState } from "../domain/home-state.js";
+import { parseHomeState, type HomeState } from "../domain/home-state.js";
 import { HarnessError } from "../domain/errors.js";
 import { absolutePath, contained, hash } from "../domain/identity.js";
 import type { ChangePlan, ResourcePrecondition } from "../domain/plan.js";
@@ -19,6 +19,7 @@ import { nodePlanningIO } from "../ports/planning.js";
 import { stageContent, publishContent } from "../execution/content.js";
 import { exists, image, removeDirectory, sameImage, syncDirectory, writeImage, type FileImage } from "../execution/files.js";
 import { stateAfterExecution } from "../execution/state.js";
+import { inspectContent } from "../sources/inventory.js";
 import { JournalStore, type Journal, type JournalStep } from "./journal.js";
 import { withFileLock } from "./file-lock.js";
 
@@ -28,10 +29,12 @@ export interface ExecutionInput {
   plan: ChangePlan; catalog: CatalogSnapshot; assets: AssetReader; adapters: AdapterProvider;
   bundleLock?: { path: string; before: ResourcePrecondition };
 }
-export interface ExecutionResult { transactionId?: string; committedRevision: string; changes: ChangePlan["assetChanges"]; retained: ChangePlan["desiredState"]["retained"]; diagnostics: string[] }
+export type OperationResult = Pick<ChangePlan["operations"][number], "id" | "asset" | "placementIds" | "resource" | "type" | "reason">;
+export interface ExecutionResult { operations: OperationResult[]; transactionId?: string; committedRevision: string; changes: ChangePlan["assetChanges"]; retained: ChangePlan["desiredState"]["retained"]; diagnostics: string[] }
 export interface TransactionSession {
   read(): Promise<HomeState>;
   apply(input: ExecutionInput): Promise<ExecutionResult>;
+  publish(candidate: HomeState): Promise<ExecutionResult>;
 }
 const sessions = new AsyncLocalStorage<{ home: string; session: TransactionSession }>();
 
@@ -69,6 +72,9 @@ export class TransactionCoordinator {
         let active = true, applying = false;
         const check = () => { if (!active) throw new HarnessError("INVALID_ARGUMENT", "Expired transaction session."); };
         const session: TransactionSession = {
+          publish: async candidate => { check(); if (applying) throw new HarnessError("INVALID_ARGUMENT", "Transaction already applying."); applying = true;
+            try { return await this.publishMetadata(access, journal, candidate); } finally { applying = false; }
+          },
           read: async () => { check(); if (await journal.load()) throw new HarnessError("RECOVERY_REQUIRED", "Transaction is not at a committed boundary."); return access.read(); },
           apply: async input => { check(); if (applying) throw new HarnessError("INVALID_ARGUMENT", "Cannot recursively apply a plan."); applying = true;
             try { return await this.executeLocked(access, journal, input); } finally { applying = false; }
@@ -87,6 +93,44 @@ export class TransactionCoordinator {
     return this.withSession(session => session.apply(copied));
   }
   async recover(): Promise<void> { await this.withSession(async () => undefined); }
+  /** Metadata-only changes still use the same journal and durable commit point. */
+  private async publishMetadata(access: ExclusiveStateAccess, store: JournalStore, input: HomeState): Promise<ExecutionResult> {
+    const before = await access.read(), candidate = parseHomeState(input);
+    if (candidate.revision !== before.revision) throw new HarnessError("PLAN_STALE", "Metadata plan is stale.");
+    if (canonicalJson(before) === canonicalJson(candidate)) return { committedRevision: before.revision, changes: [], operations: [], retained: [], diagnostics: [] };
+    // This port cannot change active ownership or installed versions.
+    if (canonicalJson(before.install.operations) !== canonicalJson(candidate.install.operations) || canonicalJson(before.install.requirements) !== canonicalJson(candidate.install.requirements)
+      || canonicalJson(before.install.assets.filter(a => a.status === "active")) !== canonicalJson(candidate.install.assets.filter(a => a.status === "active"))) throw new HarnessError("INVALID_PLAN", "Metadata publication cannot change active installs.");
+    const revision = randomUUID(), next = { ...candidate, revision, install: { ...candidate.install, revision } };
+    const journal: Journal = { format: "harnessbrew.journal", version: 1, id: randomUUID(), home: this.store.home, status: "prepared", beforeState: before, nextRevision: revision, nextState: next, steps: [] };
+    const removed = [...new Map(before.install.assets.filter(a => !candidate.install.assets.some(b => b.contentDigest === a.contentDigest)).map(a => [a.contentDigest, a])).values()];
+    journal.garbage = [];
+    for (const asset of removed) {
+      const actual = await image(path.join(this.store.home, "content", asset.contentDigest.slice(7)), true);
+      if (actual.kind !== "content" || actual.digest !== asset.contentDigest) throw new HarnessError("CONTENT_MODIFIED", "Orphan content is missing or modified.", { asset: asset.coordinate });
+      const destination = path.join(this.store.home, "content", asset.contentDigest.slice(7));
+      journal.garbage.push({ path: destination, quarantine: path.join(this.store.home, `.cleanup-${journal.id}-${asset.contentDigest.slice(7)}`), image: actual, inventory: (await inspectContent(destination)).entries, parent: await nodePlanningIO.identify(destination) });
+    }
+    try {
+      await store.save(journal);
+      await this.fault("prepared", { transactionId: journal.id });
+      await this.fault("before-state", { transactionId: journal.id });
+      await access.publish(before.revision, next);
+      await this.fault("after-state", { transactionId: journal.id });
+      journal.status = "committed"; await store.save(journal);
+    } catch (cause) {
+      let persisted: Journal | undefined;
+      try { persisted = await store.load(); }
+      catch (journalError) { throw new HarnessError("RECOVERY_REQUIRED", "Metadata update failed and journal integrity cannot be verified.", { transactionId: journal.id }, { cause: new AggregateError([cause, journalError]) }); }
+      if (persisted?.status === "committed") throw new HarnessError("RECOVERY_REQUIRED", "Confirm commit through recovery.", {}, { cause });
+      try { await this.rollback(access, store, journal); }
+      catch (recovery) { throw new HarnessError("RECOVERY_REQUIRED", "Metadata update and recovery failed.", {}, { cause: new AggregateError([cause, recovery]) }); }
+      throw cause;
+    }
+    const diagnostics: string[] = [];
+    try { await this.fault("committed", { transactionId: journal.id }); await this.cleanup(store, journal); } catch { diagnostics.push("Committed; content cleanup requires recovery."); }
+    return { transactionId: journal.id, committedRevision: revision, changes: [], operations: [], retained: [], diagnostics };
+  }
   private async targetsLocked<T>(destinations: string[], action: () => Promise<T>): Promise<T> {
     const names = [...new Set(destinations)].sort();
     const lock = (i: number): Promise<T> => i === names.length ? action() : withFileLock(path.join(this.lockRoot, `${hash(names[i]!).slice(7)}.lock`), () => lock(i + 1));
@@ -101,7 +145,7 @@ export class TransactionCoordinator {
     await this.targetsLocked(journal.steps.map(step => step.path), async () => {
       if (journal.status === "committed") {
         if (!journal.nextState || canonicalJson(await access.read()) !== canonicalJson(journal.nextState)) throw new HarnessError("RECOVERY_CONFLICT", "Committed journal and state disagree.");
-        await this.cleanup(store, journal); return;
+        try { await this.cleanup(store, journal); } catch (cause) { throw new HarnessError("RECOVERY_CONFLICT", "Committed cleanup requires inspection; preserve the journal and quarantine.", { transactionId: journal.id }, { cause }); } return;
       }
       try { await this.rollback(access, store, journal); }
       catch (cause) { journal.status = "recovery-required"; await store.save(journal).catch(() => undefined); throw new HarnessError("RECOVERY_REQUIRED", "Recovery could not safely restore the transaction.", { transactionId: journal.id }, { cause }); }
@@ -134,6 +178,20 @@ export class TransactionCoordinator {
   }
   private async cleanup(store: JournalStore, journal: Journal): Promise<void> {
     await this.fault("before-cleanup", { transactionId: journal.id });
+    if (journal.status === "committed") for (const entry of journal.garbage ?? []) {
+      if (canonicalJson(await nodePlanningIO.identify(entry.path)) !== canonicalJson(entry.parent)) throw new HarnessError("RECOVERY_CONFLICT", "Content parent changed before cleanup.");
+      if (await exists(entry.path)) {
+        if (await exists(entry.quarantine) || !sameImage(await image(entry.path, true), entry.image)) throw new HarnessError("CONTENT_MODIFIED", "Cleanup content changed; preserve it for inspection.");
+        await rename(entry.path, entry.quarantine); await syncDirectory(path.dirname(entry.path)); await syncDirectory(this.store.home);
+      }
+      if (!await exists(entry.quarantine)) continue;
+      const identity = await image(entry.quarantine);
+      if (identity.kind !== "directory" || identity.device !== entry.image.device || identity.inode !== entry.image.inode) throw new HarnessError("RECOVERY_CONFLICT", "Cleanup quarantine identity changed.");
+      // Partial removal after a crash is allowed; any new or changed entry is preserved.
+      const remaining = await inspectContent(entry.quarantine);
+      if (remaining.entries.some(item => !entry.inventory.some(original => canonicalJson(original) === canonicalJson(item)))) throw new HarnessError("CONTENT_MODIFIED", "Cleanup quarantine contains external changes.");
+      await rm(entry.quarantine, { recursive: true }); await syncDirectory(this.store.home);
+    }
     const staging = path.join(this.store.home, `.transaction-${journal.id}`);
     if (await exists(staging)) {
       if (!(await lstat(staging)).isDirectory()) throw new HarnessError("RECOVERY_CONFLICT", "Unsafe transaction cache.");
@@ -228,7 +286,7 @@ export class TransactionCoordinator {
         const normalized = { ...candidate, revision: before.revision, install: { ...candidate.install, revision: before.revision } };
         if (!journal.steps.length && canonicalJson(normalized) === canonicalJson(before)) {
           await this.cleanup(store, journal);
-          return { committedRevision: before.revision, changes: [], retained: plan.desiredState.retained, diagnostics: [] };
+          return { committedRevision: before.revision, changes: [], operations: [], retained: plan.desiredState.retained, diagnostics: [] };
         }
         await checkpoint("before-state");
         for (const expected of [...plan.preconditions, ...(input.bundleLock ? [input.bundleLock.before] : [])]) {
@@ -251,7 +309,7 @@ export class TransactionCoordinator {
         const diagnostics: string[] = [];
         try { await checkpoint("committed"); await this.cleanup(store, journal); }
         catch { diagnostics.push("Transaction committed; maintenance cleanup is pending."); }
-        return { transactionId: journal.id, committedRevision: candidate.revision, changes: plan.assetChanges, retained: plan.desiredState.retained, diagnostics };
+        return { transactionId: journal.id, committedRevision: candidate.revision, changes: plan.assetChanges, operations: plan.operations.map(({ id, asset, placementIds, resource, type, reason }) => ({ id, asset, placementIds, resource, type, reason })), retained: plan.desiredState.retained, diagnostics };
       } catch (cause) {
         let persisted: Journal | undefined;
         try { persisted = await store.load(); }

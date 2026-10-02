@@ -34,5 +34,5 @@ test("packaged CLI completes the Tap-to-cleanup lifecycle", async () => {
   assert.deepEqual(report.scenarios, [{ name: "lifecycle", status: "passed", durationMs: report.scenarios[0]?.durationMs }]);
   assert.ok(report.commands.some((command) => command.args[0] === "install"));
   assert.ok(report.commands.some((command) => command.args[0] === "doctor"));
-  assert.ok(report.commands.some((command) => command.args[0] === "untap"));
+  assert.ok(report.commands.some((command) => command.args[0] === "tap" && command.args[1] === "remove"));
 });

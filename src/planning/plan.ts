@@ -22,6 +22,7 @@ export interface PlanningRequest {
   state: HomeState; desired: DesiredState; catalog: CatalogSnapshot;
   adapters: AdapterProvider; io: PlanningIO; assets: AssetReader;
   home: string; userHome: string; requestDigest: Digest;
+  repair?: { operationIds: string[]; overwriteOwned: boolean };
 }
 /** Produces data-only operations and file groups. No filesystem or state writes. */
 export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
@@ -128,7 +129,7 @@ export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
     const current = resourceFingerprint(originals.get(previous.resource.path)!, previous.resource);
     const replacement = expected.get(key);
     if (replacement && (replacement.asset !== previous.asset || replacement.operation.type !== previous.type)) throw new HarnessError("OWNERSHIP_CONFLICT", "Cannot transfer existing ownership to another asset or operation type.");
-    if (current.kind !== "missing" && canonicalJson(current) !== canonicalJson(previous.installedFingerprint)) throw new HarnessError("TARGET_MODIFIED", "Owned resource was modified.", { operation: previous.id });
+    if (current.kind !== "missing" && canonicalJson(current) !== canonicalJson(previous.installedFingerprint) && !(input.repair?.overwriteOwned && input.repair.operationIds.includes(previous.id) && current.kind === "file" && previous.resource.kind !== "path")) throw new HarnessError("TARGET_MODIFIED", "Owned resource was modified.", { operation: previous.id });
     if (retainedKeys.has(key)) {
       if (current.kind === "missing") throw new HarnessError("TARGET_MODIFIED", "Retained resource is missing; use repair.");
       continue;
@@ -143,9 +144,9 @@ export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
     if (!previous && current.kind !== "missing") throw new HarnessError("OWNERSHIP_CONFLICT", "Target resource exists without ownership.", { resource: next.operation.resource });
     const sameMode = next.operation.type !== "write-file" || snapshot.kind === "file" && snapshot.mode === next.operation.mode;
     if (previous && canonicalJson(current) === canonicalJson(next.installedFingerprint) && sameMode) continue;
-    if (previous && current.kind === "missing") throw new HarnessError("TARGET_MODIFIED", "Owned resource is missing; use repair.");
+    if (previous && current.kind === "missing" && !input.repair?.operationIds.includes(previous.id)) throw new HarnessError("TARGET_MODIFIED", "Owned resource is missing; use repair.");
     operations.push({ id: next.id, asset: next.asset, placementIds: next.placementIds, resource: next.operation.resource, type: next.operation.type,
-      contentDigest: next.contentDigest, ...(previous ? { existingOperationId: previous.id } : {}), expectedBefore: current, requiredCapabilities: [next.operation.type], dependsOn: [], reason: previous ? "content-changed" : "new-placement", operation: next.operation });
+      contentDigest: next.contentDigest, ...(previous ? { existingOperationId: previous.id } : {}), expectedBefore: current, requiredCapabilities: [next.operation.type], dependsOn: [], reason: previous ? input.repair?.operationIds.includes(previous.id) ? current.kind === "missing" ? "repair-missing" : "repair-owned" : "content-changed" : "new-placement", operation: next.operation });
   }
   // Reject parent/child transitions across the old and new sets; a separate release avoids ambiguous writes.
   for (const removed of operations.filter(op => op.type === "remove-owned")) for (const added of expected.values()) {
@@ -236,7 +237,7 @@ export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
     if (type) assetChanges.push({ asset: asset.coordinate, type, reason: type === "update" ? "resolved-version-changed" : "requirement-added" });
   }
   for (const asset of state.install.assets) if (asset.status === "active" && !graph.has(asset.coordinate)) assetChanges.push({ asset: asset.coordinate, type: "orphan", reason: "last-requirement-released" });
-  const data = { format: "harnessbrew.plan" as const, version: 1 as const, requestDigest: input.requestDigest,
+  const data = { ...(input.repair ? { repair: input.repair } : {}), format: "harnessbrew.plan" as const, version: 1 as const, requestDigest: input.requestDigest,
     homeIdentity: stableId(await input.io.identify(path.join(home, "CURRENT"))), userHome: absolutePath(input.userHome), baseRevision: state.revision,
     sourceSnapshots: sortBy([...allSnapshots.values()].filter(snapshot => desired.assets.some(asset => asset.snapshotId === snapshot.id)), snapshot => snapshot.id),
     adapterSignatures: sortBy([...signatures.values()], value => value.name), preconditions: sortBy([...snapshots.values()].map(precondition), value => value.path),

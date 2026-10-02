@@ -1,3 +1,4 @@
+import { getStaticTOMLValue, parseTOML } from "toml-eslint-parser";
 import { randomBytes } from "node:crypto";
 import { execFile } from "node:child_process";
 import { chmod, copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
@@ -118,7 +119,8 @@ export function runtimeReportStatus(runtimes) {
 }
 
 async function installRuntimeAssets(cli, fixture, project) {
-  await cli.run(["tap", "add", fixture.name, fixture.remote, "--trust"]);
+  await cli.run(["tap", "add", fixture.name, fixture.remote]);
+  await cli.run(["tap", "trust", fixture.name]);
   const formulas = [
     "harnessbrew-runtime-skill",
     "harnessbrew-runtime-instruction",
@@ -126,19 +128,16 @@ async function installRuntimeAssets(cli, fixture, project) {
     "harnessbrew-runtime-mcp"
   ];
   for (const formula of formulas) {
-    await cli.run(["install", formula]);
+    await cli.run(["install", formula, "--scope", "project", "--project", project]);
     await cli.run(["link", formula, "--target", "openai-codex", "--scope", "project", "--project", project]);
   }
   const codexConfigPath = path.join(project, ".codex", "config.toml");
   const codexConfig = await readFile(codexConfigPath, "utf8");
-  const serverHeader = "[mcp_servers.harnessbrew-runtime-mcp]\n";
-  if (!codexConfig.includes(serverHeader)) {
-    throw new Error("HarnessBrew did not render the expected Codex MCP server table.");
-  }
-  await writeFile(codexConfigPath, codexConfig.replace(
-    serverHeader,
-    `${serverHeader}default_tools_approval_mode = "approve"\n`
-  ), "utf8");
+  const parsed = getStaticTOMLValue(parseTOML(codexConfig));
+  const server = parsed.mcp_servers?.["harnessbrew-runtime-mcp"];
+  if (!server || Object.keys(parsed).some(key => key !== "mcp_servers") || Object.keys(parsed.mcp_servers).length !== 1) throw new Error("Unexpected runtime fixture configuration.");
+  // This is the isolated runtime harness's sole server. Write its approval setting explicitly.
+  await writeFile(codexConfigPath, `[mcp_servers.harnessbrew-runtime-mcp]\ndefault_tools_approval_mode = "approve"\n${Object.entries(server).map(([key, value]) => `${JSON.stringify(key)} = ${JSON.stringify(value)}`).join("\n")}\n`, "utf8");
 }
 
 async function prepareCodexHome(codexHome, project) {

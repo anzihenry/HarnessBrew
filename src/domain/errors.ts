@@ -6,9 +6,13 @@ export type ErrorCode =
   | "CONTENT_MODIFIED" | "TARGET_UNSUPPORTED" | "LOCK_MISMATCH" | "ADAPTER_CHANGED"
   | "TARGET_MODIFIED" | "INVALID_PLAN" | "CAPABILITY_DENIED" | "ADAPTER_FAILED"
   | "NOT_MANUAL_ROOT" | "OWNER_NOT_FOUND" | "GIT_FAILED"
+  | "ADAPTER_IN_USE" | "PLAN_NOT_FOUND" | "INTERNAL_ERROR" | "SOURCE_IN_USE"
   | "STATE_CORRUPT" | "PLAN_STALE" | "RECOVERY_REQUIRED" | "RECOVERY_CONFLICT" | "LOCK_TIMEOUT";
 
 export class HarnessError extends Error {
+  get recovery(): { action: "recover"; preserveEvidence: true } | undefined {
+    return this.code === "RECOVERY_REQUIRED" || this.code === "RECOVERY_CONFLICT" ? { action: "recover", preserveEvidence: true } : undefined;
+  }
   constructor(
     public readonly code: ErrorCode,
     message: string,

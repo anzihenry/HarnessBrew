@@ -13,7 +13,7 @@ interface RunnerModule {
 
 const runnerModule = await import(pathToFileURL(path.resolve("scripts/e2e/run.mjs")).href) as RunnerModule;
 
-test("packaged CLI preserves the JSON contract and rolls dry-run mutations back", async () => {
+test("packaged CLI preserves the JSON contract and keeps previews read-only", async () => {
   const outputDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-contract-candidate-"));
   const reportDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-contract-report-"));
   const artifact = await buildTestArtifact({ outputDirectory, allowDirty: true });
@@ -27,6 +27,6 @@ test("packaged CLI preserves the JSON contract and rolls dry-run mutations back"
     { name: "cli-contract", status: "passed" }
   ]);
   assert.ok(report.commands.filter((command) => command.args.includes("--dry-run")).length >= 4);
-  assert.ok(report.commands.some((command) => command.args[0] === "missing-command" && command.exitCode === 1));
+  assert.ok(report.commands.some((command) => command.args[0] === "missing-command" && command.exitCode === 2));
   assert.ok(report.commands.some((command) => command.args[0] === "install" && command.exitCode === 1));
 });

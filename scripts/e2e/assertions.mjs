@@ -20,17 +20,17 @@ export async function readJsonFile(candidate) {
 }
 
 export function assertSuccessfulEnvelope(envelope, command) {
-  assert.equal(envelope.schemaVersion, 1);
+  assert.equal(envelope.format, "harnessbrew.result");
+  assert.equal(envelope.version, 1);
   assert.equal(envelope.ok, true);
-  assert.equal(envelope.exitCode, 0);
   assert.equal(envelope.command, command);
   assert.deepEqual(envelope.diagnostics, []);
 }
 
 export function assertFailedEnvelope(envelope, command, messagePattern) {
-  assert.equal(envelope.schemaVersion, 1);
+  assert.equal(envelope.format, "harnessbrew.result");
+  assert.equal(envelope.version, 1);
   assert.equal(envelope.ok, false);
-  assert.equal(envelope.exitCode, 1);
   assert.equal(envelope.command, command);
   assert.match(envelope.error?.message ?? "", messagePattern);
 }

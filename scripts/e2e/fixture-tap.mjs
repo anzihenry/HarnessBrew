@@ -51,21 +51,19 @@ function markdownContent(name, version) {
 
 async function writeFormula(repository, definition, version) {
   const kindDirectory = kindDirectories[definition.kind];
-  const directory = path.join(repository, kindDirectory, definition.name);
+  const directory = path.join(repository, "assets", definition.name);
   const entry = definition.kind === "skill" ? "SKILL.md" : definition.kind === "mcp" ? "server.json" : "content.md";
   const formula = {
-    schemaVersion: 1,
-    name: definition.name,
+    format: "harnessbrew.asset", version: 1,
     kind: definition.kind,
     description: `HarnessBrew E2E ${definition.name} ${version}`,
     entry,
     targets: definition.targets ?? ["openai-codex"],
     dependencies: definition.dependencies ?? [],
-    conflicts: definition.conflicts ?? [],
-    tags: ["e2e", version]
+    conflicts: definition.conflicts ?? []
   };
   await mkdir(directory, { recursive: true });
-  await writeFile(path.join(directory, "formula.json"), `${JSON.stringify(formula, null, 2)}\n`, "utf8");
+  await writeFile(path.join(directory, "asset.json"), `${JSON.stringify(formula, null, 2)}\n`, "utf8");
   let content;
   if (definition.mcp !== undefined) content = `${JSON.stringify(definition.mcp, null, 2)}\n`;
   else content = definition.kind === "skill"
@@ -100,7 +98,6 @@ const definitions = [
       headersFromEnv: { "X-E2E-Token": "HARNESSBREW_HEADER_TOKEN" }
     }
   },
-  { name: "runtime-adapter", kind: "adapter" },
   { name: "conflicting-skill", kind: "skill", conflicts: [`${coordinatePrefix}/main-skill`] }
 ];
 
@@ -115,7 +112,7 @@ export async function createTapFixture(environment, options = {}) {
   const remote = assertPathInside(root, `${environment.paths.tapRemote}${suffix}`, "Tap bare remote");
   await git(root, environment.environment, "init", "--bare", "--initial-branch=main", remote);
   await git(root, environment.environment, "init", "--initial-branch=main", author);
-  await writeFile(path.join(author, "tap.json"), '{"schemaVersion":1}\n', "utf8");
+  await writeFile(path.join(author, "tap.json"), '{"format":"harnessbrew.tap","version":1}\n', "utf8");
   await writeFixtureVersion(author, "v1");
   await git(author, environment.environment, "add", ".");
   await git(author, environment.environment, "commit", "-m", "fixture: add v1 assets");
@@ -142,9 +139,9 @@ export async function createTapFixture(environment, options = {}) {
     },
     async pushInvalidCandidate() {
       await git(author, environment.environment, "switch", "main");
-      const directory = path.join(author, "skills", "invalid-candidate");
+      const directory = path.join(author, "assets", "invalid-candidate");
       await mkdir(directory, { recursive: true });
-      await writeFile(path.join(directory, "formula.json"), '{"schemaVersion":999}\n', "utf8");
+      await writeFile(path.join(directory, "asset.json"), '{"schemaVersion":999}\n', "utf8");
       await git(author, environment.environment, "add", ".");
       await git(author, environment.environment, "commit", "-m", "fixture: add invalid candidate");
       invalidCommit = await git(author, environment.environment, "rev-parse", "HEAD");
@@ -153,7 +150,7 @@ export async function createTapFixture(environment, options = {}) {
     },
     async repairInvalidCandidate() {
       if (invalidCommit === undefined) throw new Error("Cannot repair before an invalid candidate is pushed.");
-      await rm(path.join(author, "skills", "invalid-candidate"), { recursive: true, force: false });
+      await rm(path.join(author, "assets", "invalid-candidate"), { recursive: true, force: false });
       await git(author, environment.environment, "add", "-A");
       await git(author, environment.environment, "commit", "-m", "fixture: remove invalid candidate");
       const repairedCommit = await git(author, environment.environment, "rev-parse", "HEAD");
@@ -162,7 +159,7 @@ export async function createTapFixture(environment, options = {}) {
     },
     async rewriteFromV1() {
       await git(author, environment.environment, "switch", "--detach", v1Commit);
-      await writeFile(path.join(author, "skills", "main-skill", "SKILL.md"), skillContent("main-skill", "rewritten"), "utf8");
+      await writeFile(path.join(author, "assets", "main-skill", "SKILL.md"), skillContent("main-skill", "rewritten"), "utf8");
       await git(author, environment.environment, "add", ".");
       await git(author, environment.environment, "commit", "-m", "fixture: rewrite main history");
       const rewrittenCommit = await git(author, environment.environment, "rev-parse", "HEAD");

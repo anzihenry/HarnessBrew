@@ -26,13 +26,13 @@ test("runtime fixture creates nonce-bearing Skill, Instruction, Agent, and MCP f
       GIT_CONFIG_GLOBAL: path.join(root, "missing-global-gitconfig")
     }
   });
-  assert.match(await readFile(path.join(fixture.repository, "skills", "harnessbrew-runtime-skill", "SKILL.md"), "utf8"),
+  assert.match(await readFile(path.join(fixture.repository, "assets", "harnessbrew-runtime-skill", "SKILL.md"), "utf8"),
     new RegExp(fixture.markers.skill as string, "u"));
-  assert.match(await readFile(path.join(fixture.repository, "instructions", "harnessbrew-runtime-instruction", "content.md"), "utf8"),
+  assert.match(await readFile(path.join(fixture.repository, "assets", "harnessbrew-runtime-instruction", "content.md"), "utf8"),
     new RegExp(fixture.markers.instruction as string, "u"));
-  assert.match(await readFile(path.join(fixture.repository, "agents", "harnessbrew-runtime-agent", "content.md"), "utf8"),
+  assert.match(await readFile(path.join(fixture.repository, "assets", "harnessbrew-runtime-agent", "content.md"), "utf8"),
     new RegExp(fixture.markers.agent as string, "u"));
-  assert.match(await readFile(path.join(fixture.repository, "mcp", "harnessbrew-runtime-mcp", "server.json"), "utf8"),
+  assert.match(await readFile(path.join(fixture.repository, "assets", "harnessbrew-runtime-mcp", "server.json"), "utf8"),
     new RegExp(fixture.markers.mcp as string, "u"));
 });
 

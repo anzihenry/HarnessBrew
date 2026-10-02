@@ -78,10 +78,10 @@ export class PackagedCliDriver {
     } catch {
       throw new Error(`Packaged CLI emitted invalid JSON: ${output}`);
     }
-    if (envelope.schemaVersion !== 1 || typeof envelope.ok !== "boolean" || typeof envelope.exitCode !== "number") {
+    if (envelope.format !== "harnessbrew.result" || envelope.version !== 1 || typeof envelope.ok !== "boolean") {
       throw new Error(`Packaged CLI emitted an invalid schema v1 envelope: ${output}`);
     }
-    if (envelope.exitCode !== result.exitCode || envelope.ok !== (result.exitCode === 0)) {
+    if (envelope.ok !== (result.exitCode === 0)) {
       throw new Error(`Packaged CLI JSON envelope disagrees with its process exit code: ${output}`);
     }
     return { ...result, envelope };

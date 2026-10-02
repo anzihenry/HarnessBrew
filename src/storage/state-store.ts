@@ -46,13 +46,14 @@ export class StateStore {
     await this.io.mkdir(this.home);
     return withFileLock(path.join(this.home, ".store.lock"), action);
   }
-  async initialize(): Promise<HomeState> {
+  async initialize(seed?: HomeState): Promise<HomeState> {
     return this.locked(async () => {
       if (await this.io.kind(this.current) !== "missing") return this.read();
       const entries = (await this.io.list(this.home)).filter(name => name !== ".store.lock");
       if (entries.length) throw new HarnessError("UNSUPPORTED_FORMAT", "Home is not empty or contains an incomplete state; use a new Home.", { entries });
       await this.io.mkdir(this.revisions);
-      return this.publish(emptyHomeState(randomUUID()));
+      const revision = randomUUID();
+      return this.publish(seed ? { ...parseHomeState(seed), revision, install: { ...seed.install, revision } } : emptyHomeState(revision));
     });
   }
   async read(): Promise<HomeState> {

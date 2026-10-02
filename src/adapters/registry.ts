@@ -13,11 +13,11 @@ const capabilities = ["link-directory", "link-file", "write-file", "write-block"
 /** One registry per application instance. Registration never imports or installs a module. */
 export class AdapterRegistry implements AdapterProvider {
   private readonly adapters = new Map<string, AuthorizedAdapter>();
-  registerPlugin(adapter: TargetAdapter, signature: Digest, granted: readonly AppliedOperationType[]): void {
+  registerPlugin(adapter: TargetAdapter, signature: Digest, granted: readonly AppliedOperationType[], placementPolicy?: AuthorizedAdapter["resolvePlacement"]): void {
     if (adapter.name === "openai-codex" || granted.some(item => item !== "link-directory" && item !== "link-file")) {
       throw new HarnessError("CAPABILITY_DENIED", "Third-party adapters may request only link capabilities.");
     }
-    this.add(adapter, signature, granted);
+    this.add(adapter, signature, granted, placementPolicy);
   }
   registerCodex(signature: Digest): void { this.add(codexAdapter, signature, capabilities, codexPlacement); }
   private add(adapter: TargetAdapter, signature: Digest, granted: readonly AppliedOperationType[], placementPolicy?: AuthorizedAdapter["resolvePlacement"]): void {
