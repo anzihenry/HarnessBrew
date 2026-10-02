@@ -5,7 +5,7 @@
 - 范围：下一代 HarnessBrew 内部架构、CLI、SDK、Adapter 与磁盘格式
 - 配套：[接口与数据契约](refactor-contracts.zh-CN.md)、[验收场景](refactor-acceptance.zh-CN.md)
 
-本文描述目标设计，不代表当前 0.8.0 已实现。现有行为说明仍见 [当前架构](../architecture.zh-CN.md)。本次只落实设计，不修改业务实现。
+本文保留重构时的设计决策；当前实现说明见[当前架构](../architecture.zh-CN.md)，阶段 7 收尾记录见[实施记录](phase7-implementation.zh-CN.md)。
 
 ## 1. 目标与边界
 

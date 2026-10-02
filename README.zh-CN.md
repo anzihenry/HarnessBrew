@@ -4,7 +4,7 @@
 
 HarnessBrew 从 Git 仓库管理 AI Agent 资产，统一解析依赖、预览变更，并向 Codex 投递 Skill、Agent、Workflow、Prompt、Instruction 和 MCP 配置。
 
-**当前源码已切换到新架构及新 CLI/SDK 契约。** 已发布的 0.8.0 文档不代表这些变更；破坏性版本发布和旧内部代码删除留到阶段 7。旧 Home、Manifest、Formula 和插件不自动迁移，请使用空 Home 和新格式声明。
+**当前源码准备发布 1.0.0，已切换到新架构及新 CLI/SDK 契约，并删除旧后端。** 参见[破坏性变更及发布检查表](docs/releases/release-1.0.0.md)。旧 Home、Manifest、Formula 和插件不自动迁移，请使用空 Home 和新格式声明。
 
 ## 从源码运行
 
@@ -156,7 +156,7 @@ JSON stdout 只输出一个 `harnessbrew.result` version 1 对象，包含 ok、
 npm run check:all
 ```
 
-包含构建、快速测试、共用一个候选包的打包测试，以及已迁入新业务服务的历史回归。部分旧后端测试暂时隔离保留，阶段 7 删除旧实现时一起清理。runtime preflight 的自动测试使用模拟 runtime，真实 Codex 验收是单独的发布检查。
+包含构建、快速测试、共用一个候选包的打包测试，以及已迁入新业务服务的历史回归。旧后端专用测试已清理，历史回归通过新业务服务验证。runtime preflight 的自动测试使用模拟 runtime，真实 Codex 验收是单独的发布检查。
 
 详见[架构决策](docs/design/refactor-architecture.zh-CN.md)、[契约](docs/design/refactor-contracts.zh-CN.md)和[阶段 6 实施记录](docs/design/phase6-implementation.zh-CN.md)。
 

@@ -1,426 +1,63 @@
-# HarnessBrew Architecture
+# 项目架构
 
-[English](architecture.md) | 简体中文
+[English](architecture.md)
 
-> 本文描述当前已经实现的 tap/formula/install 架构；0.4.0 之前的历史 workspace/asset 模型不再对应当前实现。
+本文描述 1.0.0 的实现。公开入口为 `harnessbrew` 与适配器类型契约 `harnessbrew/adapter`。CLI 和 SDK 共用 Application Service，旧 `src/core` 后端已删除。
 
-> 下一代重构的阶段 1 设计已单独记录在[重构架构决策](design/refactor-architecture.zh-CN.md)，包含[接口契约](design/refactor-contracts.zh-CN.md)和[验收场景](design/refactor-acceptance.zh-CN.md)。这些是目标设计，尚未替代当前实现。
+## 职责边界
 
-## 1. 产品定位
-
-HarnessBrew 是面向 AI Agent 资产的 Git 包管理器，定位类似 Homebrew，而不是资产仓库或中心化 registry。
-
-它负责发现、安装、组合、升级和删除 AI Agent 资产；资产内容由独立 Git 仓库维护。资产包括但不限于：
-
-- skill
-- agent
-- workflow
-- instruction / rule
-- prompt
-- MCP server 配置
-- adapter 和其他 Agent 扩展
-
-HarnessBrew 自身不拥有用户资产。个人资产与第三方资产使用同一套 Git 来源机制，区别仅在仓库所有权、写权限与信任级别。
-
-## 2. 设计原则
-
-1. **Git 是唯一版本事实来源**：提交、tag 和分支负责历史、版本与回滚，不在资产内部重复维护快照。
-2. **所有资产源一视同仁**：个人、团队和第三方资产都来自 Git tap。
-3. **声明与安装分离**：formula 描述资产，Cellar 保存安装实例，adapter 负责投递到目标 Agent。
-4. **安装必须可逆**：每次安装都生成 receipt；卸载只删除 HarnessBrew 拥有的文件，并能检测冲突。
-5. **结果必须可复现**：声明文件表达期望状态，lock 文件固定实际 Git commit 和解析后的依赖版本。
-6. **目标平台解耦**：同一资产通过 adapter 安装到 Codex 等不同环境。
-7. **默认不执行不受信任代码**：第三方 formula 和资产首先视为数据；需要执行脚本时必须显式声明并获得授权。
-
-## 3. Homebrew 概念映射
-
-| Homebrew | HarnessBrew | 含义 |
+| 层 | 主要责任 | 边界 |
 | --- | --- | --- |
-| `brew` | `harnessbrew` | 包管理 CLI |
-| Tap | Tap | Git 资产源仓库 |
-| Formula / Cask | Formula | 一个可安装的 Agent 资产配方 |
-| Cellar | Cellar | 按来源和版本隔离的本地安装区 |
-| Link | Target link | 投递到具体 Agent 的文件或配置 |
-| `Brewfile` | `Harnessfile` | 可提交到 Git 的期望资产清单 |
-| installed receipt | Receipt | 安装结果、文件归属和来源记录 |
+| `domain` | 标识、版本化格式、所有权、依赖图与计划契约 | 不编排业务，不写目标文件 |
+| `sources` / `catalog` | 校验 Git 快照和内容清单，解析可用资产 | 更新来源不等于升级安装 |
+| `resolution` | 汇总所有根需求，求解依赖闭包与冲突 | 不修改文件系统 |
+| `planning` | 比较期望状态与已提交状态，生成操作和前置条件 | 计划只包含数据 |
+| `adapters` | 将资产类型和投放位置转换为目标资源 | 不管理 Home 或事务 |
+| `storage` | 读取和发布不可变状态修订 | 不决定依赖与投放策略 |
+| `transactions` | 锁、持久化日志、提交与恢复 | 统一管理变更生命周期 |
+| `execution` | 校验并执行内容、文件和状态变更 | 在协调器保护下执行已授权计划 |
+| `diagnostics` | 检查内容、目标、依赖、所有权和状态 | 诊断结果不自动授权修复 |
+| `application` | 组合用例、预览、查询、授权和恢复 | CLI/SDK 共用业务入口 |
+| `cli` | 参数解析、服务调用、结果展示 | 不另建业务实现 |
 
-## 4. 系统拓扑
-
-```text
-Personal Git Tap ─────┐
-Team Git Tap ─────────┼──> Tap Resolver ──> Formula + Dependency Graph
-Third-party Git Tap ──┘                              │
-                                                    v
-Harnessfile + Lockfile ─────────────────────────> Cellar
-                                                    │
-                                      Target Adapter / Linker
-                                                    │
-                          ┌─────────────────────────┐
-                          v                         v
-                       Codex               Third-party Adapters
+```mermaid
+flowchart TD
+  CLI[CLI] --> App[Application Service]
+  SDK[SDK] --> App
+  App --> Sources[Sources / Catalog]
+  Sources --> Resolver[Resolver]
+  Resolver --> Planner[Planner]
+  Planner --> Adapters[AdapterRegistry]
+  App --> Coordinator[TransactionCoordinator]
+  Coordinator --> Executor[Executor]
+  Executor --> Store[StateStore]
+  App --> Doctor[Doctor]
 ```
 
-控制面由 tap、formula、`Harnessfile` 和 lockfile 构成；数据面由 Cellar 中的不可变安装内容及其到目标 Agent 的链接或渲染结果构成。
+## 状态与所有权
 
-## 5. 核心领域模型
+Home 保存 `CURRENT`、不可变的 `revisions/*.json`、按内容摘要寻址的 `content/` 和待恢复的 `transaction.json`。来源、插件和预览缓存位于 Home 旁，可重新生成。来源缓存丢失不改变已提交的安装内容与所有权。
 
-### 5.1 Tap
+每个手动根需求和 Bundle binding 分别拥有需求、依赖闭包及投放位置。同一 Home 中每个坐标只有一个活动版本；不同所有者的版本要求冲突时拒绝变更。移除一个所有者会保留其他所有者仍需要的资源。Bundle ID 与规范化后的 Manifest 所在目录共同确定 binding，因此不同 checkout 彼此独立。可移植 lock 记录精确版本及 Manifest、Adapter 签名。
 
-Tap 是一个可独立克隆和更新的 Git 仓库，也是资产发布、协作和版本治理的基本边界。
+## 计划与事务
 
-推荐按“资产集合”建立仓库，而不是每个 skill 或 workflow 建立一个仓库：
+`createHarness` 提供 `plan`、`execute`、`apply`、`query`、`doctor`、`recover`、`close`。预览保存在当前主机，以 ID 和摘要标识。执行预览时重新检查状态修订、Home 物理路径、来源、插件、Manifest/lock 和目标指纹。服务不接受任意操作 JSON 直接执行。
 
-```text
-my-agent-tap/
-├── tap.json
-├── skills/
-│   └── code-review/
-│       ├── formula.json
-│       └── SKILL.md
-├── workflows/
-│   └── release/
-│       ├── formula.json
-│       └── workflow.md
-├── agents/
-└── instructions/
-```
+协调器依次持有 Home 锁、同用户外部资源锁和排序后的目标锁；同一 session 复用锁。读取等待 Home 锁；存在待恢复日志时阻止普通查询及预览。来源与插件元数据变更也通过日志发布。
 
-Tap 标识采用 `<owner>/<name>`，例如：
+持久化的 committed 日志是提交点。提交前失败根据记录的变更前后证据回滚；恢复遇到无法解释的外部修改时拒绝覆盖。Cleanup 先提交孤儿状态移除，再校验 inode 和清单、隔离并删除内容。部分删除可以恢复；发现未知修改时保留隔离目录与日志。
 
-- `your-name/agents`：个人资产
-- `company/engineering-agents`：团队资产
-- `community/workflows`：第三方资产
+## 目标与插件
 
-`harnessbrew tap` 只注册 Git 来源；Tap 的 clone、fetch、checkout 和缓存由 HarnessBrew 管理。新注册 Tap 默认处于不受信任状态，允许浏览 Formula 和安装到 Cellar，但不能激活到 Agent Target；用户需通过 `tap trust`、`tap add --trust` 或 Harnessfile v2 的 `trust: true` 明确授权。旧版本状态中没有信任字段的 Tap 仅为兼容而视为已信任。
+内置 Codex Adapter 将 skill 映射为目录链接、agent 映射为托管 TOML 文件、workflow/prompt 映射为生成的 skill、instruction 映射为拥有标记的区块、MCP 映射为结构化配置键。修改共享文件时保留无关内容。
 
-### 5.2 Formula
+每个服务实例拥有独立 AdapterRegistry。第三方 Adapter 必须显式授权能力，目前只支持文件和目录链接。插件签名覆盖依赖及 lockfile；校验后的副本先发布到签名缓存，再加载执行。这用于身份与漂移检查，JavaScript 插件仍具有进程权限。
 
-Formula 描述一个可安装资产，不承载 Git 已经提供的历史记录。最小示例：
+Doctor 按类别输出问题。Repair 默认只恢复缺失资源；显式覆盖仅限可识别的所有权键或区块。整个文件或链接被修改后，不能仅凭历史路径认定可以覆盖。
 
-```json
-{
-  "schemaVersion": 1,
-  "name": "code-review",
-  "kind": "skill",
-  "description": "Review code changes with a consistent rubric.",
-  "entry": "SKILL.md",
-  "targets": ["openai-codex"],
-  "dependencies": [
-    "your-name/agents/repository-guardrails"
-  ]
-}
-```
+## 兼容性与验证
 
-完整资产坐标为 `<tap>/<formula>`，例如 `your-name/agents/code-review`。若短名称能唯一解析，CLI 可以接受 `code-review`；出现歧义时必须要求完整坐标。
+新格式必须声明 format/version。旧 Home、Formula、Manifest、插件与旧命令别名不自动转换。当前用法见 [README](../README.zh-CN.md)，重新接入步骤见 [1.0.0 发布说明](releases/release-1.0.0.md)。
 
-Formula 可以声明：
-
-- 资产类型和入口文件
-- 支持的 target
-- 依赖资产
-- 安装或渲染参数
-- 冲突项和弃用信息
-- 完整性校验信息
-- 必要时显式声明的安装 hook
-
-Formula 不应维护 `.snapshots`、`history` 或人为复制的内容版本；这些信息来自所属 Tap 的 commit 和 tag。
-
-### 5.3 Cellar 与 Receipt
-
-Cellar 保存解析后、按来源和版本隔离的安装实例。示意结构：
-
-```text
-~/.harnessbrew/
-├── taps/
-│   └── your-name/agents/        # Git 工作树或受管缓存
-├── cellar/
-│   └── your-name/agents/code-review/<commit>/
-├── receipts/
-│   └── your-name/agents/code-review.json
-└── state.json
-```
-
-Receipt 至少记录：
-
-- 完整资产坐标
-- Tap URL、ref 与解析后的 commit SHA
-- 依赖闭包
-- 安装 target
-- Cellar 路径
-- 创建、链接或渲染出的文件
-- 文件摘要与安装时间
-
-Receipt schema v2 以操作清单记录 Target 副作用。每条操作包含稳定 ID、操作类型、Target、目标路径、可选源路径、安装后摘要、受管配置键或区块标记，以及本次创建的父目录。v2 支持目录软链、文件软链、渲染文件、配置合并和受管区块；读取 schema v1 时会把旧 `links` 规范化为文件软链操作，以保证已有安装可以继续校验、升级和卸载。
-
-Receipt 是安全卸载和冲突检测的依据。HarnessBrew 不应删除 receipt 未声明拥有的文件；若用户修改了已安装文件，应先报告差异，再由用户决定覆盖、保留或强制删除。
-
-### 5.4 Harnessfile 与 Lockfile
-
-`Harnessfile` 描述用户希望安装的顶层资产，可提交到个人配置仓库或项目仓库：
-
-```yaml
-schemaVersion: 2
-taps:
-  - name: your-name/agents
-    git: git@github.com:your-name/agent-assets.git
-    trust: true
-
-assets:
-  - formula: your-name/agents/code-review
-    targets:
-      - target: openai-codex
-        scope: user
-      - target: openai-codex
-        scope: project
-        project: .
-```
-
-Harnessfile v2 使用结构化 Target placement，并将相对 `project`/`root` 路径按 Harnessfile 所在目录解析。Tap 的 `trust` 也是声明式状态，省略时为 `false`；依赖继承顶层资产的 placement；
-`bundle install` 同时补齐缺失 placement 并移除不再声明的受管 placement。schema v1 的字符串 Target 数组继续按 user scope 兼容读取。
-
-Lockfile 由 HarnessBrew 生成并提交到 Git，记录：
-
-- 每个 Tap 的准确 commit SHA
-- 每个 formula 的来源与内容摘要
-- 完整依赖闭包
-- 解析时使用的 adapter 版本
-
-v2 lockfile 还保存 Harnessfile 的规范化摘要、每个 Formula 安装清单的内容摘要、顶层请求标记和可移植 placement。
-Manifest 或 Adapter 版本变化时默认拒绝隐式改写，必须通过 `bundle install --update-lock` 显式生成新锁。
-
-`harnessbrew bundle install` 应根据 lockfile 重建相同环境；只有显式 update/upgrade 才更新锁定结果。
-
-### 5.5 Target 与 Adapter
-
-Target 表示具体 Agent 环境，例如 `openai-codex` 或第三方 Target。Adapter 负责：
-
-- 校验资产与 target 是否兼容
-- 把统一 formula 映射到目标目录和文件格式
-- 渲染 target 特有配置
-- 生成待安装文件清单
-- 与 linker 协作创建链接或受管副本
-- 在卸载前校验文件归属和摘要
-
-Adapter 只处理平台差异，不负责 Git 版本管理或依赖求解。
-
-#### Target 能力矩阵
-
-Target Adapter 必须为每一种 Formula 类型声明确定的安装策略。不允许通过 `${kind}s` 猜测目标目录；没有平台依据的组合必须明确标记为 `unsupported`。
-
-| Formula | OpenAI Codex |
-| --- | --- |
-| `skill` | `symlink-directory` |
-| `workflow` | `render-skill` |
-| `agent` | `render-file` |
-| `instruction` | `managed-block` |
-| `prompt` | `render-skill` |
-| `mcp` | `merge-config` |
-| `adapter` | `unsupported` |
-
-策略含义：
-
-- `symlink-directory`：将完整资产目录链接到 Target，保留脚本、引用和模板等相对资源。
-- `symlink-file`：链接单个 Target 原生文件。
-- `render-file`：由 Adapter 生成 Target 原生格式。
-- `render-skill`：将统一 Workflow 或 Prompt 投影为 Target Skill。
-- `managed-block`：在共享配置文件中维护带所有权标记的内容区块。
-- `merge-config`：按配置键合并，并在 Receipt 中记录键级所有权。
-- `unsupported`：拒绝投递；资产仍可保存在 Cellar 中。
-
-Skill 必须使用以 `SKILL.md` 为入口的标准目录结构。Codex 用户级 Skill 投递到 `~/.agents/skills/<name>`；Adapter 链接完整 Cellar 目录，而不是只链接入口文件，以保留 `scripts/`、`references/` 和 `assets/` 等相对资源。
-
-Agent Formula 使用统一 Markdown 入口作为可移植源码。Adapter 读取 Formula 的名称、描述与正文，确定性生成 Target 原生文件：Codex 写入 `~/.codex/agents/<name>.toml`。渲染文件的摘要与操作所有权记录在 Receipt 中；重复 link 会验证摘要，upgrade 会从新版本源码重新生成，检测到用户修改时默认拒绝覆盖或删除。
-
-Instruction Formula 同样使用 Markdown 入口。Codex Adapter 将内容写入 `~/.codex/AGENTS.md` 中以 Formula 坐标命名的受管区块，允许多个资产和用户原有内容安全共存。Receipt 记录区块标记和内容摘要，因而 unlink、uninstall 和 upgrade 只处理 HarnessBrew 拥有的区块，并在区块被修改时默认中止。
-
-Workflow 与 Prompt Formula 通过 `render-skill` 统一投影为 `<target-skill-root>/<name>/SKILL.md`。生成文件包含标准的 `name`、`description` frontmatter，以及记录原始 Formula 类型和坐标的 HarnessBrew metadata；正文保持为 Formula 的 Markdown 入口。Codex 使用相同的可移植投影模型，不依赖某个平台专有且可能废弃的 commands 目录。
-
-MCP Formula 使用统一 JSON 描述 stdio 或 HTTP transport。凭据字段只能引用环境变量名称：stdio 使用 `envVars`，HTTP 使用 `bearerTokenEnvVar` 和 `headersFromEnv`，不允许 Formula 保存明文密钥。Codex Adapter 在 `config.toml` 中生成带坐标标记的 `[mcp_servers.<name>]` 区块。Receipt 保存区块/键所有权及值摘要，冲突键、拥有值篡改和无效配置都会中止操作，卸载只移除对应键或区块。
-
-Adapter Formula 在当前版本仅作为 Git/Cellar 资产保存，不允许投递到任何内置 Target。执行层必须根据能力矩阵返回明确的 `unsupported` 错误，不得退回通用目录或 `${kind}s` 路径。第三方 Target 通过宿主显式注册的版本化 Adapter SDK 参与安装计划；HarnessBrew 不从 Tap 自动执行 Adapter Formula。
-
-#### Target Scope 与实例标识
-
-Target Context 明确区分 `user` 和 `project` scope。project scope 必须带规范化后的项目根目录；用户显式提供的 `target-root` 作为更高优先级的隔离覆盖。Codex 项目级目录为 `.agents/skills`、`.codex/agents`、项目根 `AGENTS.md` 与 `.codex/config.toml`。
-
-Target 实例的身份由 `target + destination` 决定，而不是仅由 Target 名称决定。Receipt 的每条 operation 记录 scope、显式 root 和 project root，因此同一 Formula 可以同时投递到 user/project，upgrade 会逐实例重建，unlink 只删除所选实例。如果调用方未指定 scope 且只有一个实例，为兼容旧 API 可以自动选择；存在多个实例时必须拒绝歧义操作。
-
-#### Doctor 与 Relink
-
-`doctor` 对每个 Receipt 分别校验 Cellar inventory 和 Target operation：Cellar 摘要不匹配报告 `cellar-modified`，目标不存在报告 `target-missing`，所有权标记、软链目标或渲染摘要不匹配报告 `target-modified`。诊断是只读操作，并可限定到单个 Formula。
-
-`relink` 是显式修复操作。它首先要求 Cellar inventory 完整，再根据 Receipt 保存的 scope/root 移除损坏的 HarnessBrew operation 并重新执行 Adapter 计划；共享配置仍只处理拥有的区块或键。调用方可以限定 Target 和 scope；多实例但选择条件不充分时必须拒绝执行。
-
-## 6. 主要生命周期
-
-### 6.1 注册资产源
-
-```bash
-harnessbrew tap your-name/agents git@github.com:your-name/agent-assets.git
-harnessbrew tap community/workflows https://github.com/community/agent-workflows.git
-```
-
-流程：注册 URL、克隆或获取 Tap、校验 `tap.json` 和 formula、建立本地索引，并记录显式信任状态。默认注册不授予 Target 激活权限。
-
-### 6.2 安装
-
-```bash
-harnessbrew install your-name/agents/code-review --target openai-codex
-```
-
-流程：
-
-1. 解析名称、ref 和 Git commit。
-2. 读取 formula 并求解依赖闭包。
-3. 校验 target 兼容性、信任策略与文件冲突。
-4. 将不可变内容放入 Cellar。
-5. 由 adapter 生成安装计划。
-6. 链接或渲染到目标 Agent。
-7. 写入 receipt 和 lock 状态。
-
-任何步骤失败都应回滚本次已创建的文件。
-
-### 6.3 更新与升级
-
-```bash
-harnessbrew update
-harnessbrew outdated
-harnessbrew upgrade code-review
-```
-
-- `update` 获取 Tap 的最新 Git 状态和索引，不直接修改已安装资产。默认只接受 fast-forward；历史重写必须显式使用 `--allow-rewind`。候选 checkout 或 Formula 校验失败时恢复全部已处理 Tap 的 checkout，且不提交状态变化。
-- `outdated` 比较已安装 commit、当前约束和可用版本。
-- `upgrade` 展示来源及内容差异，安装新版本，更新链接、receipt 和 lockfile。
-
-### 6.4 卸载
-
-```bash
-harnessbrew uninstall code-review
-```
-
-流程：读取 receipt、检查反向依赖和本地修改、移除 HarnessBrew 拥有的 target 文件、清理无引用 Cellar 实例并更新状态。移除资产不等于移除 Tap；只有 `untap` 才删除资产源注册和本地缓存。
-
-### 6.5 环境重建
-
-```bash
-harnessbrew bundle install
-harnessbrew bundle cleanup
-```
-
-- `bundle install` 将本机收敛到 `Harnessfile` 与 lockfile 声明的状态。
-- `bundle cleanup` 列出并可选择移除清单之外的受管资产。
-
-## 7. 分层架构
-
-### CLI layer
-
-解析命令和参数，展示安装计划、diff、冲突与操作结果，不直接操作目标 Agent 文件。所有命令支持 schema v1 JSON envelope，稳定字段包括
-`ok`、`command`、`exitCode`、`dryRun`、命令级 `result`、兼容文本 `output` 与 `diagnostics`；失败额外提供结构化 `error`。
-
-### Tap and Git layer
-
-管理 Tap 注册、clone/fetch/checkout、ref 解析、commit 锁定、本地缓存和 Git 差异。
-
-### Catalog layer
-
-发现并校验 formula，建立名称、类型、tag、target 和弃用状态索引。
-
-### Resolver layer
-
-解析资产坐标和依赖图，处理缺失依赖、循环依赖、版本约束、冲突和 target 兼容性。
-
-### Cellar and state layer
-
-管理不可变安装实例、receipt、lockfile、引用计数和垃圾清理。
-
-### Adapter layer
-
-把统一资产模型转换成目标 Agent 的目录结构和配置格式，输出确定性的安装计划。
-
-### Transaction layer
-
-执行文件创建、链接、替换和删除；负责冲突检测、摘要校验、回滚与安全卸载。
-
-所有 CLI 变更命令在同一个 HarnessBrew Home 写锁和持久化事务中执行。事务层在首次修改路径前，将原始状态写入
-`<home>/transactions/<id>/journal.json` 并保存必要的文件或目录快照；日志写入会在原子替换前同步到磁盘。命令成功后删除事务目录，
-普通异常立即按相反顺序恢复，进程崩溃则由下一次变更命令先回收已退出进程遗留的锁，再恢复未提交日志。
-
-`--dry-run` 复用同一事务实现而不是维护第二套近似 Planner：命令完成所有真实校验后，对 journal 中每条路径比较原始与结果指纹形成 `changes`，
-然后在释放 Home 写锁前无条件回滚。这样预览与真实执行共享解析、冲突和安全检查；Git fetch/clone 等只读外部操作仍可能发生。
-
-Home 外的共享 Target 文件额外记录写入后指纹。恢复前必须同时校验日志、备份和当前指纹；如果崩溃后已有其他事务修改同一路径，
-HarnessBrew 保留当前内容并报告恢复冲突，不允许旧快照覆盖后续有效更新。
-
-## 8. Git 与版本策略
-
-HarnessBrew 使用以下优先级解析版本：
-
-1. Lockfile 中的 commit SHA，用于可复现安装。
-2. 用户声明的 Git tag 或 commit。
-3. 用户声明的分支。
-4. Tap 默认分支。
-
-版本展示可以使用语义化 tag，但内部安装身份始终包含不可变 commit SHA。分支名不是稳定版本，只代表升级时要跟踪的更新通道。
-
-个人资产的推荐发布流程：
-
-1. 在个人 Tap 中编辑 formula 和内容。
-2. 使用普通 Git commit 管理变更。
-3. 可选地创建语义化 tag 作为稳定发布点。
-4. 在消费环境中运行 `update` 和 `upgrade`。
-5. 审阅 diff 后更新 lockfile。
-
-## 9. 安全和所有权边界
-
-- Tap 内容默认视为不受信任输入。
-- Tap 信任控制的是 Target 激活边界，不阻止只读发现或 Cellar 安装；撤销信任后仍允许 unlink/uninstall 等清理操作。
-- update 采用 fast-forward continuity，并在候选校验失败时回滚 checkout 与状态；`--allow-rewind` 是处理已人工确认历史重写的显式逃生口。
-- Formula 使用声明式数据格式，不默认加载 Tap 中的可执行代码。
-- 安装前展示将要写入的 target 和文件列表。
-- 安装 hook 必须声明能力并单独授权。
-- Receipt 必须保存文件摘要，用于检测安装后的用户修改。
-- 卸载只能处理 Cellar 和 receipt 明确记录的路径。
-- 同一路径只能有一个明确所有者；冲突必须在写入前解决。
-- 私有 Tap 的凭据交给系统 Git/SSH credential 管理，HarnessBrew 不保存密钥。
-
-## 10. 插件方向
-
-Agent 平台变化应与核心包管理能力解耦。Adapter 最终以插件形式提供，例如：
-
-- `@harnessbrew/adapter-openai-codex`
-- `@harnessbrew/adapter-cursor`
-
-插件接口以“输入已安装 Receipt 和 Target Context，输出确定性安装计划”为核心。注册时校验 API/插件版本和完整 Formula 能力矩阵；
-每次计划校验 Target、坐标、策略、绝对 destination 以及 source 必须位于 Cellar。能力快照在注册后冻结，第三方 Adapter 的名称与版本进入
-Harnessfile v2 lock 的 Adapter 签名。
-
-Adapter API v1 是最小安全接口：第三方只可声明单个 `symlink-file` 或 `symlink-directory` 操作（或 `unsupported`），由核心 transaction layer
-执行、记账、诊断和回滚；渲染、受管区块和配置合并仍保留给内置 Adapter。SDK 不向插件提供写入回调，也不会从 Tap 加载 JavaScript。
-
-独立 CLI 通过 `adapter add/list/remove` 管理已安装的可信 npm 模块（也接受显式绝对路径或 `file://` URL）。`adapter add` 是代码执行授权：先解析入口并记录
-SHA-256 摘要，再导入模块、执行 SDK 注册校验，并将 module specifier 与 name/version/API version 的审核快照写入 `adapters.json`。后续会在执行模块前校验入口摘要，
-且实际导出身份必须与快照完全相同；内容或身份变化时 fail closed，要求 remove 后审查并重新 add。记录用 `entry-file-sha256-v1` 明确入口级范围；旧入口摘要按同一范围解释。无摘要记录只可列出/移除，在任何已配置插件导入前即阻止加载，须审查后显式 remove/add 建立基线，不自动升级信任。
-list/remove 不导入模块，CLI 不负责运行 npm install。由于插件拥有 Node.js 宿主权限，这些检查不能替代代码审查，也不能证明所有传递依赖未发生变化。
-
-## 11. HarnessBrew 的边界
-
-HarnessBrew 负责：
-
-- 管理 Git Tap
-- 发现和校验 formula
-- 解析依赖和兼容性
-- 安装、升级和安全卸载资产
-- 管理 Cellar、receipt、Harnessfile 和 lockfile
-- 适配不同 Agent 平台
-
-HarnessBrew 不负责：
-
-- 托管用户资产或充当 Git 服务
-- 替代 Git 的历史、分支、tag 和协作能力
-- 在 formula 中重复维护资产快照历史
-- 默认执行第三方仓库中的任意脚本
-- 修改或删除不属于 HarnessBrew 的用户文件
-
-一句话概括：
-
-> HarnessBrew 不拥有资产；它通过 Git 发现、安装、组合、升级和删除 AI Agent 资产。
+快速测试覆盖领域到业务入口，并包含真实进程锁和崩溃恢复；打包测试验证实际安装后的候选包。Linux/macOS gate 与真实 Codex preflight 必须引用同一个候选包摘要。模拟 runtime 测试仅证明验收工具自身行为，不能替代真实 Codex 验证。实际执行结果见[阶段 7 记录](design/phase7-implementation.zh-CN.md)。

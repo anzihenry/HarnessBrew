@@ -5,8 +5,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { runCli } from "./helpers/legacy-cli.js";
-import { withFileLock, withHomeLock } from "../src/core/locks.js";
+import { withFileLock } from "../src/transactions/file-lock.js";
 
 test("file locks serialize independent processes", { timeout: 10_000 }, async t => {
   const root = await mkdtemp(path.join(tmpdir(), "harnessbrew-lock-"));
@@ -51,20 +50,4 @@ test("file locks time out and release after failures", async () => {
   });
   await assert.rejects(withFileLock(lockPath, async () => { throw new Error("failure"); }), /failure/);
   assert.equal(await withFileLock(lockPath, async () => "released"), "released");
-});
-
-test("mutating CLI commands wait for the HarnessBrew home lock", async () => {
-  const home = await mkdtemp(path.join(tmpdir(), "harnessbrew-home-lock-"));
-  let settled = false;
-  let command: Promise<number> | undefined;
-  await withHomeLock(home, async () => {
-    command = runCli(["untap", "missing/tap"], { stdout: () => undefined, stderr: () => undefined }, { home })
-      .then((exitCode) => {
-        settled = true;
-        return exitCode;
-      });
-    await new Promise((resolve) => setTimeout(resolve, 30));
-    assert.equal(settled, false);
-  });
-  assert.equal(await command, 1);
 });

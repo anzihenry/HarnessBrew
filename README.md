@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 HarnessBrew manages AI agent assets from Git repositories. It resolves dependencies, plans changes, and delivers skills, agents, workflows, prompts, instructions, and MCP configuration to Codex.
 
-**This checkout uses the new architecture and command/API contracts.** The published 0.8.0 documentation is not the contract for these changes. Release versioning and final removal of the old internal implementation belong to phase 7. Existing Homes, manifests, Formulae, and plugins are not migrated; use an empty Home with new format declarations.
+**This checkout prepares 1.0.0 with the new architecture and command/API contracts.** The legacy backend has been removed. See the [breaking changes and release checklist](docs/releases/release-1.0.0.md). Existing Homes, manifests, Formulae, and plugins are not migrated; use an empty Home with new format declarations.
 
 ## Run from source
 
@@ -156,7 +156,7 @@ JSON stdout contains one `harnessbrew.result` version 1 document, with `ok`, `co
 npm run check:all
 ```
 
-This runs the build, fast tests, package tests against one candidate, and historical regressions now exercised through the new service. Some legacy backend tests remain isolated from public entry points until phase 7. Runtime preflight tests use a fake runtime; real Codex acceptance is a separate environment-dependent release check.
+This runs the build, fast tests, package tests against one candidate, and historical regressions now exercised through the new service. Legacy backend tests have been removed; regression coverage uses the new service. Runtime preflight tests use a fake runtime; real Codex acceptance is a separate environment-dependent release check.
 
 See the [architecture decisions](docs/design/refactor-architecture.zh-CN.md), [contracts](docs/design/refactor-contracts.zh-CN.md), and [phase 6 implementation](docs/design/phase6-implementation.zh-CN.md).
 

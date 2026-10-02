@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.0.0 - 2026-10-02
+
+### Breaking changes
+
+- replace the legacy SDK with `createHarness`, typed business requests, and `HarnessError`; export plugin types from `harnessbrew/adapter`
+- require new versioned Home, source, asset, manifest, lock, plan, and plugin formats; old data is rejected without migration or deletion
+- remove legacy CLI aliases and use `remove`, `repair`, `bundle apply/detach`, and explicit source trust
+- replace Receipt/Cellar state with immutable content, usage requirements, resource ownership, and atomic CURRENT snapshots
+
+### Added
+
+- unified dependency resolution and planning across manual installs, upgrades, placements, and independent Bundle bindings
+- read-only previews, host-saved plans, strict stale-plan checks, and exact portable Bundle locks
+- journaled execution and metadata updates, crash recovery, cross-Home locking, and verified orphan cleanup
+- grouped Doctor diagnostics, missing-target repair, scoped shared-resource overwrite, and signed link-only plugin authorization
+- versioned CLI JSON results and separate macOS, Linux, and authenticated runtime release evidence
+
+### Removed
+
+- the unused legacy backend and its dedicated test fixtures; all remaining tests exercise the current architecture or release tooling
+
 ## 0.8.0 - 2026-09-17
 
 ### Added

@@ -1,6 +1,6 @@
 import { appendFile } from "node:fs/promises";
 import { once } from "node:events";
-import { withFileLock } from "../../src/core/locks.js";
+import { withFileLock } from "../../src/transactions/file-lock.js";
 
 const [lockPath, tracePath, name] = process.argv.slice(2);
 if (!lockPath || !tracePath || !name || !process.send) throw new Error("Expected lock, trace, name and IPC");

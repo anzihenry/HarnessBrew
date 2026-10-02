@@ -40,6 +40,8 @@ export async function smokePackage({ packagePath, manifestPath, checksumsPath, c
     const forbidden = listing.filter((entry) => /(?:^|\/)(?:tests?|scripts|\.npm-cache|\.test-dist)(?:\/|$)/u.test(entry));
     assert.deepEqual(forbidden, [], `candidate contains development-only files: ${forbidden.join(", ")}`);
 
+    assert.deepEqual(listing.filter((entry) => entry.startsWith("package/dist/core/")), [], "candidate must not ship the legacy backend");
+
     await installCandidate({
       packagePath: verified.packagePath,
       installPrefix: installRoot,
@@ -71,7 +73,7 @@ export async function smokePackage({ packagePath, manifestPath, checksumsPath, c
     const apiResult = await command(process.execPath, [
       "--input-type=module",
       "--eval",
-      'import { createHarness, HarnessError } from "harnessbrew"; import * as adapter from "harnessbrew/adapter"; console.log(`${typeof createHarness}:${typeof HarnessError}:${typeof adapter}`);'
+      'import assert from "node:assert/strict"; import * as api from "harnessbrew"; import * as adapter from "harnessbrew/adapter"; assert.deepEqual(Object.keys(api).sort(), ["HarnessError", "VERSION", "createHarness", "runCli"]); console.log(`${typeof api.createHarness}:${typeof api.HarnessError}:${typeof adapter}`);'
     ], { cwd: installRoot });
     assert.equal(apiResult.stdout.trim(), "function:function:object");
 
@@ -82,6 +84,7 @@ export async function smokePackage({ packagePath, manifestPath, checksumsPath, c
     assert.equal(installedPackage.name, verified.manifest.package.name);
     assert.equal(installedPackage.version, verified.manifest.package.version);
     assert.equal(installedPackage.engines?.node, ">=22");
+    assert.deepEqual(Object.keys(installedPackage.exports).sort(), [".", "./adapter"]);
 
     return {
       package: verified.manifest.package,
