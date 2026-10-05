@@ -38,7 +38,8 @@ test("legacy data and unknown CURRENT formats are not overwritten", async t => {
   await writeFile(path.join(store.home, "state.json"), old);
   await assert.rejects(store.initialize(), { code: "UNSUPPORTED_FORMAT" });
   assert.equal(await readFile(path.join(store.home, "state.json"), "utf8"), old);
-  assert.deepEqual(await readdir(store.home), ["state.json"]);
+  assert.deepEqual((await readdir(store.home)).filter(name => name !== ".store.lock"), ["state.json"]);
+  assert.deepEqual(await readdir(path.join(store.home, ".store.lock")), []);
   await writeFile(path.join(store.home, "CURRENT"), JSON.stringify({ format: "harnessbrew.current", version: 42 }));
   await assert.rejects(store.initialize(), { code: "UNSUPPORTED_FORMAT" });
 });

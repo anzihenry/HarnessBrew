@@ -51,7 +51,7 @@ class Application implements HarnessService {
   private async snapshot(): Promise<HomeState> {
     this.check();
     if (await exists(path.join(this.store.home, "CURRENT"))) return this.coordinator.read();
-    if (await exists(this.store.home) && (await readdir(this.store.home)).length) throw new HarnessError("UNSUPPORTED_FORMAT", "Home contains unsupported data; use an empty Home.");
+    if (await exists(this.store.home) && (await readdir(this.store.home)).some(name => name !== ".store.lock")) throw new HarnessError("UNSUPPORTED_FORMAT", "Home contains unsupported data; use an empty Home.");
     return this.initial();
   }
   private async initialize(): Promise<void> {
