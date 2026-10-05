@@ -8,18 +8,19 @@ const fields: Record<ChangeRequest["kind"], string[]> = {
   "adapter.add": ["module", "capabilities"], "adapter.remove": ["name"],
   "asset.install": ["coordinate", "placements"], "asset.upgrade": ["coordinate"], "asset.remove": ["coordinate"],
   "placement.link": ["coordinate", "placement"], "placement.unlink": ["coordinate", "placement"],
-  "bundle.apply": ["file", "updateLock"], "bundle.detach": ["binding"], "cleanup": [], "repair": ["coordinate", "placement", "overwriteOwned", "restoreContent"]
+  "bundle.apply": ["file", "updateLock"], "bundle.detach": ["binding"], "cleanup": [], "repair": ["all", "coordinate", "placement", "overwriteOwned", "restoreContent"]
 };
 export function parseRequest(value: ChangeRequest): ChangeRequest {
   try {
     if (!value || !Object.hasOwn(fields, value.kind)) throw new Error("Unknown change request");
     const item = record(value, "change request", ["kind", ...fields[value.kind]]);
     for (const key of ["name", "url", "ref", "module", "coordinate", "file", "binding"]) if (item[key] !== undefined) text(item[key], key);
-    for (const key of ["allowRewind", "updateLock", "overwriteOwned", "restoreContent"]) if (item[key] !== undefined && typeof item[key] !== "boolean") throw new Error(`${key} must be boolean`);
+    for (const key of ["all", "allowRewind", "updateLock", "overwriteOwned", "restoreContent"]) if (item[key] !== undefined && typeof item[key] !== "boolean") throw new Error(`${key} must be boolean`);
     for (const key of fields[value.kind].filter(key => !["ref", "allowRewind", "updateLock", "overwriteOwned", "restoreContent", "placements"].includes(key))) {
-      if (value.kind === "asset.upgrade" || value.kind === "tap.update" || value.kind === "repair" && key === "placement") continue;
+      if (value.kind === "asset.upgrade" || value.kind === "tap.update" || value.kind === "repair" && ["coordinate", "placement", "all"].includes(key)) continue;
       if (item[key] === undefined) throw new Error(`Missing ${key}`);
     }
+    if (value.kind === "repair" && ((item.all === true) === (item.coordinate !== undefined) || item.all === true && item.placement !== undefined)) throw new Error("Choose one asset or all assets; all cannot select a placement");
     if (item.name !== undefined) value.kind.startsWith("tap.") ? tapName(item.name) : identifier(item.name);
     if (item.capabilities !== undefined) unique(array(item.capabilities, "capabilities", v => oneOf(v, ["link-directory", "link-file", "write-file", "write-block", "set-config"] as const, "capability")), v => v, "capabilities");
     if (item.placement !== undefined) placement(item.placement);

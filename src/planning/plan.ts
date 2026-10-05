@@ -1,3 +1,4 @@
+import { outsideRepair } from "../domain/plan.js";
 import { sameSnapshot } from "../domain/assets.js";
 import { registerContents } from "../domain/content.js";
 import path from "node:path";
@@ -24,7 +25,7 @@ export interface PlanningRequest {
   state: HomeState; desired: DesiredState; catalog: CatalogSnapshot;
   adapters: AdapterProvider; io: PlanningIO; assets: AssetReader;
   home: string; userHome: string; requestDigest: Digest;
-  repair?: { operationIds: string[]; overwriteOwned: boolean; contentDigests?: Digest[] };
+  repair?: { operationIds: string[]; overwriteOwned: boolean; contentDigests?: Digest[]; assetCoordinates?: Coordinate[] };
 }
 /** Produces data-only operations and file groups. No filesystem or state writes. */
 export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
@@ -47,7 +48,7 @@ export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
   const homePath = path.dirname((await input.io.identify(path.join(home, "CURRENT"))).physicalPath);
   const old = new Map<string, AppliedOperation>();
   for (const operation of state.install.operations) {
-    const resource = await physical(operation.resource);
+    const resource = outsideRepair(input, operation.asset) ? operation.resource : await physical(operation.resource);
     const key = canonicalJson(resource);
     if (old.has(key)) throw new HarnessError("OWNERSHIP_CONFLICT", "Installed resources alias the same physical address.");
     old.set(key, { ...operation, resource });
@@ -60,6 +61,7 @@ export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
   const retained: AppliedOperation[] = [];
   const signatures = new Map<string, ChangePlan["adapterSignatures"][number]>();
   for (const asset of desired.assets) {
+    if (outsideRepair(input, asset.coordinate)) { retained.push(...state.install.operations.filter(op => op.asset === asset.coordinate)); continue; }
     const resolved = index.pinned(asset);
     if (resolved && (resolved.snapshotId !== asset.snapshotId || canonicalJson(resolved.manifest.dependencies) !== canonicalJson(asset.dependencies) || canonicalJson(resolved.manifest.conflicts) !== canonicalJson(asset.conflicts))) throw new HarnessError("INVALID_PLAN", "Desired asset differs from its pinned catalog metadata.");
     const installed = state.install.assets.find(item => item.coordinate === asset.coordinate);
@@ -127,8 +129,9 @@ export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
   const operations: PlannedOperation[] = [];
   const originals = new Map<string, TargetSnapshot>();
   // Inspect physical destinations as well: preconditions protect both alias parents and concrete files.
-  for (const resource of [...old.values()].map(op => op.resource).concat(finalResources)) originals.set(resource.path, await read(resource.path));
+  for (const resource of [...old.values()].filter(op => !outsideRepair(input, op.asset)).map(op => op.resource).concat([...expected.values()].map(op => op.operation.resource))) originals.set(resource.path, await read(resource.path));
   for (const [key, previous] of old) {
+    if (outsideRepair(input, previous.asset)) continue;
     const current = resourceFingerprint(originals.get(previous.resource.path)!, previous.resource);
     const replacement = expected.get(key);
     if (replacement && (replacement.asset !== previous.asset || replacement.operation.type !== previous.type)) throw new HarnessError("OWNERSHIP_CONFLICT", "Cannot transfer existing ownership to another asset or operation type.");

@@ -1,3 +1,4 @@
+import { outsideRepair } from "../domain/plan.js";
 import { registerContents } from "../domain/content.js";
 import { sameSnapshot } from "../domain/assets.js";
 import { assembleState } from "./state.js";
@@ -18,6 +19,16 @@ const equal = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
 function invalid(message: string): never { throw new HarnessError("INVALID_PLAN", message); }
 /** Checks executable payloads and recorded ownership without running Adapter plan() again. */
 export async function validateExecution(plan: ChangePlan, before: HomeState, catalog: CatalogIndex, adapters: AdapterProvider, home: string): Promise<void> {
+  if (plan.repair?.assetCoordinates) {
+    const scope = plan.repair.assetCoordinates;
+    if (new Set(scope).size !== scope.length || scope.some(c => !before.install.assets.some(a => a.status === "active" && a.coordinate === c))) invalid("Unknown repair scope");
+    if (!equal(plan.desiredState.owners, before.install.owners) || !equal(plan.desiredState.requirements, before.install.requirements)) invalid("Repair cannot change usage requirements");
+    if (!equal(before.install.operations.filter(op => outsideRepair(plan, op.asset)), plan.retainedOperations.filter(op => outsideRepair(plan, op.asset)))) invalid("Repair must preserve every unselected operation");
+    const active = before.install.assets.filter(a => a.status === "active");
+    if (active.length !== plan.desiredState.assets.length || plan.desiredState.assets.some(a => { const old = active.find(b => b.coordinate === a.coordinate); return !old || !equal([a.commit,a.contentDigest,a.snapshotId,a.dependencies,a.conflicts], [old.commit,old.contentDigest,old.snapshotId,old.dependencies,old.conflicts]); })) invalid("Repair cannot change installed versions");
+    if ([...plan.operations, ...plan.expectedOperations].some(op => outsideRepair(plan, op.asset))) invalid("Repair operation is outside its scope");
+    for (const id of plan.repair.contentDigests ?? []) if (active.some(a => a.contentDigest === id && !scope.includes(a.coordinate))) invalid("Repair must include all references to restored content");
+  }
   const expectedContents = registerContents(before.contents, plan.desiredState.assets.flatMap(a => { const asset = catalog.pinned(a); return asset ? [asset] : []; }), catalog.snapshot);
   if (!equal(plan.contents, expectedContents)) invalid("Plan content inventory differs from verified assets.");
   for (const snapshot of plan.sourceSnapshots) {
@@ -76,7 +87,8 @@ export async function validateExecution(plan: ChangePlan, before: HomeState, cat
   for (const retained of plan.retainedOperations) {
     const previous = before.install.operations.find(op => op.id === retained.id);
     if (!previous || !equal({ ...retained, placementIds: previous.placementIds, requirementIds: previous.requirementIds }, previous)) invalid("Retained operation differs from installed evidence.");
-    if (!equal(resourceFingerprint(await nodePlanningIO.inspect(retained.resource.path), retained.resource), retained.installedFingerprint)) throw new HarnessError("TARGET_MODIFIED", "Retained resource changed.");
+    if (outsideRepair(plan, retained.asset) && !equal(retained, previous)) invalid("Unselected repair records must remain unchanged");
+    if (!outsideRepair(plan, retained.asset) && !equal(resourceFingerprint(await nodePlanningIO.inspect(retained.resource.path), retained.resource), retained.installedFingerprint)) throw new HarnessError("TARGET_MODIFIED", "Retained resource changed.");
     const oldAsset = before.install.assets.find(asset => asset.coordinate === retained.asset), next = plan.desiredState.assets.find(asset => asset.coordinate === retained.asset);
     if (!oldAsset || !next || oldAsset.contentDigest !== next.contentDigest) invalid("Retained content version changed.");
   }

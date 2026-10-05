@@ -1,3 +1,4 @@
+import { outsideRepair } from "../domain/plan.js";
 import type { ChangePlan } from "../domain/plan.js";
 import { parseHomeState, type HomeState } from "../domain/home-state.js";
 import { HarnessError } from "../domain/errors.js";
@@ -19,7 +20,7 @@ export async function stateAfterExecution(before: HomeState, plan: ChangePlan, r
       createdDirectories: [...new Set([...(previous?.createdDirectories ?? []), ...directories.filter(dir => contained(dir, expected.operation.resource.path, false))])].sort() });
   }
   for (const operation of plan.retainedOperations) {
-    if (canonicalJson(resourceFingerprint(await nodePlanningIO.inspect(operation.resource.path), operation.resource)) !== canonicalJson(operation.installedFingerprint)) throw new HarnessError("TARGET_MODIFIED", "Retained resource changed during execution.");
+    if (!outsideRepair(plan, operation.asset) && canonicalJson(resourceFingerprint(await nodePlanningIO.inspect(operation.resource.path), operation.resource)) !== canonicalJson(operation.installedFingerprint)) throw new HarnessError("TARGET_MODIFIED", "Retained resource changed during execution.");
     operations.push(structuredClone(operation));
   }
   return assembleState(before, plan, revision, operations);

@@ -40,6 +40,11 @@ export interface ChangePlan {
   contents: ContentRecord[]; sourceSnapshots: SourceSnapshot[]; adapterSignatures: AdapterSignature[]; preconditions: ResourcePrecondition[];
   assetChanges: AssetChange[]; operations: PlannedOperation[]; fileUpdates: FileUpdate[];
   expectedOperations: ExpectedOperation[]; retainedOperations: AppliedOperation[];
-  repair?: { operationIds: string[]; overwriteOwned: boolean; contentDigests?: Digest[] };
+  repair?: { operationIds: string[]; overwriteOwned: boolean; contentDigests?: Digest[]; assetCoordinates?: Coordinate[] };
   desiredState: DesiredState; desiredStateDigest: Digest;
+}
+
+/** Unselected repair assets retain their exact committed records, without asserting their health. */
+export function outsideRepair(plan: { repair?: ChangePlan["repair"] }, asset: string): boolean {
+  return plan.repair?.assetCoordinates !== undefined && !plan.repair.assetCoordinates.includes(asset as Coordinate);
 }

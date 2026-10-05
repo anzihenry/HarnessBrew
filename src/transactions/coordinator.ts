@@ -1,3 +1,4 @@
+import { outsideRepair } from "../domain/plan.js";
 import { validateExecution } from "../execution/validate.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
@@ -300,6 +301,7 @@ export class TransactionCoordinator {
           await step(destination, "content", { kind: "content", digest: restoration.digest, device: "", inode: "" }, () => publishContent(ready, destination));
         }
         for (const asset of plan.desiredState.assets) {
+          if (outsideRepair(plan, asset.coordinate)) continue;
           const destination = path.join(this.store.home, "content", asset.contentDigest.slice(7));
           const existing = await image(destination, true);
           if (existing.kind !== "missing") {
@@ -340,6 +342,7 @@ export class TransactionCoordinator {
           if (actual.physicalPath !== expected.identity.physicalPath || canonicalJson(anchor.ancestor) !== canonicalJson(expected.identity.ancestor)) throw new HarnessError("PLAN_STALE", "A planned parent path changed during execution.");
         }
         for (const asset of plan.desiredState.assets) {
+          if (outsideRepair(plan, asset.coordinate)) continue;
           const actual = await image(path.join(this.store.home, "content", asset.contentDigest.slice(7)), true);
           if (actual.kind !== "content" || actual.digest !== asset.contentDigest) throw new HarnessError("CONTENT_MODIFIED", "Content changed before state publication.");
         }

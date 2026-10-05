@@ -17,7 +17,7 @@ export type ChangeRequest = Exclude<ResolutionRequest, { kind: "bundle.apply" } 
   | { kind: "adapter.add"; module: string; capabilities: AppliedOperationType[] }
   | { kind: "adapter.remove"; name: string }
   | { kind: "cleanup" }
-  | { kind: "repair"; coordinate: string; placement?: Placement; overwriteOwned?: boolean; restoreContent?: boolean };
+  | { kind: "repair"; coordinate?: string; all?: boolean; placement?: Placement; overwriteOwned?: boolean; restoreContent?: boolean };
 export type ReadQuery = { kind: "list" | "taps" | "adapters" | "outdated" } | { kind: "search"; text?: string } | { kind: "info"; coordinate: string };
 export interface QueryResults {
   list: { contents: HomeState["contents"]; quarantines: HomeState["quarantines"]; revision: string; assets: InstalledAsset[]; owners: HomeState["install"]["owners"]; requirements: UsageRequirement[] };

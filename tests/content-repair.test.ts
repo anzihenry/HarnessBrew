@@ -147,3 +147,57 @@ test("repair uses a canonical catalog with multiple historical and selected snap
   assert.match(await readFile(path.join(f.project, ".agents", "skills", "a", "SKILL.md"), "utf8"), /version 2/u);
   assert.equal((await f.service.doctor()).healthy, true);
 });
+
+for (const all of [false, true]) test(`repair isolates unrelated damage or restores all digests (all=${all})`, async t => {
+  const f = await applicationFixture(t);
+  for (const name of ["a", "b"]) await f.add(name);
+  await f.register();
+  for (const coordinate of ["a", "b"]) await f.service.execute({ kind: "asset.install", coordinate, placements: [f.placement] });
+  const before = await new StateStore(f.home).read();
+  for (const content of before.contents) await rm(path.join(f.home, "content", content.digest.slice(7)), { recursive: true });
+  for (const name of ["a", "b"]) await rm(path.join(f.project, ".agents", "skills", name));
+  const result = await f.service.execute(all ? { kind: "repair", all: true } : { kind: "repair", coordinate: "a" });
+  assert.equal(result.contentChanges!.length, all ? 2 : 1);
+  assert.equal((await f.service.doctor()).healthy, all);
+  if (!all) {
+    const after = await new StateStore(f.home).read();
+    assert.deepEqual(after.install.operations.filter(op => op.asset.endsWith("/b")), before.install.operations.filter(op => op.asset.endsWith("/b")));
+    await f.service.execute({ kind: "repair", coordinate: "b" });
+    assert.equal((await f.service.doctor()).healthy, true);
+  }
+});
+
+test("batch repair refuses modified content before publishing any restoration", async t => {
+  const f = await applicationFixture(t);
+  for (const name of ["a", "b"]) await f.add(name);
+  await f.register();
+  for (const coordinate of ["a", "b"]) await f.service.execute({ kind: "asset.install", coordinate, placements: [f.placement] });
+  const before = await new StateStore(f.home).read();
+  const directory = (name: string) => path.join(f.home, "content", before.install.assets.find(a => a.coordinate.endsWith(`/${name}`))!.contentDigest.slice(7));
+  await rm(directory("a"), { recursive: true }); await writeFile(path.join(directory("b"), "SKILL.md"), "preserve");
+  await assert.rejects(f.service.execute({ kind: "repair", all: true }), { code: "CONTENT_MODIFIED" });
+  assert.deepEqual(await new StateStore(f.home).read(), before);
+  await assert.rejects(access(directory("a")));
+  await f.service.execute({ kind: "repair", coordinate: "a" });
+  assert.equal(await readFile(path.join(directory("b"), "SKILL.md"), "utf8"), "preserve");
+  const { runCli } = await import("../src/cli.js");
+  assert.equal(await runCli(["repair", "--all", "--restore-content"], { stdout: () => {}, stderr: () => {} }, f.options), 0);
+  assert.equal((await f.service.doctor()).healthy, true);
+});
+
+test("batch content repair rolls back every digest when publication fails", async t => {
+  const f = await applicationFixture(t);
+  for (const name of ["a", "b"]) await f.add(name);
+  await f.register();
+  for (const coordinate of ["a", "b"]) await f.service.execute({ kind: "asset.install", coordinate, placements: [f.placement] });
+  const state = await new StateStore(f.home).read();
+  const directories = state.contents.map(c => path.join(f.home, "content", c.digest.slice(7)));
+  for (const directory of directories) await rm(directory, { recursive: true });
+  const preview = await f.service.plan({ kind: "repair", all: true });
+  const cache = path.join(path.dirname(f.home), `.harnessbrew-cache-${stableId(f.home)}`);
+  const { saved } = JSON.parse(await readFile(path.join(cache, "plans", `${preview.planId}.json`), "utf8"));
+  const coordinator = new TransactionCoordinator(f.home, { fault: point => { if (point === "before-state") throw new Error("batch failure"); } });
+  await assert.rejects(coordinator.apply({ plan: saved.plan, catalog: saved.catalog, restorations: saved.restorations, assets: catalogAssetReader(saved.catalog), adapters: await registryFor(state, cache, []) }), /batch failure/u);
+  assert.deepEqual(await new StateStore(f.home).read(), state);
+  for (const directory of directories) await assert.rejects(access(directory));
+});
