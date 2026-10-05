@@ -4,7 +4,7 @@ import { identifier, tapName } from "../domain/identity.js";
 import { array, oneOf, record, text, unique } from "../domain/validation.js";
 import type { ChangeRequest, ReadQuery } from "./types.js";
 const fields: Record<ChangeRequest["kind"], string[]> = {
-  "tap.add": ["name", "url", "ref"], "tap.update": ["name", "ref", "allowRewind"], "tap.remove": ["name"], "tap.trust": ["name"], "tap.untrust": ["name"],
+  "tap.add": ["name", "url", "ref"], "tap.update": ["name", "ref", "defaultBranch", "allowRewind"], "tap.remove": ["name"], "tap.trust": ["name"], "tap.untrust": ["name"],
   "adapter.add": ["module", "capabilities"], "adapter.remove": ["name"],
   "asset.install": ["coordinate", "placements"], "asset.upgrade": ["coordinate"], "asset.remove": ["coordinate"],
   "placement.link": ["coordinate", "placement"], "placement.unlink": ["coordinate", "placement"],
@@ -15,12 +15,13 @@ export function parseRequest(value: ChangeRequest): ChangeRequest {
     if (!value || !Object.hasOwn(fields, value.kind)) throw new Error("Unknown change request");
     const item = record(value, "change request", ["kind", ...fields[value.kind]]);
     for (const key of ["name", "url", "ref", "module", "coordinate", "file", "binding"]) if (item[key] !== undefined) text(item[key], key);
-    for (const key of ["all", "allowRewind", "updateLock", "overwriteOwned", "restoreContent"]) if (item[key] !== undefined && typeof item[key] !== "boolean") throw new Error(`${key} must be boolean`);
+    for (const key of ["all", "defaultBranch", "allowRewind", "updateLock", "overwriteOwned", "restoreContent"]) if (item[key] !== undefined && typeof item[key] !== "boolean") throw new Error(`${key} must be boolean`);
     for (const key of fields[value.kind].filter(key => !["ref", "allowRewind", "updateLock", "overwriteOwned", "restoreContent", "placements"].includes(key))) {
       if (value.kind === "asset.upgrade" || value.kind === "tap.update" || value.kind === "repair" && ["coordinate", "placement", "all"].includes(key)) continue;
       if (item[key] === undefined) throw new Error(`Missing ${key}`);
     }
     if (value.kind === "repair" && ((item.all === true) === (item.coordinate !== undefined) || item.all === true && item.placement !== undefined)) throw new Error("Choose one asset or all assets; all cannot select a placement");
+    if (item.defaultBranch === true && item.ref !== undefined) throw new Error("Choose ref or defaultBranch");
     if (item.name !== undefined) value.kind.startsWith("tap.") ? tapName(item.name) : identifier(item.name);
     if (item.capabilities !== undefined) unique(array(item.capabilities, "capabilities", v => oneOf(v, ["link-directory", "link-file", "write-file", "write-block", "set-config"] as const, "capability")), v => v, "capabilities");
     if (item.placement !== undefined) placement(item.placement);

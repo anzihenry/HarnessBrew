@@ -1,0 +1,51 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { applicationFixture } from "./helpers/application.js";
+import { git } from "./helpers/git.js";
+import { StateStore } from "../src/storage/state-store.js";
+import { runCli } from "../src/cli.js";
+
+test("Tap retains its resolved branch across updates and explicitly returns to remote HEAD", async t => {
+  const f = await applicationFixture(t); await f.add("a"); await git(f.repository, "branch", "stable");
+  await f.service.execute({ kind: "tap.add", name: "test/assets", url: f.repository, ref: "stable" });
+  const first = await new StateStore(f.home).read();
+  assert.equal(first.sources.registrations[0]!.ref, "refs/heads/stable");
+  await f.add("main-only");
+  await f.service.execute({ kind: "tap.update", name: "test/assets" });
+  assert.equal((await new StateStore(f.home).read()).sources.registrations[0]!.selectedSnapshot, first.sources.registrations[0]!.selectedSnapshot);
+  await git(f.repository, "checkout", "stable"); await f.add("stable-only");
+  const stableCommit = await git(f.repository, "rev-parse", "HEAD");
+  await git(f.repository, "checkout", "main");
+  await f.service.execute({ kind: "tap.update" });
+  const stable = await new StateStore(f.home).read();
+  assert.equal(stable.sources.snapshots.find(s => s.id === stable.sources.registrations[0]!.selectedSnapshot)!.commit.value, stableCommit.trim());
+  await assert.rejects(f.service.execute({ kind: "tap.update", defaultBranch: true }), { code: "SOURCE_REWIND" });
+  assert.deepEqual(await new StateStore(f.home).read(), stable);
+  const preview = await f.service.plan({ kind: "tap.update", defaultBranch: true, allowRewind: true });
+  assert.deepEqual(await new StateStore(f.home).read(), stable);
+  await f.service.apply(preview.planId);
+  const current = await new StateStore(f.home).read();
+  assert.equal(current.sources.registrations[0]!.ref, undefined);
+  assert.equal(current.sources.snapshots.find(s => s.id === current.sources.registrations[0]!.selectedSnapshot)!.commit.value, (await git(f.repository, "rev-parse", "HEAD")).trim());
+  await f.add("new-default"); await f.service.execute({ kind: "tap.update" });
+  assert.notEqual((await new StateStore(f.home).read()).sources.registrations[0]!.selectedSnapshot, current.sources.registrations[0]!.selectedSnapshot);
+});
+
+test("Tap tag selection stays a tag when a same-named branch appears; CLI tracking updates persist", async t => {
+  const f = await applicationFixture(t); await f.add("a"); await git(f.repository, "tag", "stable");
+  await f.service.execute({ kind: "tap.add", name: "test/assets", url: f.repository, ref: "stable" });
+  const original = await new StateStore(f.home).read();
+  assert.equal(original.sources.registrations[0]!.ref, "refs/tags/stable");
+  await f.add("b"); await git(f.repository, "branch", "stable");
+  await f.service.execute({ kind: "tap.update" });
+  assert.equal((await new StateStore(f.home).read()).sources.registrations[0]!.selectedSnapshot, original.sources.registrations[0]!.selectedSnapshot);
+  const io = { stdout: () => {}, stderr: () => {} };
+  assert.equal(await runCli(["tap", "update", "test/assets", "--ref", "refs/heads/stable"], io, f.options), 0);
+  assert.equal((await f.service.query({ kind: "taps" }))[0]!.ref, "refs/heads/stable");
+  const before = await new StateStore(f.home).read();
+  await assert.rejects(f.service.execute({ kind: "tap.update", ref: "absent" }), { code: "SOURCE_NOT_FOUND" });
+  await assert.rejects(f.service.execute({ kind: "tap.update", ref: "main", defaultBranch: true }), { code: "INVALID_ARGUMENT" });
+  assert.deepEqual(await new StateStore(f.home).read(), before);
+  assert.equal(await runCli(["tap", "update", "--default-branch"], io, f.options), 0);
+  assert.equal((await f.service.query({ kind: "taps" }))[0]!.ref, undefined);
+});

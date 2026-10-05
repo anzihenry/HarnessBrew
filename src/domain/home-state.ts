@@ -5,7 +5,7 @@ import { absolutePath, commitId, coordinate, digest, identifier, tapName, type D
 import { emptyInstallState, parseInstallState, type InstallState } from "./state.js";
 import { array, canonicalJson, format, invalid, record, sortBy, text, unique } from "./validation.js";
 
-export interface SourceRegistration { name: string; url: string; trusted: boolean; selectedSnapshot?: string }
+export interface SourceRegistration { name: string; url: string; trusted: boolean; ref?: string; selectedSnapshot?: string }
 export interface SourceState {
   format: "harnessbrew.source-state"; version: 1; registrations: SourceRegistration[]; snapshots: SourceSnapshot[];
 }
@@ -32,9 +32,10 @@ export function parseHomeState(value: unknown): HomeState {
   if (revision !== install.revision) invalid("snapshot revision");
   const sources = format(item.sources, "harnessbrew.source-state", ["registrations", "snapshots"]);
   const registrations = unique(array(sources.registrations, "sources", raw => {
-    const source = record(raw, "source registration", ["name", "url", "trusted", "selectedSnapshot"]);
+    const source = record(raw, "source registration", ["name", "url", "trusted", "ref", "selectedSnapshot"]);
     if (typeof source.trusted !== "boolean") invalid("source trust");
     return { name: tapName(source.name), url: text(source.url, "source URL"), trusted: source.trusted,
+      ...(source.ref === undefined ? {} : { ref: text(source.ref, "tracking ref") }),
       ...(source.selectedSnapshot === undefined ? {} : { selectedSnapshot: identifier(source.selectedSnapshot) }) };
   }), source => source.name, "source registrations");
   const snapshots = unique(array(sources.snapshots, "snapshots", sourceSnapshot), snapshot => snapshot.id, "snapshots");

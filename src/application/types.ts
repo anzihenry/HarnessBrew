@@ -12,7 +12,7 @@ export type ChangeRequest = Exclude<ResolutionRequest, { kind: "bundle.apply" } 
   | { kind: "bundle.apply"; file: string; updateLock?: boolean }
   | { kind: "bundle.detach"; binding: string }
   | { kind: "tap.add"; name: string; url: string; ref?: string }
-  | { kind: "tap.update"; name?: string; ref?: string; allowRewind?: boolean }
+  | { kind: "tap.update"; name?: string; ref?: string; defaultBranch?: boolean; allowRewind?: boolean }
   | { kind: "tap.remove" | "tap.trust" | "tap.untrust"; name: string }
   | { kind: "adapter.add"; module: string; capabilities: AppliedOperationType[] }
   | { kind: "adapter.remove"; name: string }

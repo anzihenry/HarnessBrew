@@ -49,3 +49,12 @@ Home 格式增加必需的内容库存；不从缺失字段或磁盘未知目录
 `repair <asset>` 只验证并修复指定资产；恢复共享内容时自动扩展到引用同一摘要的所有资产。未选资产的版本、引用和操作记录保持不变，其内容或目标损坏不会阻止本次修复。局部修复成功不代表整个 Home 健康，使用 `doctor` 获取完整检查结果。
 
 `repair --all`（SDK：`{ kind: "repair", all: true }`）修复所有活动资产，按摘要去重准备恢复内容，在同一事务中发布。任一摘要无法验证或修改内容未获 `--restore-content` 授权，均不发布；执行失败时整体回滚。`--all` 不能与资产参数或 placement 选择一起使用。预览仍通过 `--dry-run`，应用仍验证预览时的状态与内容证据。
+
+## Tap 更新策略
+
+Tap 注册信息中的 `ref` 保存完整的 `refs/heads/...` 或 `refs/tags/...`；未设置表示每次更新跟随远端 HEAD。该策略与不可变的 SourceSnapshot 分开保存，安装和 repair 继续使用已锁定的 commit。
+
+- `tap add ... --ref stable` 解析并保存具体分支或标签，后续 `tap update` 延续该选择。
+- `tap update [name] --ref refs/heads/stable` 显式改变跟踪目标。
+- `tap update [name] --default-branch` 清除固定 ref，恢复跟随远端默认分支；与 `--ref` 互斥。
+- 策略和选中快照在同一事务中发布。预览、失败或被拒绝的非快进更新不会改变策略；切换导致非快进时仍需 `--allow-rewind`。

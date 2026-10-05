@@ -47,6 +47,10 @@ export class SourceManager {
     }
   }
   async prepare(input: SourceRequest): Promise<SourceSnapshot> {
+    return (await this.prepareSelection(input)).snapshot;
+  }
+  /** Resolve tracking policy independently from immutable snapshot identity. */
+  async prepareSelection(input: SourceRequest): Promise<{ snapshot: SourceSnapshot; ref?: string }> {
     const request = structuredClone({ ...input, signal: undefined });
     const name = tapName(request.name);
     const url = text(request.url, "source URL");
@@ -83,6 +87,7 @@ export class SourceManager {
       const algorithm = await this.command(["rev-parse", "--show-object-format"], repository, input.signal);
       if (previous && previous.commit.algorithm !== algorithm) throw new HarnessError("SOURCE_MISMATCH", "Previous snapshot uses another Git object format.");
       let revision: string;
+      let trackingRef: string | undefined;
       if (locked) {
         if (algorithm !== locked.algorithm) throw new HarnessError("SOURCE_MISMATCH", "Git object format differs from the lock.");
         try { revision = await this.command(["rev-parse", "--verify", `${locked.value}^{commit}`], repository, input.signal); }
@@ -103,14 +108,15 @@ export class SourceManager {
           try { await this.command(["check-ref-format", choice], repository, input.signal); }
           catch (cause) { if (input.signal?.aborted) throw cause; throw new HarnessError("INVALID_ARGUMENT", "Expected a literal Git branch or tag.", {}, { cause }); }
         }
-        const found: string[] = [];
+        const found: { ref: string; revision: string }[] = [];
         for (const choice of choices) {
-          try { found.push(await this.command(["rev-parse", "--verify", `${choice}^{commit}`], repository, input.signal)); }
+          try { found.push({ ref: choice, revision: await this.command(["rev-parse", "--verify", `${choice}^{commit}`], repository, input.signal) }); }
           catch (error) { if (input.signal?.aborted) throw error; }
         }
         if (!found.length) throw new HarnessError("SOURCE_NOT_FOUND", `Git ref not found: ${ref}`);
-        if (new Set(found).size > 1) throw new HarnessError("INVALID_ARGUMENT", "Git ref is ambiguous; use refs/heads/ or refs/tags/.", { ref });
-        revision = found[0]!;
+        if (new Set(found.map(value => value.revision)).size > 1) throw new HarnessError("INVALID_ARGUMENT", "Git ref is ambiguous; use refs/heads/ or refs/tags/.", { ref });
+        revision = found[0]!.revision;
+        if (request.ref !== undefined) trackingRef = found[0]!.ref;
       }
       const commit = commitId({ algorithm, value: revision });
       if (!locked && previous && previous.commit.value !== commit.value && !request.allowRewind) {
@@ -131,7 +137,7 @@ export class SourceManager {
         if (snapshot.id !== id || snapshot.tap !== name || snapshot.url !== url || canonicalJson(snapshot.commit) !== canonicalJson(commit)
           || snapshot.contentLocation !== path.join(destination, "content")) throw new HarnessError("CONTENT_MODIFIED", "Cached snapshot identity changed.");
         await this.verifyTree(snapshot, files);
-        return snapshot;
+        return { snapshot, ...(trackingRef ? { ref: trackingRef } : {}) };
       }
       const temporary = `${destination}.${randomUUID()}.tmp`;
       const content = path.join(temporary, "content");
@@ -152,7 +158,7 @@ export class SourceManager {
         await this.verifyTree({ ...snapshot, contentLocation: content }, files);
         await writeFile(path.join(temporary, "snapshot.json"), `${canonicalJson({ format: "harnessbrew.source-snapshot", version: 1, snapshot })}\n`, { flag: "wx" });
         await rename(temporary, destination);
-        return snapshot;
+        return { snapshot, ...(trackingRef ? { ref: trackingRef } : {}) };
       } finally { await rm(temporary, { recursive: true, force: true }); }
     });
   }

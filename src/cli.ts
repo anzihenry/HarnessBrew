@@ -11,9 +11,9 @@ export interface CliIO { stdout(message: string): void; stderr(message: string):
 export interface CliOptions { home?: string; cwd?: string; userHome?: string }
 export interface CliJsonError { code: string; message: string; details: Readonly<Record<string, unknown>>; recovery?: unknown }
 export interface CliJsonEnvelope { format: "harnessbrew.result"; version: 1; ok: boolean; command: string; mode: "query" | "preview" | "execute" | "recover"; result?: unknown; diagnostics: string[]; error?: CliJsonError }
-const help = `HarnessBrew — Git-native package manager for AI Agent assets\nCommands: tap add|update|remove|trust|untrust|list, adapter add|remove|list,\ninstall, upgrade, remove, link, unlink, bundle apply|detach, cleanup, repair,\nrecover, doctor, list, search, info, outdated, apply-plan.\nGlobal: --home <path> --json. Changes: --dry-run.\nPlacement: --target <name> --scope user|project --project <path> --root <path>.\nRepair: <asset> or --all; --restore-content preserves modified content in quarantine; --overwrite-owned repairs shared target keys/blocks.\nBundle: apply --file <path> [--update-lock]; detach --binding <id>.`;
+const help = `HarnessBrew — Git-native package manager for AI Agent assets\nCommands: tap add|update|remove|trust|untrust|list, adapter add|remove|list,\ninstall, upgrade, remove, link, unlink, bundle apply|detach, cleanup, repair,\nrecover, doctor, list, search, info, outdated, apply-plan.\nGlobal: --home <path> --json. Changes: --dry-run.\nPlacement: --target <name> --scope user|project --project <path> --root <path>.\nTap: update retains its tracking ref; --ref <branch|tag> changes it; --default-branch follows remote HEAD.\nRepair: <asset> or --all; --restore-content preserves modified content in quarantine; --overwrite-owned repairs shared target keys/blocks.\nBundle: apply --file <path> [--update-lock]; detach --binding <id>.`;
 const values = new Set(["home", "target", "scope", "project", "root", "file", "binding", "ref", "capabilities"]);
-const flags = new Set(["all", "json", "dry-run", "update-lock", "allow-rewind", "overwrite-owned", "restore-content", "help", "version"]);
+const flags = new Set(["all", "default-branch", "json", "dry-run", "update-lock", "allow-rewind", "overwrite-owned", "restore-content", "help", "version"]);
 function invalid(message: string): never { throw new HarnessError("INVALID_ARGUMENT", message); }
 export async function runCli(argv: string[], io: CliIO = { stdout: message => process.stdout.write(message), stderr: message => process.stderr.write(message) }, options: CliOptions = {}): Promise<number> {
   const json = argv.includes("--json"), positional: string[] = [], opts = new Map<string, string | true>();
@@ -40,7 +40,7 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
     const sub = ["tap", "adapter", "bundle"].includes(command) ? positional.shift() : undefined;
     const name = sub ? `${command}.${sub}` : command;
     const allowed: Record<string, string[]> = {
-      "tap.add": ["ref"], "tap.update": ["ref", "allow-rewind"], "tap.remove": [], "tap.trust": [], "tap.untrust": [], "tap.list": [],
+      "tap.add": ["ref"], "tap.update": ["ref", "default-branch", "allow-rewind"], "tap.remove": [], "tap.trust": [], "tap.untrust": [], "tap.list": [],
       "adapter.add": ["capabilities"], "adapter.remove": [], "adapter.list": [],
       install: ["target", "scope", "project", "root"], upgrade: [], remove: [], link: ["target", "scope", "project", "root"], unlink: ["target", "scope", "project", "root"],
       "bundle.apply": ["file", "update-lock"], "bundle.detach": ["binding"], repair: ["all", "target", "scope", "project", "root", "overwrite-owned", "restore-content"], cleanup: [], recover: [], doctor: [], list: [], search: [], info: [], outdated: [], "apply-plan": [], help: [], version: []
@@ -71,7 +71,7 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
     let request: ChangeRequest;
     switch (name) {
       case "tap.add": arg(2); request = { kind: "tap.add", name: positional[0]!, url: positional[1]!, ...(value("ref") ? { ref: value("ref")! } : {}) }; break;
-      case "tap.update": request = { kind: "tap.update", ...(arg(1, true) ? { name: positional[0]! } : {}), ...(value("ref") ? { ref: value("ref")! } : {}), allowRewind: opts.has("allow-rewind") }; break;
+      case "tap.update": request = { kind: "tap.update", ...(arg(1, true) ? { name: positional[0]! } : {}), ...(value("ref") ? { ref: value("ref")! } : {}), defaultBranch: opts.has("default-branch"), allowRewind: opts.has("allow-rewind") }; break;
       case "tap.remove": case "tap.trust": case "tap.untrust": request = { kind: name, name: arg(1) }; break;
       case "adapter.add": request = { kind: name, module: arg(1), capabilities: (value("capabilities") ?? "").split(",").filter(Boolean) as AppliedOperationType[] }; break;
       case "adapter.remove": request = { kind: name, name: arg(1) }; break;
