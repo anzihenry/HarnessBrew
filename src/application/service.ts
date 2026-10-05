@@ -1,3 +1,4 @@
+import { planCleanup, type ContentCheck } from "./content.js";
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -28,7 +29,7 @@ import { diagnose } from "../diagnostics/doctor.js";
 import type { ChangeRequest, HarnessOptions, HarnessService, PlanPreview, ReadQuery, QueryResults, QueryResult } from "./types.js";
 import type { ResourcePrecondition } from "../domain/plan.js";
 
-type Saved = { format: "harnessbrew.saved-plan"; version: 1; id: string; home: string; request: ChangeRequest; baseRevision: string; candidate?: HomeState; plan?: ExecutionInput["plan"]; catalog?: CatalogSnapshot; bundleLock?: ExecutionInput["bundleLock"]; inputs: ResourcePrecondition[]; diagnostics: string[] };
+type Saved = { contentChecks?: ContentCheck[]; contentChanges?: import("./content.js").ContentChange[]; format: "harnessbrew.saved-plan"; version: 1; id: string; home: string; request: ChangeRequest; baseRevision: string; candidate?: HomeState; plan?: ExecutionInput["plan"]; catalog?: CatalogSnapshot; bundleLock?: ExecutionInput["bundleLock"]; inputs: ResourcePrecondition[]; diagnostics: string[] };
 export function createHarness(options: HarnessOptions): HarnessService { return new Application(options); }
 class Application implements HarnessService {
   private closed = false;
@@ -110,14 +111,9 @@ class Application implements HarnessService {
       saved.candidate = parseHomeState(next); return saved;
     }
     if (request.kind === "cleanup") {
-      for (const asset of state.install.assets.filter(a => a.status === "orphan")) {
-        const actual = await image(path.join(this.store.home, "content", asset.contentDigest.slice(7)), true);
-        if (actual.kind !== "content" || actual.digest !== asset.contentDigest) throw new HarnessError("CONTENT_MODIFIED", "Orphan content changed; cleanup refused.", { asset: asset.coordinate });
-      }
-      next.install.assets = next.install.assets.filter(a => a.status === "active");
-      next.contents = next.contents.filter(c => next.install.assets.some(a => a.contentDigest === c.digest) || !state.install.assets.some(a => a.contentDigest === c.digest));
-      next.sources.snapshots = next.sources.snapshots.filter(s => next.install.assets.some(a => a.snapshotId === s.id) || next.sources.registrations.some(r => r.selectedSnapshot === s.id));
-      saved.candidate = parseHomeState(next); return saved;
+      const cleanup = await planCleanup(state, this.store.home);
+      saved.candidate = parseHomeState(cleanup.candidate); saved.contentChecks = cleanup.checks; saved.contentChanges = cleanup.changes; saved.diagnostics = cleanup.diagnostics;
+      return saved;
     }
     const releasing = ["asset.remove", "placement.unlink", "bundle.detach"].includes(request.kind);
     let catalog: CatalogSnapshot = releasing ? { snapshots: [], selectedSnapshotIds: [], assets: [] } : await this.catalog(state);
@@ -164,9 +160,10 @@ class Application implements HarnessService {
     const request = parseRequest(input), saved = await this.build(await this.snapshot(), request);
     await cacheDirectory(this.cache, "plans");
     await atomicDocument(path.join(this.cache, "plans", `${saved.id}.json`), { digest: hash(canonicalJson(saved)), saved });
-    return { planId: saved.id, baseRevision: saved.baseRevision, changes: saved.plan?.assetChanges ?? [{ kind: request.kind, before: await this.snapshot(), after: saved.candidate }], retained: saved.plan?.desiredState.retained ?? [], fileUpdates: saved.plan?.fileUpdates ?? [], operations: saved.plan?.operations ?? [], diagnostics: saved.diagnostics };
+    return { contentChanges: saved.contentChanges ?? [], planId: saved.id, baseRevision: saved.baseRevision, changes: saved.plan?.assetChanges ?? [{ kind: request.kind, before: await this.snapshot(), after: saved.candidate }], retained: saved.plan?.desiredState.retained ?? [], fileUpdates: saved.plan?.fileUpdates ?? [], operations: saved.plan?.operations ?? [], diagnostics: saved.diagnostics };
   }
   private async validateInputs(saved: Saved): Promise<void> {
+    for (const expected of saved.contentChecks ?? []) if (canonicalJson(await image(expected.path, true)) !== canonicalJson(expected.before)) throw new HarnessError("PLAN_STALE", "Content changed after preview.");
     for (const expected of saved.inputs) if (canonicalJson(precondition(await nodePlanningIO.inspect(expected.path))) !== canonicalJson(expected)) throw new HarnessError("PLAN_STALE", "Manifest changed after preview.");
   }
   private async run(saved: Saved, session: import("../transactions/coordinator.js").TransactionSession): Promise<ExecutionResult> {
@@ -178,7 +175,7 @@ class Application implements HarnessService {
       if (saved.request.kind === "adapter.add") await registryFor(saved.candidate, this.cache, this.options.adapters ?? []);
       if (saved.request.kind === "tap.add" || saved.request.kind === "tap.update") await this.catalog(saved.candidate);
       const result = await session.publish(saved.candidate);
-      return result;
+      return { ...result, contentChanges: saved.contentChanges ?? [], diagnostics: [...result.diagnostics, ...saved.diagnostics] };
     }
     if (!saved.plan || !saved.catalog) throw new HarnessError("INVALID_PLAN", "Incomplete saved plan.");
     const verified = await loadCatalog(saved.catalog.snapshots, saved.catalog.selectedSnapshotIds);

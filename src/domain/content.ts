@@ -35,3 +35,5 @@ export function registerContents(existing: readonly ContentRecord[], assets: rea
 export function contentReferences(assets: readonly InstalledAsset[], id: Digest): Coordinate[] {
   return assets.filter(a => a.status === "active" && a.contentDigest === id).map(a => a.coordinate).sort();
 }
+
+export interface ContentChange { digest: Digest; action: "reclaim" | "forget-missing" | "restore"; path: string; bytes: number; affectedAssets: string[]; quarantine?: string }

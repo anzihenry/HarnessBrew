@@ -31,3 +31,30 @@ test("identical asset content shares one inventory and derives active references
   state = await new StateStore(f.home).read();
   assert.deepEqual(contentReferences(state.install.assets, state.contents[0]!.digest), ["test/assets/b"]);
 });
+
+test("cleanup reclaims upgrade history, forgets missing content and preserves unknown/modified directories", async t => {
+  const { mkdir, writeFile, rm, access } = await import("node:fs/promises");
+  const path = await import("node:path");
+  const f = await applicationFixture(t); await f.add("a"); await f.register();
+  await f.service.execute({ kind: "asset.install", coordinate: "a" });
+  const old = (await new StateStore(f.home).read()).contents[0]!;
+  await f.add("a", {}, "new"); await f.service.execute({ kind: "tap.update" }); await f.service.execute({ kind: "asset.upgrade", coordinate: "a" });
+  const preview = await f.service.plan({ kind: "cleanup" });
+  assert.deepEqual(preview.contentChanges.map(c => c.digest), [old.digest]); assert.ok(preview.contentChanges[0]!.bytes > 0);
+  await f.service.apply(preview.planId);
+  await assert.rejects(access(path.join(f.home, "content", old.digest.slice(7))));
+  await f.service.execute({ kind: "asset.remove", coordinate: "a" });
+  const current = (await new StateStore(f.home).read()).contents[0]!;
+  const destination = path.join(f.home, "content", current.digest.slice(7));
+  const stale = await f.service.plan({ kind: "cleanup" });
+  await writeFile(path.join(destination, "user.txt"), "keep");
+  await assert.rejects(f.service.apply(stale.planId), { code: "PLAN_STALE" });
+  assert.ok((await f.service.execute({ kind: "cleanup" })).diagnostics.length);
+  await access(path.join(destination, "user.txt"));
+  await mkdir(path.join(f.home, "content", "unknown"));
+  await rm(destination, { recursive: true });
+  const result = await f.service.execute({ kind: "cleanup" });
+  assert.equal(result.contentChanges![0]!.action, "forget-missing"); assert.ok(result.diagnostics.some(d => d.includes("Unregistered")));
+  assert.equal((await new StateStore(f.home).read()).contents.length, 0);
+  await access(path.join(f.home, "content", "unknown"));
+});

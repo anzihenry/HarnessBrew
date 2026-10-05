@@ -126,7 +126,7 @@ test("shared repair preserves user text; cleanup refuses modified orphan content
   await f.service.execute({ kind: "asset.remove", coordinate: "a" });
   const content = path.join(f.home, "content", state.install.assets[0]!.contentDigest.slice(7), "content.md");
   await writeFile(content, "user edit");
-  await assert.rejects(f.service.execute({ kind: "cleanup" }), { code: "CONTENT_MODIFIED" });
+  assert.ok((await f.service.execute({ kind: "cleanup" })).diagnostics.some(d => d.includes("preserved")));
   assert.equal(await readFile(content, "utf8"), "user edit");
 });
 

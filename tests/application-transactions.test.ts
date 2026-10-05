@@ -21,7 +21,7 @@ test("committed orphan cleanup resumes from its quarantined inode after interrup
   await f.service.execute({ kind: "asset.install", coordinate: "a", placements: [f.placement] });
   await f.service.execute({ kind: "asset.remove", coordinate: "a" });
   const coordinator = new TransactionCoordinator(f.home, { fault: point => { if (point === "before-cleanup") throw new Error("pause cleanup"); } });
-  const result = await coordinator.withSession(async session => { const next = await session.read(); next.install.assets = []; return session.publish(next); });
+  const result = await coordinator.withSession(async session => { const next = await session.read(); next.install.assets = []; next.contents = []; return session.publish(next); });
   assert.equal(result.diagnostics.length, 1);
   const store = new JournalStore(f.home), journal = (await store.load())!;
   assert.equal(journal.status, "committed"); assert.equal(journal.garbage!.length, 1);
@@ -39,7 +39,7 @@ test("committed cleanup preserves externally added quarantine files", async t =>
   const f = await applicationFixture(t); await f.add("a"); await f.register();
   await f.service.execute({ kind: "asset.install", coordinate: "a" }); await f.service.execute({ kind: "asset.remove", coordinate: "a" });
   const coordinator = new TransactionCoordinator(f.home, { fault: point => { if (point === "before-cleanup") throw new Error("pause cleanup"); } });
-  await coordinator.withSession(async session => { const next = await session.read(); next.install.assets = []; await session.publish(next); });
+  await coordinator.withSession(async session => { const next = await session.read(); next.install.assets = []; next.contents = []; await session.publish(next); });
   const journal = (await new JournalStore(f.home).load())!, entry = journal.garbage![0]!;
   const { rename, writeFile } = await import("node:fs/promises");
   await rename(entry.path, entry.quarantine); const extra = path.join(entry.quarantine, "user-data"); await writeFile(extra, "keep me");

@@ -30,7 +30,7 @@ export interface QueryResults {
 export type QueryResult = QueryResults[keyof QueryResults];
 export interface DoctorFinding { category: "content" | "target" | "dependency" | "ownership" | "state"; code: string; severity: "error"; message: string; asset?: string; operation?: string; resource?: string; actions: string[] }
 export interface DoctorReport { healthy: boolean; complete: boolean; findings: DoctorFinding[] }
-export interface PlanPreview { planId: string; baseRevision: string; changes: unknown[]; retained: ChangePlan["desiredState"]["retained"]; fileUpdates: ChangePlan["fileUpdates"]; operations: ChangePlan["operations"]; diagnostics: string[] }
+export interface PlanPreview { contentChanges: import("./content.js").ContentChange[]; planId: string; baseRevision: string; changes: unknown[]; retained: ChangePlan["desiredState"]["retained"]; fileUpdates: ChangePlan["fileUpdates"]; operations: ChangePlan["operations"]; diagnostics: string[] }
 export interface RecoveryResult { recovered: boolean; diagnostics: string[] }
 export interface HarnessService {
   plan(request: ChangeRequest): Promise<PlanPreview>;

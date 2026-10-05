@@ -45,8 +45,9 @@ export class JournalStore {
         if (path.dirname(entry.path) !== path.join(this.home, "content") || !/^[a-f0-9]{64}$/u.test(path.basename(entry.path))
           || entry.quarantine !== path.join(this.home, `.cleanup-${journal.id}-${path.basename(entry.path)}`) || entry.image.kind !== "content"
           || entry.image.digest !== `sha256:${path.basename(entry.path)}` || !Array.isArray(entry.inventory) || !entry.parent
-          || !journal.beforeState.install.assets.some(a => a.status === "orphan" && a.contentDigest === entry.image.digest)
-          || journal.nextState?.install.assets.some(a => a.contentDigest === entry.image.digest)) throw new Error("Invalid cleanup evidence");
+          || !journal.beforeState.contents.some(c => c.digest === entry.image.digest)
+          || journal.beforeState.install.assets.some(a => a.status === "active" && a.contentDigest === entry.image.digest)
+          || journal.nextState?.contents.some(c => c.digest === entry.image.digest)) throw new Error("Invalid cleanup evidence");
       }
       return journal;
     } catch (cause) { throw new HarnessError("RECOVERY_REQUIRED", "Journal is damaged; preserve it for explicit inspection.", { path: this.file }, { cause }); }

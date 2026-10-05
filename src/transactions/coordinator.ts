@@ -30,7 +30,7 @@ export interface ExecutionInput {
   bundleLock?: { path: string; before: ResourcePrecondition };
 }
 export type OperationResult = Pick<ChangePlan["operations"][number], "id" | "asset" | "placementIds" | "resource" | "type" | "reason">;
-export interface ExecutionResult { operations: OperationResult[]; transactionId?: string; committedRevision: string; changes: ChangePlan["assetChanges"]; retained: ChangePlan["desiredState"]["retained"]; diagnostics: string[] }
+export interface ExecutionResult { contentChanges?: import("../domain/content.js").ContentChange[]; operations: OperationResult[]; transactionId?: string; committedRevision: string; changes: ChangePlan["assetChanges"]; retained: ChangePlan["desiredState"]["retained"]; diagnostics: string[] }
 export interface TransactionSession {
   read(): Promise<HomeState>;
   apply(input: ExecutionInput): Promise<ExecutionResult>;
@@ -103,13 +103,15 @@ export class TransactionCoordinator {
       || canonicalJson(before.install.assets.filter(a => a.status === "active")) !== canonicalJson(candidate.install.assets.filter(a => a.status === "active"))) throw new HarnessError("INVALID_PLAN", "Metadata publication cannot change active installs.");
     const revision = randomUUID(), next = { ...candidate, revision, install: { ...candidate.install, revision } };
     const journal: Journal = { format: "harnessbrew.journal", version: 1, id: randomUUID(), home: this.store.home, status: "prepared", beforeState: before, nextRevision: revision, nextState: next, steps: [] };
-    const removed = [...new Map(before.install.assets.filter(a => !candidate.install.assets.some(b => b.contentDigest === a.contentDigest)).map(a => [a.contentDigest, a])).values()];
+    const removed = before.contents.filter(c => !candidate.contents.some(next => next.digest === c.digest));
     journal.garbage = [];
-    for (const asset of removed) {
-      const actual = await image(path.join(this.store.home, "content", asset.contentDigest.slice(7)), true);
-      if (actual.kind !== "content" || actual.digest !== asset.contentDigest) throw new HarnessError("CONTENT_MODIFIED", "Orphan content is missing or modified.", { asset: asset.coordinate });
-      const destination = path.join(this.store.home, "content", asset.contentDigest.slice(7));
-      journal.garbage.push({ path: destination, quarantine: path.join(this.store.home, `.cleanup-${journal.id}-${asset.contentDigest.slice(7)}`), image: actual, inventory: (await inspectContent(destination)).entries, parent: await nodePlanningIO.identify(destination) });
+    for (const content of removed) {
+      if (before.install.assets.some(a => a.status === "active" && a.contentDigest === content.digest)) throw new HarnessError("INVALID_PLAN", "Cannot reclaim referenced content.");
+      const actual = await image(path.join(this.store.home, "content", content.digest.slice(7)), true);
+      if (actual.kind === "missing") continue;
+      if (actual.kind !== "content" || actual.digest !== content.digest) throw new HarnessError("CONTENT_MODIFIED", "Orphan content is missing or modified.", { digest: content.digest });
+      const destination = path.join(this.store.home, "content", content.digest.slice(7));
+      journal.garbage.push({ path: destination, quarantine: path.join(this.store.home, `.cleanup-${journal.id}-${content.digest.slice(7)}`), image: actual, inventory: (await inspectContent(destination)).entries, parent: await nodePlanningIO.identify(destination) });
     }
     try {
       await store.save(journal);
