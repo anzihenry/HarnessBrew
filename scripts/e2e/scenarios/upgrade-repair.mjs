@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, rm, symlink } from "node:fs/promises";
+import { access, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createTapFixture } from "../fixture-tap.mjs";
 export async function upgradeRepairScenario({ environment, cli }) {
@@ -20,4 +20,26 @@ export async function upgradeRepairScenario({ environment, cli }) {
   await run(["repair", "main-skill"]); assert.equal((await run(["doctor"])).envelope.result.healthy, true);
   await rm(target); await symlink("/unmanaged/content", target);
   await run(["repair", "main-skill", "--overwrite-owned"], { expectExitCode: 1 });
+  await rm(target); await run(["repair", "main-skill"]);
+  const inventory = (await run(["list"])).envelope.result;
+  const installed = inventory.assets.find(a => a.coordinate.endsWith("/main-skill"));
+  const content = path.join(home, "content", installed.contentDigest.slice(7));
+  const original = await readFile(path.join(content, "SKILL.md"), "utf8");
+  await rm(content, { recursive: true }); await rm(target);
+  const restored = await run(["repair", "main-skill"]);
+  assert.equal(restored.envelope.result.contentChanges[0].digest, installed.contentDigest);
+  assert.equal(await readFile(path.join(target, "SKILL.md"), "utf8"), original);
+  await writeFile(path.join(content, "SKILL.md"), "user modifications");
+  await run(["repair", "main-skill"], { expectExitCode: 1 });
+  const repaired = await run(["repair", "main-skill", "--restore-content"]);
+  const quarantine = repaired.envelope.result.contentChanges[0].quarantine;
+  assert.equal(await readFile(path.join(quarantine, "SKILL.md"), "utf8"), "user modifications");
+  assert.equal((await run(["doctor"])).envelope.result.healthy, true);
+  const preview = await run(["cleanup", "--dry-run"]);
+  assert.ok(preview.envelope.result.contentChanges.length > 0, "upgrade history must be reclaimable");
+  await run(["apply-plan", preview.envelope.result.planId]);
+  await run(["remove", "main-skill"]); await run(["cleanup"]);
+  assert.equal((await run(["list"])).envelope.result.contents.length, 0);
+  await access(quarantine);
+
 }

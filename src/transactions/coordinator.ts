@@ -291,8 +291,8 @@ export class TransactionCoordinator {
             await checkpoint("after-quarantine", destination);
           }
           // Copy and verify through the pinned reader; never trust a caller-provided arbitrary directory rename.
-          const asset = plan.desiredState.assets.find(a => a.contentDigest === restoration.digest)!;
-          const source = catalog.pinned(asset);
+          const asset = plan.desiredState.assets.find(a => a.contentDigest === restoration.digest && catalog.pinned(a))!;
+          const source = asset && catalog.pinned(asset);
           if (!source) throw new HarnessError("SOURCE_NOT_FOUND", "Recovery source is unavailable.");
           await mkdir(staging, { recursive: true, mode: 0o700 });
           const ready = path.join(staging, restoration.digest.slice(7));

@@ -1,3 +1,4 @@
+import { once } from "node:events";
 import assert from "node:assert/strict";
 import test from "node:test";
 import path from "node:path";
@@ -76,4 +77,73 @@ test("CLI repair exposes content restoration and Doctor distinguishes damage, qu
   const healthy = await f.service.doctor(); assert.equal(healthy.healthy, true);
   assert.ok(healthy.findings.some(finding => finding.code === "CONTENT_UNREGISTERED"));
   assert.ok(healthy.findings.some(finding => finding.code === "CONTENT_QUARANTINED"));
+});
+
+test("shared content with lost source snapshots is restored once and repairs all affected targets", async t => {
+  const f = await applicationFixture(t);
+  for (const name of ["a", "b"]) await f.add(name, { kind: "instruction", description: "same" }, "shared instructions");
+  await f.register();
+  for (const coordinate of ["a", "b"]) await f.service.execute({ kind: "asset.install", coordinate, placements: [f.placement] });
+  const state = await new StateStore(f.home).read(); assert.equal(state.contents.length, 1);
+  await rm(path.join(f.home, "content", state.contents[0]!.digest.slice(7)), { recursive: true });
+  await rm(path.join(f.project, "AGENTS.md"));
+  for (const snapshot of state.sources.snapshots) await rm(snapshot.contentLocation, { recursive: true, force: true });
+  const result = await f.service.execute({ kind: "repair", coordinate: "b" });
+  assert.equal(result.contentChanges!.length, 1); assert.equal(result.contentChanges![0]!.affectedAssets.length, 2);
+  assert.equal((await f.service.doctor()).healthy, true);
+  await f.service.execute({ kind: "asset.remove", coordinate: "a" }); await f.service.execute({ kind: "cleanup" });
+  assert.equal((await new StateStore(f.home).read()).contents.length, 1);
+});
+
+for (const checkpoint of ["after-quarantine", "after-record", "after-state", "committed", "after-write"] as const) test(`real SIGKILL recovery for content repair at ${checkpoint}`, { timeout: 30000 }, async t => {
+  const { fork } = await import("node:child_process");
+  const f = await damagedFixture(t); await writeFile(f.entry, "original user bytes");
+  const preview = await f.service.plan({ kind: "repair", coordinate: "a", restoreContent: true });
+  const cache = path.join(path.dirname(f.home), `.harnessbrew-cache-${stableId(f.home)}`);
+  const child = fork(new URL("./helpers/content-repair-child.js", import.meta.url), [f.home, cache, preview.planId, checkpoint], { stdio: ["ignore", "ignore", "pipe", "ipc"] });
+  t.after(() => { if (child.exitCode === null) child.kill("SIGKILL"); });
+  const exited = once(child, "exit");
+  const ready = await Promise.race([once(child, "message"), exited.then(() => { throw new Error("Child exited before checkpoint"); })]);
+  assert.equal((ready[0] as { checkpoint: string }).checkpoint, checkpoint);
+  child.kill("SIGKILL"); await exited;
+  if (checkpoint === "after-write") {
+    await assert.rejects(f.service.recover(), { code: "RECOVERY_REQUIRED" });
+    await access(path.join(f.home, "transaction.json"));
+  } else {
+    await f.service.recover();
+    assert.equal(await readFile(f.entry, "utf8"), checkpoint === "committed" ? f.original : "original user bytes");
+    const state = await new StateStore(f.home).read();
+    if (checkpoint === "committed") assert.equal(await readFile(path.join(state.quarantines[0]!.path, "SKILL.md"), "utf8"), "original user bytes");
+    else assert.deepEqual(state, f.state);
+  }
+});
+
+test("external changes to quarantine stop rollback and preserve both locations", async t => {
+  const f = await damagedFixture(t); await writeFile(f.entry, "original");
+  const preview = await f.service.plan({ kind: "repair", coordinate: "a", restoreContent: true });
+  const cache = path.join(path.dirname(f.home), `.harnessbrew-cache-${stableId(f.home)}`);
+  const { saved } = JSON.parse(await readFile(path.join(cache, "plans", `${preview.planId}.json`), "utf8"));
+  const { JournalStore } = await import("../src/transactions/journal.js");
+  const coordinator = new TransactionCoordinator(f.home, { fault: async point => {
+    if (point === "after-quarantine") {
+      const journal = (await new JournalStore(f.home).load())!;
+      await writeFile(path.join(journal.restorations![0]!.quarantine, "SKILL.md"), "external data"); throw new Error("injected");
+    }
+  } });
+  await assert.rejects(coordinator.apply({ plan: saved.plan, catalog: saved.catalog, restorations: saved.restorations, assets: catalogAssetReader(saved.catalog), adapters: await registryFor(f.state, cache, []) }), { code: "RECOVERY_REQUIRED" });
+  const journal = (await new JournalStore(f.home).load())!;
+  assert.equal(await readFile(path.join(journal.restorations![0]!.quarantine, "SKILL.md"), "utf8"), "external data");
+});
+
+test("repair uses a canonical catalog with multiple historical and selected snapshots", async t => {
+  const f = await damagedFixture(t);
+  for (const version of [2, 3]) {
+    await f.add("a", {}, `---\nname: a\ndescription: test\n---\nversion ${version}\n`);
+    await f.service.execute({ kind: "tap.update" });
+    if (version === 2) await f.service.execute({ kind: "asset.upgrade", coordinate: "a" });
+  }
+  await rm(path.join(f.project, ".agents", "skills", "a"));
+  await f.service.execute({ kind: "repair", coordinate: "a" });
+  assert.match(await readFile(path.join(f.project, ".agents", "skills", "a", "SKILL.md"), "utf8"), /version 2/u);
+  assert.equal((await f.service.doctor()).healthy, true);
 });

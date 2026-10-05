@@ -41,7 +41,7 @@ export async function diagnose(store: StateStore, coordinate?: string): Promise<
     const assets = state.install.assets.filter(a => a && a.status === "active");
     for (const asset of state.install.assets) {
       if (coordinate && asset?.coordinate !== coordinate && !(typeof asset?.coordinate === "string" && asset.coordinate.endsWith(`/${coordinate}`))) continue;
-      if (!asset || !/^sha256:[a-f0-9]{64}$/u.test(asset.contentDigest) || !state.contents?.some(c => c?.digest === asset.contentDigest)) add("content", new Error("Asset has no valid content inventory reference."), { asset: asset?.coordinate });
+      if (!asset || !/^sha256:[a-f0-9]{64}$/u.test(asset.contentDigest) || !(Array.isArray(state.contents) && state.contents.some(c => c?.digest === asset.contentDigest))) add("content", new Error("Asset has no valid content inventory reference."), { asset: asset?.coordinate });
       if (asset?.status === "active") try { dependencyClosure(asset.coordinate, name => assets.find(a => a.coordinate === name)); assertNoConflicts(assets); }
       catch (error) { add("dependency", error, { asset: asset.coordinate }); }
     }
@@ -65,7 +65,7 @@ export async function diagnose(store: StateStore, coordinate?: string): Promise<
           if (!(await lstat(root)).isDirectory()) throw new Error("Content root must be a directory.");
           for (const name of await readdir(root)) if (!contents.some(c => c?.digest === `sha256:${name}`)) findings.push({ category: "content", code: "CONTENT_UNREGISTERED", severity: "warning", message: "Unregistered content is preserved and will not be reclaimed.", resource: path.join(root, name), actions: ["inspect"] });
         }
-        for (const quarantine of state.quarantines ?? []) findings.push({ category: "content", code: "CONTENT_QUARANTINED", severity: "info", message: "Original content was preserved during repair; inspect the recorded location before manual disposal.", digest: quarantine.digest, resource: quarantine.path, actions: ["inspect"] });
+        for (const quarantine of Array.isArray(state.quarantines) ? state.quarantines : []) findings.push({ category: "content", code: "CONTENT_QUARANTINED", severity: "info", message: "Original content was preserved during repair; inspect the recorded location before manual disposal.", digest: quarantine.digest, resource: quarantine.path, actions: ["inspect"] });
       } catch (error) { complete = false; add("content", error); }
     }
     for (const operation of state.install.operations) {

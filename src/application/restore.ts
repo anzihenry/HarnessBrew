@@ -7,7 +7,7 @@ import { sameSnapshot, type SourceSnapshot } from "../domain/assets.js";
 import { resolveAsset } from "../domain/identity.js";
 import { HarnessError } from "../domain/errors.js";
 import { sameVersion } from "../domain/catalog-index.js";
-import { canonicalJson } from "../domain/validation.js";
+import { canonicalJson, sortBy } from "../domain/validation.js";
 import { SourceManager } from "../sources/manager.js";
 import { catalogAssetReader } from "../ports/planning.js";
 import { stageContent } from "../execution/content.js";
@@ -22,7 +22,7 @@ export async function prepareRestore(state: HomeState, query: string, cache: str
   if (!registration?.trusted || registration.url !== origin.snapshot.url) throw new HarnessError("SOURCE_UNTRUSTED", "Content restoration requires the original trusted source.");
   await cacheDirectory(cache, "restores");
   const working = path.join(cache, "restores", randomUUID());
-  let snapshot: SourceSnapshot = origin.snapshot, exact: CatalogSnapshot;
+  let snapshot: SourceSnapshot = state.sources.snapshots.find(s => s.id === origin.snapshot.id) ?? origin.snapshot, exact: CatalogSnapshot;
   try { exact = await loadCatalog([snapshot], []); }
   catch {
     snapshot = await new SourceManager(path.join(working, "sources")).prepare({ name: snapshot.tap, url: snapshot.url, commit: snapshot.commit });
@@ -35,9 +35,17 @@ export async function prepareRestore(state: HomeState, query: string, cache: str
   const snapshots = new Map([[snapshot.id, snapshot]]), assets = [...exact.assets];
   for (const previous of state.sources.snapshots) {
     if (snapshots.has(previous.id)) continue;
-    try { const available = await loadCatalog([previous], []); snapshots.set(previous.id, previous); assets.push(...available.assets); } catch { /* Unchanged operations use committed evidence. */ }
+    try { const available = await loadCatalog([previous], []); snapshots.set(previous.id, previous); assets.push(...available.assets); }
+    catch {
+      if (!state.install.assets.some(a => a.status === "active" && a.contentDigest === content.digest && a.snapshotId === previous.id)) continue;
+      const trusted = state.sources.registrations.find(s => s.name === previous.tap && s.url === previous.url && s.trusted);
+      if (!trusted) throw new HarnessError("SOURCE_UNTRUSTED", "Shared content restoration requires trusted sources.");
+      const recovered = await new SourceManager(path.join(working, "sources")).prepare({ name: previous.tap, url: previous.url, commit: previous.commit });
+      if (!sameSnapshot(recovered, previous)) throw new HarnessError("CONTENT_MODIFIED", "Shared recovery source differs from recorded provenance.");
+      const available = await loadCatalog([recovered], []); snapshots.set(recovered.id, recovered); assets.push(...available.assets);
+    }
   }
-  const catalog: CatalogSnapshot = { snapshots: [...snapshots.values()], assets, selectedSnapshotIds: [] };
+  const catalog: CatalogSnapshot = { snapshots: sortBy([...snapshots.values()], s => s.id), assets: sortBy(assets, a => `${a.manifest.coordinate}:${a.snapshotId}`), selectedSnapshotIds: [] };
   // stageContent requires its parent; cacheDirectory also rejects symlink caches.
   await cacheDirectory(working, "staged");
   const staged = path.join(working, "staged", content.digest.slice(7));

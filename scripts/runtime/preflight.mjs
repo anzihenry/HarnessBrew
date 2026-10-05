@@ -131,6 +131,13 @@ async function installRuntimeAssets(cli, fixture, project) {
     await cli.run(["install", formula, "--scope", "project", "--project", project]);
     await cli.run(["link", formula, "--target", "openai-codex", "--scope", "project", "--project", project]);
   }
+  const skillEntry = path.join(await realpath(path.join(project, ".agents", "skills", "harnessbrew-runtime-skill")), "SKILL.md");
+  const originalSkill = await readFile(skillEntry, "utf8");
+  await writeFile(skillEntry, "runtime fixture damage before explicit restoration\n", "utf8");
+  const repaired = await cli.runJson(["repair", "harnessbrew-runtime-skill", "--restore-content"]);
+  const restoredContent = repaired.envelope.result.contentChanges?.[0];
+  if (!restoredContent?.quarantine || await readFile(skillEntry, "utf8") !== originalSkill) throw new Error("Runtime fixture content restoration failed.");
+  if (await readFile(path.join(restoredContent.quarantine, "SKILL.md"), "utf8") !== "runtime fixture damage before explicit restoration\n") throw new Error("Runtime fixture quarantine was not preserved.");
   const codexConfigPath = path.join(project, ".codex", "config.toml");
   const codexConfig = await readFile(codexConfigPath, "utf8");
   const parsed = getStaticTOMLValue(parseTOML(codexConfig));
@@ -138,6 +145,7 @@ async function installRuntimeAssets(cli, fixture, project) {
   if (!server || Object.keys(parsed).some(key => key !== "mcp_servers") || Object.keys(parsed.mcp_servers).length !== 1) throw new Error("Unexpected runtime fixture configuration.");
   // This is the isolated runtime harness's sole server. Write its approval setting explicitly.
   await writeFile(codexConfigPath, `[mcp_servers.harnessbrew-runtime-mcp]\ndefault_tools_approval_mode = "approve"\n${Object.entries(server).map(([key, value]) => `${JSON.stringify(key)} = ${JSON.stringify(value)}`).join("\n")}\n`, "utf8");
+  return { status: "passed", digest: restoredContent.digest, quarantinePreserved: true };
 }
 
 async function prepareCodexHome(codexHome, project) {
@@ -212,7 +220,7 @@ export async function runRuntimePreflight({
       environment: isolatedEnvironment
     });
     const cli = new PackagedCliDriver({ binary, root, paths: { project: paths.project }, environment: isolatedEnvironment });
-    await installRuntimeAssets(cli, fixture, paths.project);
+    const contentRestoration = await installRuntimeAssets(cli, fixture, paths.project);
     codexAuthBridge = await prepareCodexHome(paths.codexHome, paths.project);
     const adapters = runtimeAdapters ?? [
       { name: "codex", runtime: "codex", binary: "codex", runProbe: runCodexProbe }
@@ -238,6 +246,7 @@ export async function runRuntimePreflight({
       startedAt,
       completedAt: new Date().toISOString(),
       status: runtimeReportStatus(runtimes),
+      contentRestoration,
       runtimes
     };
     await mkdir(reportRoot, { recursive: true });

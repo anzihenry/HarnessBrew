@@ -1,3 +1,4 @@
+import { HarnessError } from "../domain/errors.js";
 import { lstat, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { HomeState } from "../domain/home-state.js";
@@ -11,7 +12,7 @@ export async function planCleanup(state: HomeState, home: string) {
   const candidate = structuredClone(state), checks: ContentCheck[] = [], changes: ContentChange[] = [], diagnostics: string[] = [];
   const root = path.join(home, "content");
   if (await exists(root)) {
-    if (!(await lstat(root)).isDirectory()) throw new Error("Content root must be a directory.");
+    if (!(await lstat(root)).isDirectory()) throw new HarnessError("CONTENT_MODIFIED", "Content root must be a directory.");
     for (const name of await readdir(root)) if (!state.contents.some(c => c.digest === `sha256:${name}`)) diagnostics.push(`Unregistered content preserved: ${path.join(root, name)}`);
   }
   for (const content of state.contents) {

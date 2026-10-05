@@ -1,6 +1,6 @@
 import { parseContents, type ContentRecord } from "./content.js";
 import { placementId } from "./placement.js";
-import { type SourceSnapshot, sourceSnapshot } from "./assets.js";
+import { type SourceSnapshot, sourceSnapshot, sameSnapshot } from "./assets.js";
 import { absolutePath, commitId, coordinate, digest, identifier, tapName, type Digest } from "./identity.js";
 import { emptyInstallState, parseInstallState, type InstallState } from "./state.js";
 import { array, canonicalJson, format, invalid, record, sortBy, text, unique } from "./validation.js";
@@ -51,6 +51,7 @@ export function parseHomeState(value: unknown): HomeState {
     const content = contents.find(c => c.digest === asset.contentDigest);
     if (!content || !content.origins.some(o => o.coordinate === asset.coordinate && o.snapshot.id === asset.snapshotId && canonicalJson(o.snapshot.commit) === canonicalJson(asset.commit))) invalid("installed content reference");
     const snapshot = snapshotsById.get(asset.snapshotId);
+    if (snapshot && !content.origins.some(o => o.coordinate === asset.coordinate && sameSnapshot(o.snapshot, snapshot))) invalid("content provenance reference");
     if (!snapshot || (asset.status === "active" && !sourcesByName.has(snapshot.tap)) || snapshot.tap !== coordinate(asset.coordinate).split("/").slice(0, 2).join("/")
       || canonicalJson(commitId(snapshot.commit)) !== canonicalJson(asset.commit)) invalid("installed source snapshot");
   }
