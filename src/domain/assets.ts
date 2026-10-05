@@ -58,3 +58,9 @@ export function resolvedAsset(value: unknown): ResolvedAsset {
   if (parsed.contentDigest !== inventoryDigest(parsed.inventory)) invalid("asset inventory digest");
   return parsed;
 }
+
+/** Cache location is disposable; provenance and verified tree identity are not. */
+export function sameSnapshot(left: SourceSnapshot, right: SourceSnapshot): boolean {
+  const { contentLocation: _left, ...a } = left, { contentLocation: _right, ...b } = right;
+  return canonicalJson(a) === canonicalJson(b);
+}
