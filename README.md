@@ -48,7 +48,7 @@ harnessbrew cleanup
 | `link/unlink <asset>` | Add/release a manual root's placement |
 | `bundle apply --file <path> [--update-lock]` | Reconcile one Bundle binding and its portable lock |
 | `bundle detach --binding <id>` | Release a binding, including when its manifest is gone |
-| `repair <asset> [--overwrite-owned]` | Rebuild missing operations; explicit overwrite is limited to verified shared keys/blocks |
+| `repair <asset> [--restore-content] [--overwrite-owned]` | Restore exact installed content and missing targets; modified content is quarantined, target overwrite remains limited to shared keys/blocks |
 | `cleanup`, `recover`, `doctor [asset]` | Reclaim orphan content, recover a transaction, or inspect consistency |
 | `list`, `search [text]`, `info <asset>`, `outdated` | Query committed state and candidate snapshots |
 | `adapter add <directory> --capabilities link-directory,link-file` | Authorize and load an already installed plugin |
@@ -163,3 +163,17 @@ See the [architecture decisions](docs/design/refactor-architecture.zh-CN.md), [c
 ## License
 
 MIT.
+
+## Content reclamation and restoration
+
+Home `contents` records managed inventories and exact provenance by digest. Active installs determine references; upgrades retain old digest records. `cleanup --dry-run --json` previews unreferenced content reclamation. Cleanup forgets missing unreferenced directories, preserves modified and unregistered content, and does not delete historical revisions, source caches or repair quarantines.
+
+`repair <asset>` restores missing content and targets from the installed commit, without upgrading. When the source cache is missing or damaged, it fetches that exact commit into an isolated cache. Sources must remain trusted. Preparation happens outside the write transaction; execution rechecks revision and content evidence.
+
+Use `repair <asset> --restore-content` to explicitly preserve modified content in quarantine and restore verified bytes. `--overwrite-owned` separately authorizes shared target key/block repair. Unsupported special files stop restoration for inspection. The same digest is restored once for all active references.
+
+Preview and execution `contentChanges` include digest, action, file byte count, affected assets and recovery commit. Completed restoration also reports quarantine paths. SDK requests use `restoreContent: true`; `query({kind: "list"})` includes `contents` and `quarantines`.
+
+Doctor distinguishes missing, modified, unreferenced, unregistered and quarantined content. Informational/warning findings alone do not make the report unhealthy; errors or incomplete inspection do. Quarantines are preserved for manual review and disposal.
+
+Home now requires `contents` and `quarantines`; earlier experimental Homes are not migrated. Use a fresh Home and preserve old data for inspection.

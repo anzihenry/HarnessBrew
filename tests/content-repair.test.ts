@@ -62,3 +62,18 @@ test("saved repair refuses content changes after preview", async t => {
   await assert.rejects(f.service.apply(preview.planId), { code: "PLAN_STALE" });
   assert.equal(await readFile(f.entry, "utf8"), "new user data");
 });
+
+test("CLI repair exposes content restoration and Doctor distinguishes damage, quarantine and unknown content", async t => {
+  const f = await damagedFixture(t); await writeFile(f.entry, "preserve");
+  const report = await f.service.doctor();
+  assert.ok(report.findings.some(finding => finding.code === "CONTENT_MODIFIED" && finding.actions.includes("repair --restore-content") && finding.affectedAssets?.includes("test/assets/a")));
+  const { runCli } = await import("../src/cli.js"); let stdout = "";
+  const exit = await runCli(["repair", "a", "--restore-content", "--json"], { stdout: text => { stdout += text; }, stderr: () => undefined }, f.options);
+  assert.equal(exit, 0); const result = JSON.parse(stdout).result;
+  assert.equal(result.contentChanges[0].digest, f.digest); assert.ok(result.contentChanges[0].bytes > 0); assert.ok(result.contentChanges[0].quarantine);
+  assert.deepEqual(result.contentChanges[0].commit, f.state.install.assets[0]!.commit);
+  const { mkdir } = await import("node:fs/promises"); await mkdir(path.join(f.home, "content", "unknown"));
+  const healthy = await f.service.doctor(); assert.equal(healthy.healthy, true);
+  assert.ok(healthy.findings.some(finding => finding.code === "CONTENT_UNREGISTERED"));
+  assert.ok(healthy.findings.some(finding => finding.code === "CONTENT_QUARANTINED"));
+});

@@ -48,7 +48,7 @@ harnessbrew cleanup
 | `link/unlink <asset>` | 添加或释放手动根的 placement |
 | `bundle apply --file <path> [--update-lock]` | 精确替换一个 Bundle 绑定的要求及可移植锁 |
 | `bundle detach --binding <id>` | 即使 Manifest 丢失，也能显式释放绑定 |
-| `repair <asset> [--overwrite-owned]` | 修复缺失投递；显式覆盖仅限可验证的共享键/区块 |
+| `repair <asset> [--restore-content] [--overwrite-owned]` | 恢复精确安装内容和缺失投递；修改内容先隔离，目标覆盖仅限共享键/区块 |
 | `cleanup`、`recover`、`doctor [asset]` | 回收孤立内容、恢复事务、检查一致性 |
 | `list`、`search [text]`、`info <asset>`、`outdated` | 查询已提交状态和来源候选 |
 | `adapter add <目录> --capabilities link-directory,link-file` | 授权并加载已安装插件 |
@@ -163,3 +163,24 @@ npm run check:all
 ## 许可证
 
 MIT。
+
+## 内容回收与恢复
+
+Home 的 `contents` 按摘要登记受管清单和精确来源，活动安装记录决定引用。升级后的旧摘要仍在库存中；`cleanup` 回收无活动引用且校验通过的内容。缺失目录可清理失效记录，修改内容和未知目录保留并报告。历史 revisions、来源缓存和修复隔离副本不由 cleanup 删除。
+
+```bash
+harnessbrew cleanup --dry-run --json
+harnessbrew apply-plan <plan-id>
+harnessbrew doctor
+harnessbrew repair team/assets/review --dry-run --json
+# 已修改内容需要显式授权；原内容将被保留
+harnessbrew repair team/assets/review --restore-content
+```
+
+repair 从已安装 commit 恢复，不升级；缓存丢失或损坏时尝试重新获取精确 commit，要求来源仍可信。内容准备在写事务外进行，执行时重新核验状态与内容。`--restore-content` 与 `--overwrite-owned` 分别授权内容隔离恢复和共享目标键/区块覆盖。存在无法安全检查的特殊文件时，停止并要求检查，不强制递归删除。
+
+预览及执行结果的 `contentChanges` 提供摘要、动作、文件字节数、受影响资产和恢复 commit；执行后还返回隔离路径。共享摘要只恢复一次，并检查相关投放。SDK 对应参数为 `restoreContent: true`；`query({kind: "list"})` 包含 `contents` 和 `quarantines`。
+
+Doctor 区分 CONTENT_MISSING、CONTENT_MODIFIED、CONTENT_UNREFERENCED、CONTENT_UNREGISTERED 和 CONTENT_QUARANTINED。info/warning 提示不会单独导致不健康；error 或检查不完整会。隔离副本由用户检查后手动处理，cleanup 不删除它们。
+
+本次 Home 必需字段增加 `contents` 和 `quarantines`，不自动迁移此前实验版本 Home。请使用新 Home；旧目录保留用于人工检查。

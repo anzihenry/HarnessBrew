@@ -6,3 +6,5 @@ export type { Placement } from "./domain/placement.js";
 export { runCli } from "./cli.js";
 export type { CliIO, CliOptions, CliJsonEnvelope, CliJsonError } from "./cli.js";
 export { VERSION } from "./version.js";
+
+export type { ContentRecord, ContentChange } from "./domain/content.js";

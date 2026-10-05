@@ -194,7 +194,8 @@ class Application implements HarnessService {
     const damaged = before.kind !== "content" || before.digest !== asset.contentDigest;
     if (damaged && before.kind !== "missing" && !request.restoreContent) throw new HarnessError("CONTENT_MODIFIED", "Content was modified; use --restore-content to preserve it in quarantine and restore the installed version.");
     const prepared = await prepareRestore(state, request.coordinate, this.cache);
-    return { catalog: prepared.catalog, restorations: damaged ? [{ digest: prepared.digest, staged: prepared.staged, before }] : [], changes: damaged ? [{ digest: prepared.digest, action: "restore" as const, path: destination, bytes: 0, affectedAssets: state.install.assets.filter(a => a.status === "active" && a.contentDigest === prepared.digest).map(a => a.coordinate) }] : [] };
+    let bytes = 0; for (const entry of state.contents.find(c => c.digest === prepared.digest)!.inventory) if (entry.type === "file") bytes += (await lstat(path.join(prepared.staged, entry.path))).size;
+    return { catalog: prepared.catalog, restorations: damaged ? [{ digest: prepared.digest, staged: prepared.staged, before, bytes }] : [], changes: damaged ? [{ digest: prepared.digest, action: "restore" as const, path: destination, bytes, commit: prepared.commit, affectedAssets: state.install.assets.filter(a => a.status === "active" && a.contentDigest === prepared.digest).map(a => a.coordinate) }] : [] };
   }
   async execute(input: ChangeRequest): Promise<ExecutionResult> {
     const request = parseRequest(input); await this.initialize();
@@ -227,7 +228,7 @@ class Application implements HarnessService {
   private async readQuery(query: ReadQuery): Promise<QueryResult> {
     const state = await this.snapshot();
     record(query, "read query", ["kind", ...(query.kind === "search" ? ["text"] : query.kind === "info" ? ["coordinate"] : [])]);
-    if (query.kind === "list") return { revision: state.revision, assets: state.install.assets, owners: state.install.owners, requirements: state.install.requirements };
+    if (query.kind === "list") return { contents: state.contents, quarantines: state.quarantines, revision: state.revision, assets: state.install.assets, owners: state.install.owners, requirements: state.install.requirements };
     if (query.kind === "taps") return state.sources.registrations;
     if (query.kind === "adapters") return state.adapters.registrations;
     const catalog = new CatalogIndex(await this.catalog(state));

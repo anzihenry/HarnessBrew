@@ -20,7 +20,7 @@ export type ChangeRequest = Exclude<ResolutionRequest, { kind: "bundle.apply" } 
   | { kind: "repair"; coordinate: string; placement?: Placement; overwriteOwned?: boolean; restoreContent?: boolean };
 export type ReadQuery = { kind: "list" | "taps" | "adapters" | "outdated" } | { kind: "search"; text?: string } | { kind: "info"; coordinate: string };
 export interface QueryResults {
-  list: { revision: string; assets: InstalledAsset[]; owners: HomeState["install"]["owners"]; requirements: UsageRequirement[] };
+  list: { contents: HomeState["contents"]; quarantines: HomeState["quarantines"]; revision: string; assets: InstalledAsset[]; owners: HomeState["install"]["owners"]; requirements: UsageRequirement[] };
   taps: SourceRegistration[];
   adapters: AdapterRegistration[];
   search: AssetManifest[];
@@ -28,7 +28,7 @@ export interface QueryResults {
   outdated: { coordinate: string; installed: CommitId; available: CommitId; ownerIds: string[] }[];
 }
 export type QueryResult = QueryResults[keyof QueryResults];
-export interface DoctorFinding { category: "content" | "target" | "dependency" | "ownership" | "state"; code: string; severity: "error"; message: string; asset?: string; operation?: string; resource?: string; actions: string[] }
+export interface DoctorFinding { category: "content" | "target" | "dependency" | "ownership" | "state"; code: string; severity: "error" | "warning" | "info"; digest?: string; affectedAssets?: string[]; message: string; asset?: string; operation?: string; resource?: string; actions: string[] }
 export interface DoctorReport { healthy: boolean; complete: boolean; findings: DoctorFinding[] }
 export interface PlanPreview { contentChanges: import("./content.js").ContentChange[]; planId: string; baseRevision: string; changes: unknown[]; retained: ChangePlan["desiredState"]["retained"]; fileUpdates: ChangePlan["fileUpdates"]; operations: ChangePlan["operations"]; diagnostics: string[] }
 export interface RecoveryResult { recovered: boolean; diagnostics: string[] }

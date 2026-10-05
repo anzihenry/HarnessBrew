@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- track managed content by digest independently of active assets, retaining upgrade history for verified reclamation
+- restore missing installed content from exact trusted commits; require `--restore-content` to quarantine modified originals before recovery
+- expose content changes, shared references and quarantine locations through CLI/SDK and grouped Doctor findings
+- require content inventory and quarantine fields in new Homes; earlier experimental Homes are not migrated
+
 ## 1.0.0 - 2026-10-02
 
 ### Breaking changes

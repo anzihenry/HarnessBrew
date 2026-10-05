@@ -11,9 +11,9 @@ export interface CliIO { stdout(message: string): void; stderr(message: string):
 export interface CliOptions { home?: string; cwd?: string; userHome?: string }
 export interface CliJsonError { code: string; message: string; details: Readonly<Record<string, unknown>>; recovery?: unknown }
 export interface CliJsonEnvelope { format: "harnessbrew.result"; version: 1; ok: boolean; command: string; mode: "query" | "preview" | "execute" | "recover"; result?: unknown; diagnostics: string[]; error?: CliJsonError }
-const help = `HarnessBrew — Git-native package manager for AI Agent assets\nCommands: tap add|update|remove|trust|untrust|list, adapter add|remove|list,\ninstall, upgrade, remove, link, unlink, bundle apply|detach, cleanup, repair,\nrecover, doctor, list, search, info, outdated, apply-plan.\nGlobal: --home <path> --json. Changes: --dry-run.\nPlacement: --target <name> --scope user|project --project <path> --root <path>.\nBundle: apply --file <path> [--update-lock]; detach --binding <id>.`;
+const help = `HarnessBrew — Git-native package manager for AI Agent assets\nCommands: tap add|update|remove|trust|untrust|list, adapter add|remove|list,\ninstall, upgrade, remove, link, unlink, bundle apply|detach, cleanup, repair,\nrecover, doctor, list, search, info, outdated, apply-plan.\nGlobal: --home <path> --json. Changes: --dry-run.\nPlacement: --target <name> --scope user|project --project <path> --root <path>.\nRepair: --restore-content preserves modified content in quarantine; --overwrite-owned repairs shared target keys/blocks.\nBundle: apply --file <path> [--update-lock]; detach --binding <id>.`;
 const values = new Set(["home", "target", "scope", "project", "root", "file", "binding", "ref", "capabilities"]);
-const flags = new Set(["json", "dry-run", "update-lock", "allow-rewind", "overwrite-owned", "help", "version"]);
+const flags = new Set(["json", "dry-run", "update-lock", "allow-rewind", "overwrite-owned", "restore-content", "help", "version"]);
 function invalid(message: string): never { throw new HarnessError("INVALID_ARGUMENT", message); }
 export async function runCli(argv: string[], io: CliIO = { stdout: message => process.stdout.write(message), stderr: message => process.stderr.write(message) }, options: CliOptions = {}): Promise<number> {
   const json = argv.includes("--json"), positional: string[] = [], opts = new Map<string, string | true>();
@@ -43,7 +43,7 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
       "tap.add": ["ref"], "tap.update": ["ref", "allow-rewind"], "tap.remove": [], "tap.trust": [], "tap.untrust": [], "tap.list": [],
       "adapter.add": ["capabilities"], "adapter.remove": [], "adapter.list": [],
       install: ["target", "scope", "project", "root"], upgrade: [], remove: [], link: ["target", "scope", "project", "root"], unlink: ["target", "scope", "project", "root"],
-      "bundle.apply": ["file", "update-lock"], "bundle.detach": ["binding"], repair: ["target", "scope", "project", "root", "overwrite-owned"], cleanup: [], recover: [], doctor: [], list: [], search: [], info: [], outdated: [], "apply-plan": [], help: [], version: []
+      "bundle.apply": ["file", "update-lock"], "bundle.detach": ["binding"], repair: ["target", "scope", "project", "root", "overwrite-owned", "restore-content"], cleanup: [], recover: [], doctor: [], list: [], search: [], info: [], outdated: [], "apply-plan": [], help: [], version: []
     };
     if (!Object.hasOwn(allowed, name)) invalid(`Unknown command: ${name}`);
     const readonly = ["tap.list", "adapter.list", "doctor", "list", "search", "info", "outdated", "help", "version"].includes(name);
@@ -93,7 +93,7 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
       case "bundle.apply": arg(0); if (!value("file")) invalid("--file is required"); request = { kind: "bundle.apply", file: value("file")!, updateLock: opts.has("update-lock") }; break;
       case "bundle.detach": arg(0); if (!value("binding")) invalid("--binding is required"); request = { kind: "bundle.detach", binding: value("binding")! }; break;
       case "cleanup": arg(0); request = { kind: "cleanup" }; break;
-      case "repair": request = { kind: "repair", coordinate: arg(1), overwriteOwned: opts.has("overwrite-owned"), ...(["target", "scope", "project", "root"].some(k => opts.has(k)) ? { placement: placement() } : {}) }; break;
+      case "repair": request = { kind: "repair", coordinate: arg(1), overwriteOwned: opts.has("overwrite-owned"), restoreContent: opts.has("restore-content"), ...(["target", "scope", "project", "root"].some(k => opts.has(k)) ? { placement: placement() } : {}) }; break;
       default: invalid("Unsupported command");
     }
     mode = opts.has("dry-run") ? "preview" : "execute";

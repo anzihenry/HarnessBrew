@@ -61,3 +61,5 @@ Doctor 按类别输出问题。Repair 默认只恢复缺失资源；显式覆盖
 新格式必须声明 format/version。旧 Home、Formula、Manifest、插件与旧命令别名不自动转换。当前用法见 [README](../README.zh-CN.md)，重新接入步骤见 [1.0.0 发布说明](releases/release-1.0.0.md)。
 
 快速测试覆盖领域到业务入口，并包含真实进程锁和崩溃恢复；打包测试验证实际安装后的候选包。Linux/macOS gate 与真实 Codex preflight 必须引用同一个候选包摘要。模拟 runtime 测试仅证明验收工具自身行为，不能替代真实 Codex 验证。实际执行结果见[阶段 7 记录](design/phase7-implementation.zh-CN.md)。
+
+内容库存以摘要登记清单和精确来源，与当前安装坐标分离；升级旧版本保留库存，cleanup 按活动引用回收。repair 在写事务外准备精确 commit 内容，事务内校验并隔离/恢复；修改内容的隔离路径保存在 quarantines。详见 [内容生命周期](design/content-lifecycle.zh-CN.md)。

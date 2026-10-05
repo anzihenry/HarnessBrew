@@ -61,3 +61,5 @@ Doctor reports grouped findings. Repair recreates missing resources by default. 
 Version 1 formats require explicit format/version declarations. Old Homes, Formulae, manifests, plugins and CLI aliases are rejected without automatic conversion. See the [README](../README.md) for current contracts and [1.0.0 release notes](releases/release-1.0.0.md) for adoption steps.
 
 Fast tests cover domain through application behavior, including real process locks and crash recovery. Packaged tests exercise the installed candidate. Linux/macOS gates and real Codex preflight must reference the same candidate hash. Mock runtime tests verify the preflight harness, not Codex compatibility. See [phase 7 evidence](design/phase7-implementation.zh-CN.md) for the checks actually run.
+
+Content inventories retain digest, file inventory and exact provenance independently of active coordinates. Cleanup reclaims unreferenced digests, including upgrade history. Repair prepares exact content outside the write transaction, then journals isolation and restoration; preserved originals are recorded in quarantines. See the [content lifecycle contract](design/content-lifecycle.zh-CN.md).

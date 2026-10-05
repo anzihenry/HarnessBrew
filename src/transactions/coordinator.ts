@@ -25,7 +25,7 @@ import { withFileLock } from "./file-lock.js";
 
 export type TransactionCheckpoint = "before-quarantine" | "after-quarantine" | "prepared" | "before-write" | "after-write" | "after-record" | "before-state" | "after-state" | "committed" | "before-rollback" | "before-cleanup";
 export type TransactionFault = (point: TransactionCheckpoint, context: { transactionId: string; path?: string }) => void | Promise<void>;
-export interface ContentRestoration { digest: import("../domain/identity.js").Digest; staged: string; before: FileImage }
+export interface ContentRestoration { digest: import("../domain/identity.js").Digest; staged: string; before: FileImage; bytes: number }
 export interface ExecutionInput {
   restorations?: ContentRestoration[];
   plan: ChangePlan; catalog: CatalogSnapshot; assets: AssetReader; adapters: AdapterProvider;
@@ -356,7 +356,7 @@ export class TransactionCoordinator {
         const diagnostics: string[] = [];
         try { await checkpoint("committed"); await this.cleanup(store, journal); }
         catch { diagnostics.push("Transaction committed; maintenance cleanup is pending."); }
-        return { contentChanges: restorations.map(r => ({ digest: r.digest, action: "restore" as const, path: path.join(this.store.home, "content", r.digest.slice(7)), bytes: 0, affectedAssets: before.install.assets.filter(a => a.status === "active" && a.contentDigest === r.digest).map(a => a.coordinate), ...(journal.restorations?.find(q => q.path.endsWith(r.digest.slice(7))) ? { quarantine: journal.restorations.find(q => q.path.endsWith(r.digest.slice(7)))!.quarantine } : {}) })), transactionId: journal.id, committedRevision: candidate.revision, changes: plan.assetChanges, operations: plan.operations.map(({ id, asset, placementIds, resource, type, reason }) => ({ id, asset, placementIds, resource, type, reason })), retained: plan.desiredState.retained, diagnostics };
+        return { contentChanges: restorations.map(r => ({ digest: r.digest, action: "restore" as const, path: path.join(this.store.home, "content", r.digest.slice(7)), bytes: r.bytes, commit: before.install.assets.find(a => a.status === "active" && a.contentDigest === r.digest)!.commit, affectedAssets: before.install.assets.filter(a => a.status === "active" && a.contentDigest === r.digest).map(a => a.coordinate), ...(journal.restorations?.find(q => q.path.endsWith(r.digest.slice(7))) ? { quarantine: journal.restorations.find(q => q.path.endsWith(r.digest.slice(7)))!.quarantine } : {}) })), transactionId: journal.id, committedRevision: candidate.revision, changes: plan.assetChanges, operations: plan.operations.map(({ id, asset, placementIds, resource, type, reason }) => ({ id, asset, placementIds, resource, type, reason })), retained: plan.desiredState.retained, diagnostics };
       } catch (cause) {
         let persisted: Journal | undefined;
         try { persisted = await store.load(); }
