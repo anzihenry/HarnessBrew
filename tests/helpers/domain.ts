@@ -1,3 +1,4 @@
+import { inventoryDigest } from "../../src/domain/assets.js";
 import { coordinate, hash, type Coordinate } from "../../src/domain/identity.js";
 import { bundleOwner, placementId, requirementId, type UsageOwner } from "../../src/domain/placement.js";
 import { type InstalledAsset, type UsageRequirement } from "../../src/domain/state.js";
@@ -10,7 +11,7 @@ export const commit = { algorithm: "sha1" as const, value: "a".repeat(40) };
 export const projectPlacement = { target: "openai-codex", scope: "project" as const, projectRoot: "/workspace/project" };
 
 export function installedAsset(name: Coordinate, dependencies: Coordinate[] = []): InstalledAsset {
-  return { coordinate: name, commit: { ...commit }, contentDigest: hash(name), snapshotId: "snapshot-1",
+  return { coordinate: name, commit: { ...commit }, contentDigest: inventoryDigest([{ path: "SKILL.md", type: "file", digest: hash(name), mode: 0o644 }]), snapshotId: "snapshot-1",
     dependencies, conflicts: [], operations: [], status: "active" };
 }
 export function fixtureState(withPlacement = false): HomeState {
@@ -20,6 +21,7 @@ export function fixtureState(withPlacement = false): HomeState {
   state.adapters.registrations.push({ name: "openai-codex", module: "builtin:codex", protocol: "harnessbrew.adapter/1", version: "1", signature: hash("adapter"), capabilities: ["link-directory"] });
   state.install.owners.push({ id: "manual", kind: "manual" });
   state.install.assets.push(installedAsset(A, [B]), installedAsset(B));
+  for (const name of [A, B, C]) state.contents.push({ digest: installedAsset(name).contentDigest, inventory: [{ path: "SKILL.md", type: "file", digest: hash(name), mode: 0o644 }], origins: [{ coordinate: name, snapshot: state.sources.snapshots[0]! }] });
   const req = addRequirement(state, { id: "manual", kind: "manual" }, A);
   if (withPlacement) {
     req.placements.push(projectPlacement);

@@ -1,3 +1,4 @@
+import { parseContents, type ContentRecord } from "./content.js";
 import { placementId } from "./placement.js";
 import { type SourceSnapshot, sourceSnapshot } from "./assets.js";
 import { commitId, coordinate, digest, identifier, tapName, type Digest } from "./identity.js";
@@ -14,16 +15,17 @@ export interface AdapterRegistration {
 export interface AdapterState { format: "harnessbrew.adapter-state"; version: 1; registrations: AdapterRegistration[] }
 export interface HomeState {
   format: "harnessbrew.home-state"; version: 1; revision: string;
-  install: InstallState; sources: SourceState; adapters: AdapterState;
+  contents: ContentRecord[]; install: InstallState; sources: SourceState; adapters: AdapterState;
 }
 export function emptyHomeState(revision: string): HomeState {
   return { format: "harnessbrew.home-state", version: 1, revision,
-    install: emptyInstallState(revision),
+    contents: [], install: emptyInstallState(revision),
     sources: { format: "harnessbrew.source-state", version: 1, registrations: [], snapshots: [] },
     adapters: { format: "harnessbrew.adapter-state", version: 1, registrations: [] } };
 }
 export function parseHomeState(value: unknown): HomeState {
-  const item = format(value, "harnessbrew.home-state", ["revision", "install", "sources", "adapters"]);
+  const item = format(value, "harnessbrew.home-state", ["revision", "install", "sources", "adapters", "contents"]);
+  const contents = parseContents(item.contents);
   const revision = identifier(item.revision);
   const install = parseInstallState(item.install);
   if (revision !== install.revision) invalid("snapshot revision");
@@ -45,6 +47,8 @@ export function parseHomeState(value: unknown): HomeState {
     if (source.selectedSnapshot !== undefined && snapshotsById.get(source.selectedSnapshot)?.tap !== source.name) invalid("selected snapshot reference");
   }
   for (const asset of install.assets) {
+    const content = contents.find(c => c.digest === asset.contentDigest);
+    if (!content || !content.origins.some(o => o.coordinate === asset.coordinate && o.snapshot.id === asset.snapshotId && canonicalJson(o.snapshot.commit) === canonicalJson(asset.commit))) invalid("installed content reference");
     const snapshot = snapshotsById.get(asset.snapshotId);
     if (!snapshot || (asset.status === "active" && !sourcesByName.has(snapshot.tap)) || snapshot.tap !== coordinate(asset.coordinate).split("/").slice(0, 2).join("/")
       || canonicalJson(commitId(snapshot.commit)) !== canonicalJson(asset.commit)) invalid("installed source snapshot");
@@ -73,7 +77,7 @@ export function parseHomeState(value: unknown): HomeState {
   sortBy(registrations, source => source.name);
   sortBy(snapshots, snapshot => snapshot.id);
   sortBy(adapterRegistrations, adapter => adapter.name);
-  return { format: "harnessbrew.home-state", version: 1, revision, install,
+  return { format: "harnessbrew.home-state", version: 1, revision, install, contents,
     sources: { format: "harnessbrew.source-state", version: 1, registrations, snapshots },
     adapters: { format: "harnessbrew.adapter-state", version: 1, registrations: adapterRegistrations } };
 }

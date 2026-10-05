@@ -1,3 +1,4 @@
+import { registerContents } from "../domain/content.js";
 import path from "node:path";
 import type { AdapterProvider, AssetReader } from "../domain/adapter.js";
 import type { CatalogSnapshot } from "../domain/catalog.js";
@@ -31,6 +32,7 @@ export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
   digest(input.requestDigest);
   absolutePath(input.userHome);
   const home = absolutePath(input.home), index = new CatalogIndex(input.catalog);
+  const contents = registerContents(state.contents, desired.assets.flatMap(a => { const found = index.pinned(a); return found ? [found] : []; }), input.catalog);
   const snapshots = new Map<string, TargetSnapshot>();
   const read = async (name: string): Promise<TargetSnapshot> => {
     const normalized = absolutePath(name);
@@ -222,7 +224,7 @@ export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
     if (previous && previous.url !== source.url) throw new HarnessError("SOURCE_MISMATCH", "Required source URL differs from registration.");
     if (!previous) registrations.push({ ...source, trusted: false });
   }
-  parseHomeState({ ...state, sources: { ...state.sources, registrations, snapshots: [...allSnapshots.values()] }, install: {
+  parseHomeState({ ...state, contents, sources: { ...state.sources, registrations, snapshots: [...allSnapshots.values()] }, install: {
     format: "harnessbrew.install-state", version: 1, revision: state.revision, owners: desired.owners, requirements: desired.requirements,
     assets: desired.assets.map(asset => ({ coordinate: asset.coordinate, commit: asset.commit, contentDigest: asset.contentDigest,
       snapshotId: asset.snapshotId, dependencies: asset.dependencies, conflicts: asset.conflicts, status: "active",
@@ -239,7 +241,7 @@ export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
   for (const asset of state.install.assets) if (asset.status === "active" && !graph.has(asset.coordinate)) assetChanges.push({ asset: asset.coordinate, type: "orphan", reason: "last-requirement-released" });
   const data = { ...(input.repair ? { repair: input.repair } : {}), format: "harnessbrew.plan" as const, version: 1 as const, requestDigest: input.requestDigest,
     homeIdentity: stableId(await input.io.identify(path.join(home, "CURRENT"))), userHome: absolutePath(input.userHome), baseRevision: state.revision,
-    sourceSnapshots: sortBy([...allSnapshots.values()].filter(snapshot => desired.assets.some(asset => asset.snapshotId === snapshot.id)), snapshot => snapshot.id),
+    contents, sourceSnapshots: sortBy([...allSnapshots.values()].filter(snapshot => desired.assets.some(asset => asset.snapshotId === snapshot.id)), snapshot => snapshot.id),
     adapterSignatures: sortBy([...signatures.values()], value => value.name), preconditions: sortBy([...snapshots.values()].map(precondition), value => value.path),
     assetChanges: sortBy(assetChanges, value => value.asset), operations: ordered, fileUpdates: orderedGroups,
     expectedOperations: sortBy([...expected.values()], op => op.id), retainedOperations: sortBy(retained, op => op.id),

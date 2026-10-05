@@ -115,6 +115,7 @@ class Application implements HarnessService {
         if (actual.kind !== "content" || actual.digest !== asset.contentDigest) throw new HarnessError("CONTENT_MODIFIED", "Orphan content changed; cleanup refused.", { asset: asset.coordinate });
       }
       next.install.assets = next.install.assets.filter(a => a.status === "active");
+      next.contents = next.contents.filter(c => next.install.assets.some(a => a.contentDigest === c.digest) || !state.install.assets.some(a => a.contentDigest === c.digest));
       next.sources.snapshots = next.sources.snapshots.filter(s => next.install.assets.some(a => a.snapshotId === s.id) || next.sources.registrations.some(r => r.selectedSnapshot === s.id));
       saved.candidate = parseHomeState(next); return saved;
     }

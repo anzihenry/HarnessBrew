@@ -45,6 +45,7 @@ function fixture(kind: AssetKind = "instruction", count = 1) {
     next.install.owners = structuredClone(plan.desiredState.owners); next.install.requirements = structuredClone(plan.desiredState.requirements);
     next.install.operations = plan.expectedOperations.map(op => ({ id: op.id, asset: op.asset, type: op.operation.type, resource: op.operation.resource, placementIds: op.placementIds, requirementIds: op.requirementIds, installedFingerprint: op.installedFingerprint, createdDirectories: [] as string[] })).concat(plan.retainedOperations);
     next.install.assets = plan.desiredState.assets.map(asset => ({ coordinate: asset.coordinate, commit: asset.commit, contentDigest: asset.contentDigest, snapshotId: asset.snapshotId, dependencies: asset.dependencies, conflicts: asset.conflicts, status: "active", operations: next.install.operations.filter(op => op.asset === asset.coordinate).map(op => op.id) }));
+    next.contents = structuredClone(plan.contents);
     return parseHomeState(next);
   }
   return { state, catalog, bodies, registry, io, reader, files, identity, desired, plan, applyForTest };

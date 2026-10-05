@@ -1,3 +1,4 @@
+import type { ContentRecord } from "./content.js";
 import type { AdapterOperation } from "./adapter.js";
 import type { AdapterSignature } from "./bundle.js";
 import type { SourceSnapshot } from "./assets.js";
@@ -36,7 +37,7 @@ export interface FileUpdate {
 export interface AssetChange { asset: Coordinate; type: "install" | "update" | "reactivate" | "orphan"; reason: string }
 export interface ChangePlan {
   format: "harnessbrew.plan"; version: 1; id: string; requestDigest: Digest; homeIdentity: string; userHome: string; baseRevision: string;
-  sourceSnapshots: SourceSnapshot[]; adapterSignatures: AdapterSignature[]; preconditions: ResourcePrecondition[];
+  contents: ContentRecord[]; sourceSnapshots: SourceSnapshot[]; adapterSignatures: AdapterSignature[]; preconditions: ResourcePrecondition[];
   assetChanges: AssetChange[]; operations: PlannedOperation[]; fileUpdates: FileUpdate[];
   expectedOperations: ExpectedOperation[]; retainedOperations: AppliedOperation[];
   repair?: { operationIds: string[]; overwriteOwned: boolean };

@@ -1,3 +1,4 @@
+import { registerContents } from "../src/domain/content.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { inventoryDigest, type ResolvedAsset } from "../src/domain/assets.js";
@@ -42,6 +43,7 @@ function installed(state: HomeState, desired: DesiredState, cat: CatalogSnapshot
     }
     return { coordinate: asset.coordinate, commit: asset.commit, contentDigest: asset.contentDigest, snapshotId: asset.snapshotId, dependencies: asset.dependencies, conflicts: asset.conflicts, status: "active", operations };
   });
+  next.contents = registerContents(next.contents, cat.assets, cat);
   return parseHomeState(next);
 }
 const manifest = () => parseBundleManifest({ format: "harnessbrew.manifest", version: 1, id: "tools", sources: [{ name: "test/assets", git: "/source" }], assets: [{ coordinate: A, placements: [] }] });

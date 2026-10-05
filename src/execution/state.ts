@@ -26,6 +26,7 @@ export async function stateAfterExecution(before: HomeState, plan: ChangePlan, r
 }
 export function assembleState(before: HomeState, plan: ChangePlan, revision: string, operations: AppliedOperation[]): HomeState {
   const next = structuredClone(before);
+  next.contents = structuredClone(plan.contents);
   next.revision = revision; next.install.revision = revision;
   next.install.owners = structuredClone(plan.desiredState.owners);
   next.install.requirements = structuredClone(plan.desiredState.requirements);
