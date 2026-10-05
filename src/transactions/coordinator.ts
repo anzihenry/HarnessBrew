@@ -23,9 +23,11 @@ import { inspectContent } from "../sources/inventory.js";
 import { JournalStore, type Journal, type JournalStep } from "./journal.js";
 import { withFileLock } from "./file-lock.js";
 
-export type TransactionCheckpoint = "prepared" | "before-write" | "after-write" | "after-record" | "before-state" | "after-state" | "committed" | "before-rollback" | "before-cleanup";
+export type TransactionCheckpoint = "before-quarantine" | "after-quarantine" | "prepared" | "before-write" | "after-write" | "after-record" | "before-state" | "after-state" | "committed" | "before-rollback" | "before-cleanup";
 export type TransactionFault = (point: TransactionCheckpoint, context: { transactionId: string; path?: string }) => void | Promise<void>;
+export interface ContentRestoration { digest: import("../domain/identity.js").Digest; staged: string; before: FileImage }
 export interface ExecutionInput {
+  restorations?: ContentRestoration[];
   plan: ChangePlan; catalog: CatalogSnapshot; assets: AssetReader; adapters: AdapterProvider;
   bundleLock?: { path: string; before: ResourcePrecondition };
 }
@@ -138,7 +140,7 @@ export class TransactionCoordinator {
     const lock = (i: number): Promise<T> => i === names.length ? action() : withFileLock(path.join(this.lockRoot, `${hash(names[i]!).slice(7)}.lock`), () => lock(i + 1));
     return lock(0);
   }
-  private async parentUnchanged(step: JournalStep): Promise<void> {
+  private async parentUnchanged(step: Pick<JournalStep, "path" | "parent">): Promise<void> {
     const actual = await nodePlanningIO.identify(step.path);
     if (canonicalJson(actual) !== canonicalJson(step.parent)) throw new HarnessError("RECOVERY_CONFLICT", "Resource parent changed.", { path: step.path });
   }
@@ -174,6 +176,13 @@ export class TransactionCoordinator {
       if (await exists(step.temporary)) throw new HarnessError("RECOVERY_CONFLICT", "Unrecorded temporary resource requires inspection.", { path: step.temporary });
       step.phase = "reverted"; await store.save(journal);
     }
+    for (const restoration of [...(journal.restorations ?? [])].reverse()) {
+      await this.parentUnchanged(restoration);
+      const current = await image(restoration.path, true), saved = await image(restoration.quarantine, true);
+      if (saved.kind === "missing" && sameImage(current, restoration.before)) continue;
+      if (current.kind !== "missing" || !sameImage(saved, restoration.before)) throw new HarnessError("RECOVERY_CONFLICT", "Isolated content changed; preserve it for inspection.");
+      await rename(restoration.quarantine, restoration.path); await syncDirectory(path.dirname(restoration.path)); await syncDirectory(this.store.home);
+    }
     if (state.revision === journal.nextRevision) await access.restore(journal.nextRevision, journal.beforeState);
     journal.status = "rolled-back"; await store.save(journal);
     await this.cleanup(store, journal);
@@ -208,6 +217,19 @@ export class TransactionCoordinator {
     await assertPlanFresh(plan, { revision: before.revision, home: this.store.home, io: nodePlanningIO, adapters: input.adapters });
     await validateExecution(plan, before, catalog, input.adapters, this.store.home);
     if (Boolean(plan.desiredState.bundleLock) !== Boolean(input.bundleLock)) throw new HarnessError("INVALID_PLAN", "Bundle plans require a lockfile destination and its preview precondition.");
+    const restorations = input.restorations ?? [];
+    if (canonicalJson(restorations.map(r => r.digest).sort()) !== canonicalJson([...(plan.repair?.contentDigests ?? [])].sort()) || new Set(restorations.map(r => r.digest)).size !== restorations.length) throw new HarnessError("INVALID_PLAN", "Content recovery does not match the repair plan.");
+    for (const restoration of restorations) {
+      if (!before.contents.some(c => c.digest === restoration.digest) || !plan.desiredState.assets.some(a => a.contentDigest === restoration.digest)) throw new HarnessError("INVALID_PLAN", "Recovery content is not installed.");
+      for (const asset of before.install.assets.filter(a => a.status === "active" && a.contentDigest === restoration.digest)) {
+        const origin = before.contents.find(c => c.digest === restoration.digest)!.origins.find(o => o.coordinate === asset.coordinate && o.snapshot.id === asset.snapshotId)!;
+        if (!before.sources.registrations.some(s => s.name === origin.snapshot.tap && s.url === origin.snapshot.url && s.trusted)) throw new HarnessError("SOURCE_UNTRUSTED", "All restored content references require trusted provenance.");
+      }
+      const current = await image(path.join(this.store.home, "content", restoration.digest.slice(7)), true);
+      if (!sameImage(current, restoration.before)) throw new HarnessError("PLAN_STALE", "Content changed after repair preview.");
+      const staged = await image(restoration.staged, true);
+      if (staged.kind !== "content" || staged.digest !== restoration.digest) throw new HarnessError("CONTENT_MODIFIED", "Prepared recovery content changed.");
+    }
     const destinations = plan.fileUpdates.map(update => update.path);
     let lockPath: string | undefined;
     if (input.bundleLock) {
@@ -256,6 +278,27 @@ export class TransactionCoordinator {
         const contentRoot = path.join(this.store.home, "content");
         if (await exists(contentRoot) && !(await lstat(contentRoot)).isDirectory()) throw new HarnessError("CONTENT_MODIFIED", "Content root is not a directory.");
         const staging = path.join(this.store.home, `.transaction-${journal.id}`);
+        for (const restoration of restorations) {
+          const destination = path.join(this.store.home, "content", restoration.digest.slice(7));
+          if (!sameImage(await image(destination, true), restoration.before)) throw new HarnessError("PLAN_STALE", "Content changed before restoration.");
+          if (restoration.before.kind !== "missing") {
+            const entry = { path: destination, quarantine: path.join(this.store.home, `.repair-${journal.id}-${restoration.digest.slice(7)}`), before: restoration.before, parent: await nodePlanningIO.identify(destination) };
+            if (await exists(entry.quarantine)) throw new HarnessError("RECOVERY_CONFLICT", "Recovery quarantine already exists.");
+            (journal.restorations ??= []).push(entry); await store.save(journal);
+            await checkpoint("before-quarantine", destination); await this.parentUnchanged(entry);
+            if (!sameImage(await image(destination, true), entry.before)) throw new HarnessError("TARGET_MODIFIED", "Content changed before isolation.");
+            await rename(destination, entry.quarantine); await syncDirectory(path.dirname(destination)); await syncDirectory(this.store.home);
+            await checkpoint("after-quarantine", destination);
+          }
+          // Copy and verify through the pinned reader; never trust a caller-provided arbitrary directory rename.
+          const asset = plan.desiredState.assets.find(a => a.contentDigest === restoration.digest)!;
+          const source = catalog.pinned(asset);
+          if (!source) throw new HarnessError("SOURCE_NOT_FOUND", "Recovery source is unavailable.");
+          await mkdir(staging, { recursive: true, mode: 0o700 });
+          const ready = path.join(staging, restoration.digest.slice(7));
+          await stageContent(ready, source, input.assets); await ensureParents(destination);
+          await step(destination, "content", { kind: "content", digest: restoration.digest, device: "", inode: "" }, () => publishContent(ready, destination));
+        }
         for (const asset of plan.desiredState.assets) {
           const destination = path.join(this.store.home, "content", asset.contentDigest.slice(7));
           const existing = await image(destination, true);
@@ -305,13 +348,15 @@ export class TransactionCoordinator {
           if (adapter.signature !== signature.signature || adapter.adapter.version !== signature.version) throw new HarnessError("ADAPTER_CHANGED", "Adapter changed during execution.");
         }
         candidate = await stateAfterExecution(before, plan, journal.nextRevision, directories);
+        for (const restoration of journal.restorations ?? []) if (!sameImage(await image(restoration.quarantine, true), restoration.before)) throw new HarnessError("RECOVERY_CONFLICT", "Quarantined content changed during repair.");
+        candidate.quarantines.push(...(journal.restorations ?? []).map(r => ({ path: r.quarantine, digest: `sha256:${path.basename(r.path)}` as import("../domain/identity.js").Digest })));
         journal.nextState = candidate; await store.save(journal);
         await access.publish(before.revision, candidate); await checkpoint("after-state");
         journal.status = "committed"; await store.save(journal); committed = true;
         const diagnostics: string[] = [];
         try { await checkpoint("committed"); await this.cleanup(store, journal); }
         catch { diagnostics.push("Transaction committed; maintenance cleanup is pending."); }
-        return { transactionId: journal.id, committedRevision: candidate.revision, changes: plan.assetChanges, operations: plan.operations.map(({ id, asset, placementIds, resource, type, reason }) => ({ id, asset, placementIds, resource, type, reason })), retained: plan.desiredState.retained, diagnostics };
+        return { contentChanges: restorations.map(r => ({ digest: r.digest, action: "restore" as const, path: path.join(this.store.home, "content", r.digest.slice(7)), bytes: 0, affectedAssets: before.install.assets.filter(a => a.status === "active" && a.contentDigest === r.digest).map(a => a.coordinate), ...(journal.restorations?.find(q => q.path.endsWith(r.digest.slice(7))) ? { quarantine: journal.restorations.find(q => q.path.endsWith(r.digest.slice(7)))!.quarantine } : {}) })), transactionId: journal.id, committedRevision: candidate.revision, changes: plan.assetChanges, operations: plan.operations.map(({ id, asset, placementIds, resource, type, reason }) => ({ id, asset, placementIds, resource, type, reason })), retained: plan.desiredState.retained, diagnostics };
       } catch (cause) {
         let persisted: Journal | undefined;
         try { persisted = await store.load(); }

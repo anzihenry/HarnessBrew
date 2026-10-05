@@ -1,7 +1,7 @@
 import { parseContents, type ContentRecord } from "./content.js";
 import { placementId } from "./placement.js";
 import { type SourceSnapshot, sourceSnapshot } from "./assets.js";
-import { commitId, coordinate, digest, identifier, tapName, type Digest } from "./identity.js";
+import { absolutePath, commitId, coordinate, digest, identifier, tapName, type Digest } from "./identity.js";
 import { emptyInstallState, parseInstallState, type InstallState } from "./state.js";
 import { array, canonicalJson, format, invalid, record, sortBy, text, unique } from "./validation.js";
 
@@ -15,16 +15,17 @@ export interface AdapterRegistration {
 export interface AdapterState { format: "harnessbrew.adapter-state"; version: 1; registrations: AdapterRegistration[] }
 export interface HomeState {
   format: "harnessbrew.home-state"; version: 1; revision: string;
-  contents: ContentRecord[]; install: InstallState; sources: SourceState; adapters: AdapterState;
+  quarantines: { path: string; digest: Digest }[]; contents: ContentRecord[]; install: InstallState; sources: SourceState; adapters: AdapterState;
 }
 export function emptyHomeState(revision: string): HomeState {
   return { format: "harnessbrew.home-state", version: 1, revision,
-    contents: [], install: emptyInstallState(revision),
+    quarantines: [], contents: [], install: emptyInstallState(revision),
     sources: { format: "harnessbrew.source-state", version: 1, registrations: [], snapshots: [] },
     adapters: { format: "harnessbrew.adapter-state", version: 1, registrations: [] } };
 }
 export function parseHomeState(value: unknown): HomeState {
-  const item = format(value, "harnessbrew.home-state", ["revision", "install", "sources", "adapters", "contents"]);
+  const item = format(value, "harnessbrew.home-state", ["revision", "install", "sources", "adapters", "contents", "quarantines"]);
+  const quarantines = unique(array(item.quarantines, "quarantines", raw => { const value = record(raw, "quarantine", ["path", "digest"]); return { path: absolutePath(value.path), digest: digest(value.digest) }; }), q => q.path, "quarantines");
   const contents = parseContents(item.contents);
   const revision = identifier(item.revision);
   const install = parseInstallState(item.install);
@@ -77,7 +78,7 @@ export function parseHomeState(value: unknown): HomeState {
   sortBy(registrations, source => source.name);
   sortBy(snapshots, snapshot => snapshot.id);
   sortBy(adapterRegistrations, adapter => adapter.name);
-  return { format: "harnessbrew.home-state", version: 1, revision, install, contents,
+  return { format: "harnessbrew.home-state", version: 1, revision, install, contents, quarantines,
     sources: { format: "harnessbrew.source-state", version: 1, registrations, snapshots },
     adapters: { format: "harnessbrew.adapter-state", version: 1, registrations: adapterRegistrations } };
 }

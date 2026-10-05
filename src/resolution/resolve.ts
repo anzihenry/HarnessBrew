@@ -1,3 +1,4 @@
+import { sameSnapshot } from "../domain/assets.js";
 import type { ResolvedAsset } from "../domain/assets.js";
 import { bundleManifestDigest, parseBundleLock, parseBundleManifest, type BundleLock, type BundleManifest } from "../domain/bundle.js";
 import { freezeData, type CatalogSnapshot } from "../domain/catalog.js";
@@ -193,7 +194,7 @@ export function resolveRequest(input: HomeState, catalogInput: CatalogSnapshot, 
   const snapshots = new Map(state.sources.snapshots.map(snapshot => [snapshot.id, snapshot]));
   for (const snapshot of index.snapshot.snapshots) {
     const existing = snapshots.get(snapshot.id);
-    if (existing && canonicalJson(existing) !== canonicalJson(snapshot)) throw new HarnessError("SOURCE_MISMATCH", "Snapshot identity differs from stored provenance.");
+    if (existing && !sameSnapshot(existing, snapshot)) throw new HarnessError("SOURCE_MISMATCH", "Snapshot identity differs from stored provenance.");
     snapshots.set(snapshot.id, snapshot);
   }
   const adapters = new Map(state.adapters.registrations.map(adapter => [adapter.name, adapter]));

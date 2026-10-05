@@ -1,3 +1,4 @@
+import { prepareRestore } from "./restore.js";
 import { planCleanup, type ContentCheck } from "./content.js";
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
@@ -29,7 +30,7 @@ import { diagnose } from "../diagnostics/doctor.js";
 import type { ChangeRequest, HarnessOptions, HarnessService, PlanPreview, ReadQuery, QueryResults, QueryResult } from "./types.js";
 import type { ResourcePrecondition } from "../domain/plan.js";
 
-type Saved = { contentChecks?: ContentCheck[]; contentChanges?: import("./content.js").ContentChange[]; format: "harnessbrew.saved-plan"; version: 1; id: string; home: string; request: ChangeRequest; baseRevision: string; candidate?: HomeState; plan?: ExecutionInput["plan"]; catalog?: CatalogSnapshot; bundleLock?: ExecutionInput["bundleLock"]; inputs: ResourcePrecondition[]; diagnostics: string[] };
+type Saved = { restorations?: import("../transactions/coordinator.js").ContentRestoration[]; contentChecks?: ContentCheck[]; contentChanges?: import("./content.js").ContentChange[]; format: "harnessbrew.saved-plan"; version: 1; id: string; home: string; request: ChangeRequest; baseRevision: string; candidate?: HomeState; plan?: ExecutionInput["plan"]; catalog?: CatalogSnapshot; bundleLock?: ExecutionInput["bundleLock"]; inputs: ResourcePrecondition[]; diagnostics: string[] };
 export function createHarness(options: HarnessOptions): HarnessService { return new Application(options); }
 class Application implements HarnessService {
   private closed = false;
@@ -116,7 +117,8 @@ class Application implements HarnessService {
       return saved;
     }
     const releasing = ["asset.remove", "placement.unlink", "bundle.detach"].includes(request.kind);
-    let catalog: CatalogSnapshot = releasing ? { snapshots: [], selectedSnapshotIds: [], assets: [] } : await this.catalog(state);
+    const prepared = request.kind === "repair" ? await this.prepareRepair(state, request) : undefined;
+    let catalog: CatalogSnapshot = prepared ? prepared.catalog : releasing ? { snapshots: [], selectedSnapshotIds: [], assets: [] } : await this.catalog(state);
     let resolution: ResolutionRequest;
     if (request.kind === "bundle.apply") {
       const file = path.resolve(this.options.cwd, request.file), directory = await realpath(path.dirname(file));
@@ -142,13 +144,15 @@ class Application implements HarnessService {
     } else if (request.kind === "bundle.detach") resolution = { kind: "bundle.detach", ownerId: request.binding };
     else if (request.kind !== "repair") resolution = request as ResolutionRequest;
     else resolution = { kind: "asset.upgrade" }; // repair uses the exact committed desired state below.
-    let repair: { operationIds: string[]; overwriteOwned: boolean } | undefined;
+    let repair: { operationIds: string[]; overwriteOwned: boolean; contentDigests?: import("../domain/identity.js").Digest[] } | undefined;
     if (request.kind === "repair") {
       const asset = resolveAsset(state.install.assets.filter(a => a.status === "active"), request.coordinate);
       if (!state.sources.registrations.find(s => asset.coordinate.startsWith(`${s.name}/`))?.trusted) throw new HarnessError("SOURCE_UNTRUSTED", "Repair requires a trusted source.");
-      const operations = state.install.operations.filter(op => op.asset === asset.coordinate && (!request.placement || op.placementIds.includes(placementId(request.placement))));
-      if (!operations.length) throw new HarnessError("INVALID_ARGUMENT", "No matching managed placement to repair.");
-      repair = { operationIds: operations.map(op => op.id), overwriteOwned: request.overwriteOwned ?? false };
+      const affected = new Set(prepared?.restorations.length ? state.install.assets.filter(a => a.status === "active" && a.contentDigest === asset.contentDigest).map(a => a.coordinate) : [asset.coordinate]);
+      const operations = state.install.operations.filter(op => affected.has(op.asset) && (prepared?.restorations.length || !request.placement || op.placementIds.includes(placementId(request.placement))));
+      if (!operations.length && !prepared?.restorations.length) throw new HarnessError("INVALID_ARGUMENT", "No matching managed placement to repair.");
+      repair = { operationIds: operations.map(op => op.id), overwriteOwned: request.overwriteOwned ?? false, contentDigests: prepared!.restorations.map(r => r.digest) };
+      saved.restorations = prepared!.restorations; saved.contentChanges = prepared!.changes;
     }
     const desired = request.kind === "repair" ? currentDesired(state) : resolveRequest(state, catalog, resolution);
     const needed = new Set(desired.assets.filter(a => catalog.assets.some(item => item.manifest.coordinate === a.coordinate && item.contentDigest === a.contentDigest) && state.sources.registrations.find(s => a.coordinate.startsWith(`${s.name}/`))?.trusted).flatMap(a => a.placements.map(p => p.placement.target)));
@@ -181,10 +185,23 @@ class Application implements HarnessService {
     const verified = await loadCatalog(saved.catalog.snapshots, saved.catalog.selectedSnapshotIds);
     if (canonicalJson(verified) !== canonicalJson(saved.catalog)) throw new HarnessError("PLAN_STALE", "Source changed after preview.");
     const registry = await registryFor(current, this.cache, this.options.adapters ?? [], true, new Set(saved.plan.adapterSignatures.map(a => a.name)));
-    return session.apply({ plan: saved.plan, catalog: verified, assets: catalogAssetReader(verified), adapters: registry, ...(saved.bundleLock ? { bundleLock: saved.bundleLock } : {}) });
+    return session.apply({ plan: saved.plan, catalog: verified, assets: catalogAssetReader(verified), adapters: registry, ...(saved.bundleLock ? { bundleLock: saved.bundleLock } : {}), ...(saved.restorations ? { restorations: saved.restorations } : {}) });
+  }
+  private async prepareRepair(state: HomeState, request: Extract<ChangeRequest, { kind: "repair" }>) {
+    const asset = resolveAsset(state.install.assets.filter(a => a.status === "active"), request.coordinate);
+    const destination = path.join(this.store.home, "content", asset.contentDigest.slice(7));
+    const before = await image(destination, true);
+    const damaged = before.kind !== "content" || before.digest !== asset.contentDigest;
+    if (damaged && before.kind !== "missing" && !request.restoreContent) throw new HarnessError("CONTENT_MODIFIED", "Content was modified; use --restore-content to preserve it in quarantine and restore the installed version.");
+    const prepared = await prepareRestore(state, request.coordinate, this.cache);
+    return { catalog: prepared.catalog, restorations: damaged ? [{ digest: prepared.digest, staged: prepared.staged, before }] : [], changes: damaged ? [{ digest: prepared.digest, action: "restore" as const, path: destination, bytes: 0, affectedAssets: state.install.assets.filter(a => a.status === "active" && a.contentDigest === prepared.digest).map(a => a.coordinate) }] : [] };
   }
   async execute(input: ChangeRequest): Promise<ExecutionResult> {
     const request = parseRequest(input); await this.initialize();
+    if (request.kind === "repair") {
+      const saved = await this.build(await this.snapshot(), request);
+      return this.coordinator.withSession(session => this.run(saved, session));
+    }
     return this.coordinator.withSession(async session => this.run(await this.build(await session.read(), request), session));
   }
   async apply(id: string): Promise<ExecutionResult> {

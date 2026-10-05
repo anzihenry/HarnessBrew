@@ -1,3 +1,4 @@
+import { sameSnapshot } from "../domain/assets.js";
 import { registerContents } from "../domain/content.js";
 import path from "node:path";
 import type { AdapterProvider, AssetReader } from "../domain/adapter.js";
@@ -23,7 +24,7 @@ export interface PlanningRequest {
   state: HomeState; desired: DesiredState; catalog: CatalogSnapshot;
   adapters: AdapterProvider; io: PlanningIO; assets: AssetReader;
   home: string; userHome: string; requestDigest: Digest;
-  repair?: { operationIds: string[]; overwriteOwned: boolean };
+  repair?: { operationIds: string[]; overwriteOwned: boolean; contentDigests?: Digest[] };
 }
 /** Produces data-only operations and file groups. No filesystem or state writes. */
 export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
@@ -215,7 +216,7 @@ export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
   const allSnapshots = new Map(state.sources.snapshots.map(snapshot => [snapshot.id, snapshot]));
   for (const snapshot of index.snapshot.snapshots) {
     const previous = allSnapshots.get(snapshot.id);
-    if (previous && canonicalJson(previous) !== canonicalJson(snapshot)) throw new HarnessError("SOURCE_MISMATCH", "Catalog snapshot identity changed.");
+    if (previous && !sameSnapshot(previous, snapshot)) throw new HarnessError("SOURCE_MISMATCH", "Catalog snapshot identity changed.");
     allSnapshots.set(snapshot.id, snapshot);
   }
   const registrations = [...state.sources.registrations];

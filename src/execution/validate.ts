@@ -1,3 +1,5 @@
+import { registerContents } from "../domain/content.js";
+import { sameSnapshot } from "../domain/assets.js";
 import { assembleState } from "./state.js";
 import { placementId } from "../domain/placement.js";
 import path from "node:path";
@@ -16,10 +18,12 @@ const equal = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
 function invalid(message: string): never { throw new HarnessError("INVALID_PLAN", message); }
 /** Checks executable payloads and recorded ownership without running Adapter plan() again. */
 export async function validateExecution(plan: ChangePlan, before: HomeState, catalog: CatalogIndex, adapters: AdapterProvider, home: string): Promise<void> {
+  const expectedContents = registerContents(before.contents, plan.desiredState.assets.flatMap(a => { const asset = catalog.pinned(a); return asset ? [asset] : []; }), catalog.snapshot);
+  if (!equal(plan.contents, expectedContents)) invalid("Plan content inventory differs from verified assets.");
   for (const snapshot of plan.sourceSnapshots) {
     const registered = before.sources.snapshots.find(item => item.id === snapshot.id);
     const available = catalog.snapshot.snapshots.find(item => item.id === snapshot.id);
-    if (registered && !equal(registered, snapshot) || available && !equal(available, snapshot) || !registered && !available) invalid("Plan snapshot differs from source evidence.");
+    if (registered && !sameSnapshot(registered, snapshot) || available && !sameSnapshot(available, snapshot) || !registered && !available) invalid("Plan snapshot differs from source evidence.");
   }
   assembleState(before, plan, before.revision, [...plan.expectedOperations.map(op => ({ id: op.id, asset: op.asset, type: op.operation.type,
     resource: op.operation.resource, placementIds: op.placementIds, requirementIds: op.requirementIds,

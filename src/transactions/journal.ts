@@ -15,10 +15,11 @@ export interface JournalStep {
   phase: "pending" | "done" | "reverting" | "reverted"; after?: FileImage;
 }
 export interface GarbageEntry { path: string; quarantine: string; image: Extract<FileImage, { kind: "content" }>; inventory: InventoryEntry[]; parent: PathIdentity }
+export interface Restoration { path: string; quarantine: string; before: FileImage; parent: PathIdentity }
 export interface Journal {
   format: "harnessbrew.journal"; version: 1; id: string; home: string;
   status: "prepared" | "applying" | "committed" | "rolling-back" | "rolled-back" | "recovery-required";
-  beforeState: HomeState; nextRevision: string; nextState?: HomeState; steps: JournalStep[]; garbage?: GarbageEntry[];
+  beforeState: HomeState; nextRevision: string; nextState?: HomeState; steps: JournalStep[]; restorations?: Restoration[]; garbage?: GarbageEntry[];
 }
 export class JournalStore {
   readonly file: string;
@@ -40,6 +41,11 @@ export class JournalStore {
           || !["pending", "done", "reverting", "reverted"].includes(step.phase)) throw new Error("Invalid journal step");
         if (step.kind === "content" && (path.dirname(step.path) !== path.join(this.home, "content") || !/^[a-f0-9]{64}$/u.test(path.basename(step.path)))) throw new Error("Invalid content path");
         if (!step.before || !step.intended || !step.parent || (step.phase === "done" && !step.after)) throw new Error("Incomplete journal image");
+      }
+      for (const entry of journal.restorations ?? []) {
+        if (path.dirname(entry.path) !== path.join(this.home, "content") || !/^[a-f0-9]{64}$/u.test(path.basename(entry.path))
+          || entry.quarantine !== path.join(this.home, `.repair-${journal.id}-${path.basename(entry.path)}`) || !entry.before || entry.before.kind === "missing"
+          || !entry.parent || !journal.beforeState.contents.some(c => c.digest === `sha256:${path.basename(entry.path)}`)) throw new Error("Invalid restoration evidence");
       }
       for (const entry of journal.garbage ?? []) {
         if (path.dirname(entry.path) !== path.join(this.home, "content") || !/^[a-f0-9]{64}$/u.test(path.basename(entry.path))

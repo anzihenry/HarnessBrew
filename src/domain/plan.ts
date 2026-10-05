@@ -40,6 +40,6 @@ export interface ChangePlan {
   contents: ContentRecord[]; sourceSnapshots: SourceSnapshot[]; adapterSignatures: AdapterSignature[]; preconditions: ResourcePrecondition[];
   assetChanges: AssetChange[]; operations: PlannedOperation[]; fileUpdates: FileUpdate[];
   expectedOperations: ExpectedOperation[]; retainedOperations: AppliedOperation[];
-  repair?: { operationIds: string[]; overwriteOwned: boolean };
+  repair?: { operationIds: string[]; overwriteOwned: boolean; contentDigests?: Digest[] };
   desiredState: DesiredState; desiredStateDigest: Digest;
 }
