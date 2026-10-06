@@ -68,10 +68,12 @@
 
 ### A06 — PreparedChange 与计划存储契约
 
-- [ ] 完成；PR 03；前置：A02、A05。
+- [x] 完成；PR 03；前置：A02、A05。
 - 范围：`application/service.ts` 的 Saved、`application/cache.ts`、`domain/plan.ts`；拟新增准备结果与计划存储模块。
 - 工作/交付：定义纯数据 PreparedChange、严格解析器、身份/摘要/输入指纹及准备资源引用；提取保存和读取计划的逻辑，按 A02 处理旧计划。
 - 验收：格式错误、Home 身份变化、摘要不匹配均拒绝；数据可序列化；加载计划不会运行网络准备或隐式重新求解。
+
+完成证据：提交主题 `feat(A06): validate and persist prepared changes`；快速测试 180/180、新增格式/物理身份专项 2/2、packaged 19/19、regressions 3/3 通过。v1 预览明确失效，Home/Journal 保持 v1；修复 macOS 路径别名误判。
 
 ### A07 — 准备资源租约与生命周期
 

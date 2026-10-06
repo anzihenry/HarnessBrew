@@ -28,7 +28,7 @@ import { prepareRepair, planCleanup } from "./maintenance.js";
 import { catalogFor } from "./catalog.js";
 
 export async function prepareChange(context: PreparationContext, state: HomeState, request: ChangeRequest): Promise<Saved> {
-  const saved: Saved = { format: "harnessbrew.saved-plan", version: 1, id: randomUUID(), home: context.home, request, baseRevision: state.revision, inputs: [], diagnostics: [] };
+  const saved: Saved = { format: "harnessbrew.saved-plan", version: 2, id: randomUUID(), home: context.home, homeIdentity: await context.dependencies.planning.identify(path.join(context.home, "CURRENT")), resources: [], request, baseRevision: state.revision, inputs: [], diagnostics: [] };
   const manager = context.dependencies.sources(path.join(context.cache, "sources"));
   if (["tap.add", "tap.update", "bundle.apply"].includes(request.kind)) await cacheDirectory(context.cache, "sources");
   if (request.kind.startsWith("tap.")) return prepareSources(context, state, request, saved, manager);
