@@ -47,7 +47,7 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
       "bundle.apply": ["file", "update-lock"], "bundle.detach": ["binding"], repair: ["all", "target", "scope", "project", "root", "overwrite-owned", "restore-content"], cleanup: [], recover: [], doctor: [], list: [], search: [], info: [], outdated: [], "apply-plan": [], help: [], version: []
     };
     if (!Object.hasOwn(allowed, name)) invalid(`Unknown command: ${name}`);
-    const readonly = ["tap.list", "adapter.list", "doctor", "list", "search", "info", "outdated", "help", "version"].includes(name);
+    const readonly = ["adapter.inspect-upgrade", "tap.list", "adapter.list", "doctor", "list", "search", "info", "outdated", "help", "version"].includes(name);
     for (const key of opts.keys()) if (!["home", "json", "help", ...(name === "version" || name === "help" ? ["version"] : []), ...(!readonly && name !== "recover" && name !== "apply-plan" ? ["dry-run"] : []), ...allowed[name]!].includes(key)) invalid(`Option --${key} is not valid for ${name}`);
     const arg = (count: number, optional = false) => { if (positional.length > count || positional.length < count - (optional ? 1 : 0)) invalid(`Invalid arguments for ${name}`); return positional[0]!; };
     const value = (key: string) => typeof opts.get(key) === "string" ? opts.get(key) as string : undefined;

@@ -16,7 +16,7 @@ test("packaged CLI upgrades, rolls back invalid Taps, diagnoses drift, and repai
   const outputDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-upgrade-candidate-"));
   const reportDirectory = await mkdtemp(path.join(tmpdir(), "harnessbrew-upgrade-report-"));
   const artifact = await buildTestArtifact({ outputDirectory, allowDirty: true });
-  await runnerModule.runPackagedE2E({ ...artifact, reportDirectory, scenarios: ["upgrade-repair"] });
+  await runnerModule.runPackagedE2E({ ...artifact, reportDirectory, scenarios: ["adapter-upgrade", "upgrade-repair"] });
   const report = JSON.parse(await readFile(path.join(reportDirectory, "e2e-report.json"), "utf8")) as {
     scenarios: Array<{ status: string }>;
     commands: Array<{ args: string[]; exitCode: number }>;

@@ -34,7 +34,9 @@ export async function prepareAdapterUpgrade(context: PreparationContext, state: 
   const catalog = { snapshots: [...snapshots.values()].sort((a,b) => a.id.localeCompare(b.id)), assets: [...assets.values()].sort((a,b) => `${a.manifest.coordinate}:${a.snapshotId}`.localeCompare(`${b.manifest.coordinate}:${b.snapshotId}`)), selectedSnapshotIds: [] };
   saved.version = 3; saved.adapterUpgrade = { before: inspection.current, after };
   saved.catalog = catalog;
-  saved.plan = await planChange({ state: candidate, reprojectTarget: request.name, desired: currentDesired(state), catalog, adapters: registry, io: context.dependencies.planning, assets: catalogAssetReader(catalog), home: context.home, userHome: context.options.userHome, requestDigest: hash(canonicalJson(request)) });
+  const planningState = structuredClone(candidate);
+  planningState.adapters.registrations.find(a => a.name === request.name)!.capabilities = [...new Set([...inspection.current.capabilities, ...after.capabilities])];
+  saved.plan = await planChange({ state: planningState, reprojectTarget: request.name, desired: currentDesired(state), catalog, adapters: registry, io: context.dependencies.planning, assets: catalogAssetReader(catalog), home: context.home, userHome: context.options.userHome, requestDigest: hash(canonicalJson(request)) });
   const { id: _id, ...plan } = structuredClone(saved.plan);
   if (!plan.adapterSignatures.some(a => a.name === after.name)) plan.adapterSignatures.push({ name: after.name, version: after.version, signature: after.signature });
   plan.adapterSignatures.sort((a,b) => a.name.localeCompare(b.name));

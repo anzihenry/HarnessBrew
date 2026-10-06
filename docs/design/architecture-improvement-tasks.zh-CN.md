@@ -169,10 +169,12 @@
 
 ### B05 — 手动升级专项验收
 
-- [ ] 完成；PR 06；前置：B04。
+- [x] 完成；PR 06；前置：B04。
 - 范围：应用、规划、执行、崩溃测试和打包 CLI 测试。
 - 工作/交付：覆盖内置/第三方、链接/文件/共享键区块、能力变化、缓存丢失、摘要漂移和关键点 SIGKILL；验证最终包内 Adapter 身份。
 - 验收：P3a 完整通过；不支持的资源重叠或 Bundle 路径明确拒绝，无部分安装。该节点可以单独形成候选，但不能宣称已支持 Bundle 升级。
+
+完成证据：fast 225/225、packaged 19/19；补充能力替换与符号链接边界专项 2/2。覆盖 5 个真实 SIGKILL 点、内置 skill/agent/instruction/MCP、外部文本保留、缺失缓存、候选漂移、旧插件缺失回滚及幂等。包内 CLI 验证 emitted identity 与注册升级一致；此节点 Bundle 升级仍明确拒绝。提交：test(B05): verify manual adapter upgrades and crash recovery。
 
 ### B06 — Bundle 范围与输入验证
 

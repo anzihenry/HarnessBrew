@@ -95,3 +95,37 @@ for (const point of ["after-record", "after-state"] as const) test(`failed upgra
   await access(before.install.operations[0]!.resource.path);
   await assert.rejects(access(path.join(f.project, ".test-adapter/next/a")), { code: "ENOENT" });
 });
+
+for (const kind of ["skill", "agent", "instruction", "mcp"]) test(`built-in signature upgrade preserves ${kind} and unrelated user content`, async t => {
+  const { applicationFixture } = await import("./helpers/application.js");
+  const f = await applicationFixture(t); await f.add("a", { kind }); await f.register();
+  await f.service.execute({ kind: "asset.install", coordinate: "a", placements: [f.placement] });
+  const store = new StateStore(f.home), original = await store.read();
+  const target = original.install.operations[0]!.resource.path;
+  if (kind === "instruction" || kind === "mcp") await appendFile(target, kind === "mcp" ? "\n# user comment\n" : "\nUser text\n");
+  await store.withTransaction(async access => { const before = await access.read(); const next = structuredClone(before); next.adapters.registrations[0]!.signature = `sha256:${"a".repeat(64)}`; next.revision = "legacy"; next.install.revision = "legacy"; await access.publish(before.revision, next); });
+  const inspected = await f.service.inspectAdapterUpgrade({ name: "openai-codex", module: "builtin:codex" });
+  await f.service.execute({ kind: "adapter.upgrade", name: "openai-codex", module: "builtin:codex", authorizedSignature: inspected.candidate.signature, capabilities: inspected.allowedCapabilities });
+  const after = await store.read();
+  assert.deepEqual(after.install.assets, original.install.assets);
+  assert.deepEqual(after.install.operations, original.install.operations);
+  if (kind === "instruction" || kind === "mcp") assert.match(await readFile(target, "utf8"), /[Uu]ser/);
+});
+
+test("upgrade rejects a nested path through the old content symlink", async t => {
+  const f = await upgradeFixture(t), before = await new StateStore(f.home).read();
+  await f.plugin("2", "old/a/nested");
+  await assert.rejects(f.service.plan(await f.request()), { code: "INVALID_PLAN" });
+  assert.deepEqual(await new StateStore(f.home).read(), before);
+});
+
+test("upgrade can replace link-directory capability with link-file while removing old operations", async t => {
+  const f = await upgradeFixture(t);
+  const entry = path.join(f.next, "index.js");
+  await writeFile(entry, (await readFile(entry, "utf8")).replaceAll("link-directory", "link-file").replace("sourceRelativePath:'.'", "sourceRelativePath:'SKILL.md'").replace("pathType:'directory'", "pathType:'file'"));
+  const request = { ...await f.request(), capabilities: ["link-file" as const] };
+  await f.service.execute(request);
+  const after = await new StateStore(f.home).read();
+  assert.deepEqual(after.adapters.registrations.find(a => a.name === request.name)!.capabilities, ["link-file"]);
+  assert.equal(after.install.operations[0]!.type, "link-file");
+});

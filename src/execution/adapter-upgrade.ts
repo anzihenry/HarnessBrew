@@ -23,5 +23,8 @@ export function upgradeExecutionState(before: HomeState, plan: ChangePlan, upgra
   if (!equal(unselected, plan.retainedOperations.filter(op => unselected.some(old => old.id === op.id))) || plan.expectedOperations.some(op => op.placementIds.some(id => !selected.has(id)))) throw new HarnessError("INVALID_PLAN", "Upgrade must preserve other adapters' operations.");
   const next = structuredClone(before);
   next.adapters.registrations = next.adapters.registrations.map(a => a.name === after.name ? after : a);
-  return parseHomeState(next);
+  // Old operation capabilities may have been revoked by the new grant. Validate
+  // the resulting operation graph in validateExecution/assembleState, not this
+  // transitional authorization view containing the old operations.
+  return next;
 }
