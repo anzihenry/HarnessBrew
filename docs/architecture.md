@@ -2,7 +2,7 @@
 
 [简体中文](architecture.zh-CN.md)
 
-This describes the 1.0.0 implementation. The package exports `harnessbrew` and the adapter type contract `harnessbrew/adapter`. CLI and SDK share the application service; the legacy `src/core` backend has been removed.
+This describes the implementation after architecture batch A (based on 1.0.0). The package exports `harnessbrew` and the adapter type contract `harnessbrew/adapter`. CLI and SDK share the application service; the legacy `src/core` backend has been removed.
 
 ## Responsibilities
 
@@ -47,6 +47,19 @@ Each manual root and each Bundle binding owns its requirements, dependency closu
 The coordinator acquires the Home lock, the same-user external lock and sorted target locks. One session reuses these locks across nested work. Reads wait for the Home lock; pending recovery blocks ordinary queries and previews. Source/plugin metadata publication also uses the journal.
 
 A durable committed journal marks the commit point. Earlier failures roll back using recorded before/after evidence. Recovery refuses to overwrite unexplained external changes. Cleanup first publishes removal of orphan state, then quarantines and deletes content whose inode and inventory still match. Partial deletion can resume; unexpected modifications retain recovery evidence.
+
+
+### Preparation and commit boundaries
+
+The application facade composes source, adapter, catalog and maintenance use cases through internal injectable ports. `npm run check:architecture` checks import boundaries and runs as part of `npm run check`.
+
+Preparation reads a locked snapshot, then releases transaction locks for Git work, verified plugin copies/imports and content staging. Commit reacquires Home → same-user external → sorted target locks and revalidates the prepared revision, physical Home, trust, source/plugin bytes, external inputs and target evidence. Drift rejects the operation; callers explicitly retry or generate a new preview. The service never silently replans. `execute` first recovers pending work in a short session; `apply` also recovers before checking its saved revision. Queries and previews remain blocked by pending recovery.
+
+Saved previews use internal saved-plan v2 with strict runtime validation. Found v1 previews return `PLAN_STALE` and must be regenerated. Home, Journal, ChangePlan and public CLI result formats remain v1. A first preview does not initialize Home; applying an initial metadata preview accepts only its original initialization seed and parent identity. Replacing an existing Home invalidates a preview even at the same path.
+
+Caches are keyed by canonical physical Home, so path aliases share protection. Process leases protect preparation through commit or durable preview-reference publication, including referenced historical cache roots. Live processes do not lose leases because of elapsed time. Saved previews retain persistent references after process exit. Caches are reconstructible but must not be deleted while leased or referenced; batch A supplies the protocol, not a cache GC command. Old and new binaries must not share an active cache collector.
+
+Prepared content is verified before journal creation, then published at the journaled content step. Cross-device rename falls back to verified staging inside the transaction. Publication consumes prepared directories; after a failed or completed application, regenerate a preview if its staging is no longer available. The durable committed-journal commit point and recovery evidence remain unchanged. See the [compatibility decision](design/adr-001-preparation-and-adapter-upgrade.zh-CN.md), [lease protocol](design/file-lock-protocol.zh-CN.md) and [benchmark comparison](benchmarks/README.md).
 
 ## Targets and plugins
 

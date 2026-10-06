@@ -2,7 +2,7 @@
 
 [English](architecture.md)
 
-本文描述 1.0.0 的实现。公开入口为 `harnessbrew` 与适配器类型契约 `harnessbrew/adapter`。CLI 和 SDK 共用 Application Service，旧 `src/core` 后端已删除。
+本文描述基于 1.0.0 完成架构 A 批次后的实现。公开入口为 `harnessbrew` 与适配器类型契约 `harnessbrew/adapter`。CLI 和 SDK 共用 Application Service，旧 `src/core` 后端已删除。
 
 ## 职责边界
 
@@ -47,6 +47,19 @@ Home 保存 `CURRENT`、不可变的 `revisions/*.json`、按内容摘要寻址�
 协调器依次持有 Home 锁、同用户外部资源锁和排序后的目标锁；同一 session 复用锁。读取等待 Home 锁；存在待恢复日志时阻止普通查询及预览。来源与插件元数据变更也通过日志发布。
 
 持久化的 committed 日志是提交点。提交前失败根据记录的变更前后证据回滚；恢复遇到无法解释的外部修改时拒绝覆盖。Cleanup 先提交孤儿状态移除，再校验 inode 和清单、隔离并删除内容。部分删除可以恢复；发现未知修改时保留隔离目录与日志。
+
+
+### 准备与提交边界
+
+Application facade 通过内部可注入端口组合来源、Adapter、目录和维护用例。`npm run check:architecture` 检查导入边界，已纳入 `npm run check`。
+
+准备阶段读取受锁保护的快照，释放事务锁后执行 Git、插件副本准备/加载和内容 staging。提交阶段按 Home → 同用户外部锁 → 排序后的目标锁重新加锁，复验 revision、Home 物理身份、信任、来源/插件字节、外部输入和目标证据。漂移会拒绝提交，调用方须显式重试或重新预览，服务不会静默重规划。`execute` 先在短 session 内恢复；`apply` 也先恢复再核对已保存 revision。待恢复日志仍阻止查询和预览。
+
+本机保存的预览使用 saved-plan v2 并严格运行时校验；读取到 v1 预览时返回 `PLAN_STALE`，须重新生成。Home、Journal、ChangePlan 和公开 CLI result 仍为 v1。首次预览不初始化 Home；首次元数据预览只接受原始初始化种子和父路径身份。已有 Home 被替换后，即使路径相同，预览仍失效。
+
+缓存按规范化后的物理 Home 标识，路径别名共享保护。进程租约从准备开始持续到提交结束或预览引用持久化，也覆盖引用到的历史缓存目录；不会因超时回收活进程的租约。保存的预览在进程退出后仍有持久引用。缓存可以重建，但不能在租约或引用有效时删除；A 只提供协议，正式缓存 GC 在 C 批次。新旧程序混用时不运行缓存回收器。
+
+暂存内容在创建日志前验证，在日志登记的内容步骤发布；跨文件系统 rename 失败时回退到事务内的核验 staging。发布会消费暂存目录，应用成功或失败后若暂存已不可用，须重新预览。持久化 committed 日志提交点和恢复证据保持不变。详见[兼容性决策](design/adr-001-preparation-and-adapter-upgrade.zh-CN.md)、[租约协议](design/file-lock-protocol.zh-CN.md)和[基准对比](benchmarks/README.md)。
 
 ## 目标与插件
 

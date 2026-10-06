@@ -144,6 +144,10 @@ SDK 还提供 execute、recover、doctor。HarnessError 包含稳定 code、deta
 
 预览可以写 Home 旁的隔离缓存，不初始化新 Home、不授予信任、不改锁文件和 Target。计划与本机 Home 绑定；revision、目标、Manifest 或插件改变后拒绝应用，不接受任意操作 JSON。
 
+Git/来源准备、插件准备和内容 staging 在事务写锁外进行，提交前重新核验准备证据。并发变更导致 `PLAN_STALE` 时，重新执行原命令并加 `--dry-run`，再应用新 plan ID；不会自动重规划。旧 saved-plan v1 预览须重新生成 v2，Home/Journal 和公开 JSON 格式仍为 v1。首次预览不初始化 Home，其他进程的初始化可能使其失效。
+
+进程租约及持久预览引用保护缓存，也覆盖被引用的历史缓存目录；同一物理 Home 的路径别名共享保护。不要手动删除正在使用的缓存，目前尚无缓存 GC 命令。应用计划可能消费暂存内容，重试时若暂存已不可用，须重新预览。执行与恢复边界见[架构说明](docs/architecture.zh-CN.md)。
+
 Home 使用 CURRENT 和 revisions/ 发布完整状态，内容存于 content/。事务将恢复证据写入 transaction.json。待恢复事务阻止普通查询和预览；doctor 仍可输出不完整诊断，recover 核对归属后再恢复或清理。孤立内容经过可验证的隔离目录回收，删除中断后可以继续。
 
 修改过的链接和整文件即使指定 `--overwrite-owned` 也会保留，因为仅凭路径无法证明持续归属；共享键/区块须能识别归属，并显式授权覆盖。损坏内容不会被静默重建。

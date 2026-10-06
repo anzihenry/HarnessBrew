@@ -1,0 +1,133 @@
+{
+  "format": "harnessbrew.benchmark",
+  "version": 1,
+  "sourceCommit": "aa9b5fd55fea5c7f08239b6390abdf6e430bc436",
+  "sourceDirty": false,
+  "node": "v24.19.0",
+  "platform": "darwin",
+  "arch": "arm64",
+  "cpu": "Apple M1 Max",
+  "workload": "tap.add + tap.trust + search + install one pinned asset; source scales, not installed population",
+  "cases": [
+    {
+      "assets": 10,
+      "payloadBytesPerAsset": 256,
+      "sourceFiles": 21,
+      "elapsedMs": 881.596458,
+      "metrics": {
+        "lock.resource.wait": 25,
+        "lock.resource.hold": 569.910793,
+        "lock.home.wait": 8,
+        "lock.home.hold": 230.4429169999994,
+        "lock.external.wait": 5,
+        "lock.external.hold": 204.85041699999965,
+        "inventory.files": 178,
+        "inventory.bytes": 40015,
+        "catalog.load": 25.31833299999971,
+        "prepare": 474.3609580000002,
+        "journal.writes": 11,
+        "journal.bytes": 38513
+      }
+    },
+    {
+      "assets": 10,
+      "payloadBytesPerAsset": 65536,
+      "sourceFiles": 21,
+      "elapsedMs": 881.5908749999999,
+      "metrics": {
+        "lock.resource.wait": 24,
+        "lock.resource.hold": 584.4480439999998,
+        "lock.home.wait": 7,
+        "lock.home.hold": 223.87612600000284,
+        "lock.external.wait": 6,
+        "lock.external.hold": 203.40566699999954,
+        "inventory.files": 178,
+        "inventory.bytes": 5588815,
+        "catalog.load": 26.035789999999906,
+        "prepare": 487.30133200000046,
+        "journal.writes": 11,
+        "journal.bytes": 38513
+      }
+    },
+    {
+      "assets": 100,
+      "payloadBytesPerAsset": 256,
+      "sourceFiles": 201,
+      "elapsedMs": 3420.121166,
+      "metrics": {
+        "lock.resource.wait": 20,
+        "lock.resource.hold": 2959.4220429999978,
+        "lock.home.wait": 6,
+        "lock.home.hold": 281.9137090000013,
+        "lock.external.wait": 3,
+        "lock.external.hold": 262.3124999999991,
+        "inventory.files": 1618,
+        "inventory.bytes": 376255,
+        "catalog.load": 189.22229100000004,
+        "prepare": 2929.301875,
+        "journal.writes": 11,
+        "journal.bytes": 38513
+      }
+    },
+    {
+      "assets": 100,
+      "payloadBytesPerAsset": 65536,
+      "sourceFiles": 201,
+      "elapsedMs": 3477.0268749999996,
+      "metrics": {
+        "lock.resource.wait": 23,
+        "lock.resource.hold": 2996.6146679999983,
+        "lock.home.wait": 7,
+        "lock.home.hold": 284.2574169999971,
+        "lock.external.wait": 5,
+        "lock.external.hold": 263.751459000001,
+        "inventory.files": 1618,
+        "inventory.bytes": 52926655,
+        "catalog.load": 212.0312079999967,
+        "prepare": 2975.4853329999987,
+        "journal.writes": 11,
+        "journal.bytes": 38513
+      }
+    },
+    {
+      "assets": 1000,
+      "payloadBytesPerAsset": 256,
+      "sourceFiles": 2001,
+      "elapsedMs": 29937.029916,
+      "metrics": {
+        "lock.resource.wait": 20,
+        "lock.resource.hold": 27301.916706000018,
+        "lock.home.wait": 7,
+        "lock.home.hold": 1146.7467920000126,
+        "lock.external.wait": 6,
+        "lock.external.hold": 1125.2104170000039,
+        "inventory.files": 16018,
+        "inventory.bytes": 3738655,
+        "catalog.load": 2296.5239990000046,
+        "prepare": 28148.461998999996,
+        "journal.writes": 11,
+        "journal.bytes": 38513
+      }
+    },
+    {
+      "assets": 1000,
+      "payloadBytesPerAsset": 65536,
+      "sourceFiles": 2001,
+      "elapsedMs": 30229.227667,
+      "metrics": {
+        "lock.resource.wait": 24,
+        "lock.resource.hold": 27296.96566700002,
+        "lock.home.wait": 9,
+        "lock.home.hold": 1273.923457999983,
+        "lock.external.wait": 5,
+        "lock.external.hold": 1243.237957000012,
+        "inventory.files": 16018,
+        "inventory.bytes": 526305055,
+        "catalog.load": 2573.718624999994,
+        "prepare": 28248.292667000023,
+        "journal.writes": 11,
+        "journal.bytes": 38513
+      }
+    }
+  ]
+}

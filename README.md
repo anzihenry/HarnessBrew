@@ -144,6 +144,10 @@ The signed directory must contain its dependencies and `package-lock.json` when 
 
 Preview may populate isolated source/plan caches next to the Home, but does not initialize a new Home, grant trust, write a Bundle lock, or alter targets. Saved plans are local to that Home; changed revisions, targets, input manifests, or plugins cause rejection. No arbitrary operation JSON is accepted.
 
+Git/source preparation, plugin preparation and content staging happen outside transaction write locks. Commit rechecks all prepared evidence. If concurrent changes invalidate a preview (`PLAN_STALE`), rerun the original command with `--dry-run` and apply the new plan ID; there is no automatic replan. Saved-plan v1 previews must be regenerated for v2. Home/Journal and public JSON formats remain v1. First-time preview leaves Home uninitialized; a competing initialization can invalidate it.
+
+Process leases and durable preview references protect caches, including historical cache roots. Path aliases to the same physical Home share cache protection. Do not manually remove caches in use. Cache GC is not yet provided. Applying a plan can consume its staged content; regenerate the preview if staging is unavailable when retrying. See [architecture](docs/architecture.md) for execution and recovery boundaries.
+
 Home state uses `CURRENT` and immutable `revisions/` snapshots. Content lives in `content/<digest>/`. Transactions record before/after evidence in `transaction.json`. Pending recovery blocks ordinary reads and previews. `doctor` can report partial diagnostics, while `recover` verifies ownership before restoring or cleaning up. Orphan deletion uses a verified quarantine that can resume after interruption.
 
 Modified links and whole files are preserved even with `--overwrite-owned`; their continued ownership cannot be proved from a pathname. Shared key/block repair requires explicit overwrite and recognizable ownership. Damaged content is reported rather than silently replaced.
