@@ -1,8 +1,9 @@
+import { nodeApplicationDependencies, type ApplicationDependencies } from "./dependencies.js";
 import type { Saved } from "./saved.js";
 import { prepareChange } from "./use-cases/prepare.js";
 import { catalogFor } from "./use-cases/catalog.js";
 import { measured } from "../observability/measure.js";
-import { lstat, readFile, readdir } from "node:fs/promises";
+import { lstat, readdir } from "node:fs/promises";
 import path from "node:path";
 import { HarnessError } from "../domain/errors.js";
 import { emptyHomeState, parseHomeState, type HomeState } from "../domain/home-state.js";
@@ -12,24 +13,27 @@ import { CatalogIndex, sameVersion } from "../domain/catalog-index.js";
 import { StateStore } from "../storage/state-store.js";
 import { loadCatalog } from "../catalog/load.js";
 import { precondition } from "../planning/resources.js";
-import { nodePlanningIO, catalogAssetReader } from "../ports/planning.js";
+import { catalogAssetReader } from "../ports/planning.js";
 import { TransactionCoordinator, type ExecutionResult } from "../transactions/coordinator.js";
-import { atomicDocument, exists, image } from "../execution/files.js";
+import { exists, image } from "../execution/files.js";
 import { builtinRegistration, registryFor } from "./adapters.js";
 import { cacheDirectory } from "./cache.js";
 import { parseRequest, parseReadQuery } from "./requests.js";
 import { diagnose } from "../diagnostics/doctor.js";
 import type { ChangeRequest, HarnessOptions, HarnessService, PlanPreview, ReadQuery, QueryResults, QueryResult } from "./types.js";
 
-export function createHarness(options: HarnessOptions): HarnessService { return new Application(options); }
+export function createHarness(options: HarnessOptions): HarnessService { return createApplication(options); }
+export function createApplication(options: HarnessOptions, overrides: Partial<ApplicationDependencies> = {}): HarnessService {
+  return new Application(options, { ...nodeApplicationDependencies, ...overrides });
+}
 class Application implements HarnessService {
   private closed = false;
   private readonly store: StateStore;
   private readonly coordinator: TransactionCoordinator;
   private readonly cache: string;
-  constructor(private readonly options: HarnessOptions) {
+  constructor(private readonly options: HarnessOptions, private readonly dependencies: ApplicationDependencies) {
     absolutePath(options.home); absolutePath(options.cwd); absolutePath(options.userHome);
-    this.store = new StateStore(options.home); this.coordinator = new TransactionCoordinator(options.home, { store: this.store });
+    this.store = new StateStore(options.home, { io: dependencies.storage }); this.coordinator = new TransactionCoordinator(options.home, { store: this.store, fault: dependencies.transactionFault });
     this.cache = path.join(path.dirname(options.home), `.harnessbrew-cache-${stableId(options.home)}`);
   }
   private check() { if (this.closed) throw new HarnessError("INVALID_ARGUMENT", "Service is closed."); }
@@ -52,17 +56,17 @@ class Application implements HarnessService {
   }
   private catalog(state: HomeState) { return catalogFor(state); }
   private build(state: HomeState, request: ChangeRequest): Promise<Saved> {
-    return measured("prepare", () => prepareChange({ home: this.store.home, cache: this.cache, options: this.options }, state, request));
+    return measured("prepare", () => prepareChange({ home: this.store.home, cache: this.cache, options: this.options, dependencies: this.dependencies }, state, request));
   }
   async plan(input: ChangeRequest): Promise<PlanPreview> {
     const request = parseRequest(input), saved = await this.build(await this.snapshot(), request);
     await cacheDirectory(this.cache, "plans");
-    await atomicDocument(path.join(this.cache, "plans", `${saved.id}.json`), { digest: hash(canonicalJson(saved)), saved });
+    await this.dependencies.documents.write(path.join(this.cache, "plans", `${saved.id}.json`), { digest: hash(canonicalJson(saved)), saved });
     return { contentChanges: saved.contentChanges ?? [], planId: saved.id, baseRevision: saved.baseRevision, changes: saved.plan?.assetChanges ?? [{ kind: request.kind, before: await this.snapshot(), after: saved.candidate }], retained: saved.plan?.desiredState.retained ?? [], fileUpdates: saved.plan?.fileUpdates ?? [], operations: saved.plan?.operations ?? [], diagnostics: saved.diagnostics };
   }
   private async validateInputs(saved: Saved): Promise<void> {
     for (const expected of saved.contentChecks ?? []) if (canonicalJson(await image(expected.path, true)) !== canonicalJson(expected.before)) throw new HarnessError("PLAN_STALE", "Content changed after preview.");
-    for (const expected of saved.inputs) if (canonicalJson(precondition(await nodePlanningIO.inspect(expected.path))) !== canonicalJson(expected)) throw new HarnessError("PLAN_STALE", "Manifest changed after preview.");
+    for (const expected of saved.inputs) if (canonicalJson(precondition(await this.dependencies.planning.inspect(expected.path))) !== canonicalJson(expected)) throw new HarnessError("PLAN_STALE", "Manifest changed after preview.");
   }
   private async run(saved: Saved, session: import("../transactions/coordinator.js").TransactionSession): Promise<ExecutionResult> {
     await this.validateInputs(saved);
@@ -97,8 +101,8 @@ class Application implements HarnessService {
     try { const file = path.join(this.cache, "plans", `${id}.json`);
       for (const directory of [this.cache, path.dirname(file)]) if (!(await lstat(directory)).isDirectory()) throw new HarnessError("INVALID_PLAN", "Unsafe saved plan directory.");
       if (!(await lstat(file)).isFile()) throw new HarnessError("INVALID_PLAN", "Saved plan must be a regular file.");
-      const envelope = JSON.parse(await readFile(file, "utf8")); saved = envelope.saved;
-      if (saved.id !== id || saved.format !== "harnessbrew.saved-plan" || saved.version !== 1 || envelope.digest !== hash(canonicalJson(saved)) || (await nodePlanningIO.identify(path.join(saved.home, "CURRENT"))).physicalPath !== (await nodePlanningIO.identify(path.join(this.store.home, "CURRENT"))).physicalPath) throw new HarnessError("INVALID_PLAN", "Saved plan integrity failed.");
+      const envelope = JSON.parse(await this.dependencies.documents.read(file)); saved = envelope.saved;
+      if (saved.id !== id || saved.format !== "harnessbrew.saved-plan" || saved.version !== 1 || envelope.digest !== hash(canonicalJson(saved)) || (await this.dependencies.planning.identify(path.join(saved.home, "CURRENT"))).physicalPath !== (await this.dependencies.planning.identify(path.join(this.store.home, "CURRENT"))).physicalPath) throw new HarnessError("INVALID_PLAN", "Saved plan integrity failed.");
     } catch (cause) { if (cause instanceof HarnessError) throw cause; throw new HarnessError("PLAN_NOT_FOUND", "Saved plan is unavailable.", {}, { cause }); }
     if (saved.baseRevision === "uninitialized") {
       if ((await this.snapshot()).revision !== "uninitialized" || !saved.candidate) throw new HarnessError("PLAN_STALE", "Home changed after preview.");

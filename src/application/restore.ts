@@ -1,3 +1,4 @@
+import { nodeApplicationDependencies, type ApplicationDependencies } from "./dependencies.js";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { loadCatalog } from "../catalog/load.js";
@@ -8,13 +9,13 @@ import { resolveAsset } from "../domain/identity.js";
 import { HarnessError } from "../domain/errors.js";
 import { sameVersion } from "../domain/catalog-index.js";
 import { canonicalJson, sortBy } from "../domain/validation.js";
-import { SourceManager } from "../sources/manager.js";
+
 import { catalogAssetReader } from "../ports/planning.js";
 import { stageContent } from "../execution/content.js";
 import { cacheDirectory } from "./cache.js";
 
 /** Prepare verified bytes outside the write transaction. Never changes Home or target resources. */
-export async function prepareRestore(state: HomeState, query: string, cache: string) {
+export async function prepareRestore(state: HomeState, query: string, cache: string, sources: ApplicationDependencies["sources"] = nodeApplicationDependencies.sources) {
   const asset = resolveAsset(state.install.assets.filter(a => a.status === "active"), query);
   const content = state.contents.find(c => c.digest === asset.contentDigest)!;
   const origin = content.origins.find(o => o.coordinate === asset.coordinate && o.snapshot.id === asset.snapshotId)!;
@@ -25,7 +26,7 @@ export async function prepareRestore(state: HomeState, query: string, cache: str
   let snapshot: SourceSnapshot = state.sources.snapshots.find(s => s.id === origin.snapshot.id) ?? origin.snapshot, exact: CatalogSnapshot;
   try { exact = await loadCatalog([snapshot], []); }
   catch {
-    snapshot = await new SourceManager(path.join(working, "sources")).prepare({ name: snapshot.tap, url: snapshot.url, commit: snapshot.commit });
+    snapshot = await sources(path.join(working, "sources")).prepare({ name: snapshot.tap, url: snapshot.url, commit: snapshot.commit });
     if (!sameSnapshot(snapshot, origin.snapshot)) throw new HarnessError("CONTENT_MODIFIED", "Recovered source differs from the recorded Git snapshot.");
     exact = await loadCatalog([snapshot], []);
   }
@@ -40,7 +41,7 @@ export async function prepareRestore(state: HomeState, query: string, cache: str
       if (!state.install.assets.some(a => a.status === "active" && a.contentDigest === content.digest && a.snapshotId === previous.id)) continue;
       const trusted = state.sources.registrations.find(s => s.name === previous.tap && s.url === previous.url && s.trusted);
       if (!trusted) throw new HarnessError("SOURCE_UNTRUSTED", "Shared content restoration requires trusted sources.");
-      const recovered = await new SourceManager(path.join(working, "sources")).prepare({ name: previous.tap, url: previous.url, commit: previous.commit });
+      const recovered = await sources(path.join(working, "sources")).prepare({ name: previous.tap, url: previous.url, commit: previous.commit });
       if (!sameSnapshot(recovered, previous)) throw new HarnessError("CONTENT_MODIFIED", "Shared recovery source differs from recorded provenance.");
       const available = await loadCatalog([recovered], []); snapshots.set(recovered.id, recovered); assets.push(...available.assets);
     }

@@ -28,7 +28,7 @@ export async function prepareRepair(context: PreparationContext, state: HomeStat
     const before = await image(destination, true);
     const damaged = before.kind !== "content" || before.digest !== asset.contentDigest;
     if (damaged && before.kind !== "missing" && !request.restoreContent) throw new HarnessError("CONTENT_MODIFIED", "Content was modified; use --restore-content to preserve it in quarantine and restore the installed version.", { asset: asset.coordinate });
-    const prepared = await prepareRestore(state, asset.coordinate, context.cache);
+    const prepared = await prepareRestore(state, asset.coordinate, context.cache, context.dependencies.sources);
     for (const snapshot of prepared.catalog.snapshots) snapshots.set(snapshot.id, snapshot);
     for (const item of prepared.catalog.assets) assets.set(`${item.manifest.coordinate}:${item.snapshotId}`, item);
     if (damaged) {

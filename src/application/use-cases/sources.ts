@@ -1,13 +1,13 @@
 import { HarnessError } from "../../domain/errors.js";
 import { parseHomeState, type HomeState } from "../../domain/home-state.js";
 import { tapName } from "../../domain/identity.js";
-import { SourceManager } from "../../sources/manager.js";
+import type { SourcePreparation } from "../dependencies.js";
 import { loadCatalog } from "../../catalog/load.js";
 import type { ChangeRequest } from "../types.js";
 import type { Saved } from "../saved.js";
 import type { PreparationContext } from "./context.js";
 
-export async function prepareSources(context: PreparationContext, state: HomeState, request: ChangeRequest, saved: Saved, manager: SourceManager): Promise<Saved> {
+export async function prepareSources(context: PreparationContext, state: HomeState, request: ChangeRequest, saved: Saved, manager: SourcePreparation): Promise<Saved> {
   const next = structuredClone(state);
   const sourceRequest = request as Extract<ChangeRequest, { kind: "tap.add" | "tap.update" | "tap.remove" | "tap.trust" | "tap.untrust" }>;
   const name = sourceRequest.name === undefined ? undefined : tapName(sourceRequest.name);

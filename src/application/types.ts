@@ -28,8 +28,8 @@ export interface QueryResults {
   outdated: { coordinate: string; installed: CommitId; available: CommitId; ownerIds: string[] }[];
 }
 export type QueryResult = QueryResults[keyof QueryResults];
-export interface DoctorFinding { category: "content" | "target" | "dependency" | "ownership" | "state"; code: string; severity: "error" | "warning" | "info"; digest?: string; affectedAssets?: string[]; message: string; asset?: string; operation?: string; resource?: string; actions: string[] }
-export interface DoctorReport { healthy: boolean; complete: boolean; findings: DoctorFinding[] }
+import type { DoctorReport } from "../diagnostics/types.js";
+export type { DoctorFinding, DoctorReport } from "../diagnostics/types.js";
 export interface PlanPreview { contentChanges: import("./content.js").ContentChange[]; planId: string; baseRevision: string; changes: unknown[]; retained: ChangePlan["desiredState"]["retained"]; fileUpdates: ChangePlan["fileUpdates"]; operations: ChangePlan["operations"]; diagnostics: string[] }
 export interface RecoveryResult { recovered: boolean; diagnostics: string[] }
 export interface HarnessService {

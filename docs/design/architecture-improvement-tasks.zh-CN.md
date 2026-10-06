@@ -59,10 +59,12 @@
 
 ### A05 — 窄接口、共享类型与模块约束
 
-- [ ] 完成；PR 02；前置：A04。
+- [x] 完成；PR 02；前置：A04。
 - 范围：`application/types.ts`、`diagnostics/doctor.ts`、`ports/`、执行 I/O；拟新增架构检查脚本。
 - 工作/交付：移动 diagnostics 共享契约；为来源准备、计划缓存和必要执行 I/O 提供可注入接口；配置允许的依赖方向并接入检查命令。
 - 验收：diagnostics 不反向依赖 application；检查脚本能拒绝禁止的 import；在应用层可注入慢来源/失败 I/O，而无需修改全局函数。
+
+完成证据：提交主题 `refactor(A05): enforce boundaries and inject application ports`；build、架构检查及快速测试 180/180 通过；来源/文档/状态故障注入与禁止导入检查有专项测试，公共入口签名不变。
 
 ### A06 — PreparedChange 与计划存储契约
 

@@ -9,12 +9,12 @@ import { parseBundleLock, parseBundleManifest } from "../../domain/bundle.js";
 import { placementId } from "../../domain/placement.js";
 import type { CatalogSnapshot } from "../../domain/catalog.js";
 import type { ResolutionRequest } from "../../domain/resolution.js";
-import { SourceManager } from "../../sources/manager.js";
+
 import { loadCatalog } from "../../catalog/load.js";
 import { resolveRequest } from "../../resolution/resolve.js";
 import { planChange } from "../../planning/plan.js";
 import { precondition } from "../../planning/resources.js";
-import { nodePlanningIO, catalogAssetReader } from "../../ports/planning.js";
+import { catalogAssetReader } from "../../ports/planning.js";
 import { exists } from "../../execution/files.js";
 import { registryFor } from "../adapters.js";
 import { cacheDirectory } from "../cache.js";
@@ -29,7 +29,7 @@ import { catalogFor } from "./catalog.js";
 
 export async function prepareChange(context: PreparationContext, state: HomeState, request: ChangeRequest): Promise<Saved> {
   const saved: Saved = { format: "harnessbrew.saved-plan", version: 1, id: randomUUID(), home: context.home, request, baseRevision: state.revision, inputs: [], diagnostics: [] };
-  const manager = new SourceManager(path.join(context.cache, "sources"));
+  const manager = context.dependencies.sources(path.join(context.cache, "sources"));
   if (["tap.add", "tap.update", "bundle.apply"].includes(request.kind)) await cacheDirectory(context.cache, "sources");
   if (request.kind.startsWith("tap.")) return prepareSources(context, state, request, saved, manager);
   if (request.kind === "adapter.add" || request.kind === "adapter.remove") return prepareAdapter(context, state, request, saved);
@@ -44,10 +44,10 @@ export async function prepareChange(context: PreparationContext, state: HomeStat
   let resolution: ResolutionRequest;
   if (request.kind === "bundle.apply") {
     const file = path.resolve(context.options.cwd, request.file), directory = await realpath(path.dirname(file));
-    const manifestBefore = precondition(await nodePlanningIO.inspect(file));
+    const manifestBefore = precondition(await context.dependencies.planning.inspect(file));
     const manifest = parseBundleManifest(parseYaml(await readFile(file, "utf8")));
     saved.inputs.push(manifestBefore);
-    const lockPath = `${file}.lock.json`, lockBefore = precondition(await nodePlanningIO.inspect(lockPath));
+    const lockPath = `${file}.lock.json`, lockBefore = precondition(await context.dependencies.planning.inspect(lockPath));
     const lock = await exists(lockPath) ? parseBundleLock(JSON.parse(await readFile(lockPath, "utf8"))) : undefined;
     const snapshots = new Map(catalog.snapshots.map(s => [s.id, s]));
     const selected = new Map(catalog.selectedSnapshotIds.map(id => { const s = snapshots.get(id)!; return [s.tap, s.id]; }));
@@ -77,6 +77,6 @@ export async function prepareChange(context: PreparationContext, state: HomeStat
   const desired = request.kind === "repair" ? currentDesired(state) : resolveRequest(state, catalog, resolution);
   const needed = new Set(desired.assets.filter(a => (!repair?.assetCoordinates || repair.assetCoordinates.includes(a.coordinate)) && catalog.assets.some(item => item.manifest.coordinate === a.coordinate && item.contentDigest === a.contentDigest) && state.sources.registrations.find(s => a.coordinate.startsWith(`${s.name}/`))?.trusted).flatMap(a => a.placements.map(p => p.placement.target)));
   const registry = await registryFor(state, context.cache, context.options.adapters ?? [], true, needed);
-  saved.plan = await planChange({ state, desired, catalog, adapters: registry, io: nodePlanningIO, assets: catalogAssetReader(catalog), home: context.home, userHome: context.options.userHome, requestDigest: hash(canonicalJson(request)), ...(repair ? { repair } : {}) });
+  saved.plan = await planChange({ state, desired, catalog, adapters: registry, io: context.dependencies.planning, assets: catalogAssetReader(catalog), home: context.home, userHome: context.options.userHome, requestDigest: hash(canonicalJson(request)), ...(repair ? { repair } : {}) });
   saved.catalog = catalog; return saved;
 }

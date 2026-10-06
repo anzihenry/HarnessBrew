@@ -11,7 +11,7 @@ import { canonicalJson } from "../domain/validation.js";
 import { image, exists } from "../execution/files.js";
 import { nodePlanningIO } from "../ports/planning.js";
 import { resourceFingerprint } from "../planning/resources.js";
-import type { DoctorFinding, DoctorReport } from "../application/types.js";
+import type { DoctorFinding, DoctorReport } from "./types.js";
 
 /** Holds the Home lock; malformed records never imply a healthy or complete report. */
 export async function diagnose(store: StateStore, coordinate?: string): Promise<DoctorReport> {

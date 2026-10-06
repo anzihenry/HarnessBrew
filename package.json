@@ -34,13 +34,14 @@
     "test:e2e": "node ./scripts/e2e/run.mjs",
     "release:gate": "node ./scripts/release-gate.mjs",
     "release:preflight": "node ./scripts/runtime/preflight.mjs",
-    "check": "npm run build && npm test && npm run release:verify",
+    "check": "npm run check:architecture && npm run build && npm test && npm run release:verify",
     "release:verify": "node ./scripts/release-check.mjs",
     "prepack": "npm run build",
     "test:fast": "npm run build:test && node scripts/test/run.mjs fast",
     "test:packaged": "npm run build:test && node scripts/test/run.mjs packaged",
     "test:regressions": "npm run build:test && node scripts/test/run.mjs regressions",
-    "check:all": "npm run check && npm run test:packaged && npm run test:regressions"
+    "check:all": "npm run check && npm run test:packaged && npm run test:regressions",
+    "check:architecture": "node scripts/check-architecture.mjs"
   },
   "keywords": [
     "agent",
