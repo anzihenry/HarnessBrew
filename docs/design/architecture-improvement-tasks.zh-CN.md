@@ -86,10 +86,12 @@
 
 ### A08 — 锁外准备与共享入口
 
-- [ ] 完成；PR 04；前置：A06、A07。
+- [x] 完成；PR 04；前置：A06、A07。
 - 范围：应用用例、`sources/manager.ts`、`application/restore.ts`、`application/adapters.ts`、`execution/content.ts`。
 - 工作/交付：Git 拉取、可提前 staging 的内容及插件副本准备移到事务外；plan/execute 共用准备路径，apply 使用保存结果；有待恢复日志时普通预览继续阻断，execute 保留先恢复再准备的语义。
 - 验收：闸门暂停 Git 时，同 Home 查询及其他 Home 独立写操作可完成；准备不修改活动安装、目标和 lock；新插件授权规则不变。
+
+完成证据：提交主题 `feat(A08): prepare sources adapters and content outside transactions`；快速测试 185/185、新增并发/暂存专项 2/2、packaged 19/19、regressions 3/3 通过。可控慢来源期间同 Home 查询和另一 Home 写入完成；内容先缓存暂存再经 Journal 发布，跨设备保留验证复制回退。
 
 ### A09 — 锁内复验及初始化/恢复竞态
 

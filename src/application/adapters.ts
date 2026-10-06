@@ -71,3 +71,12 @@ export async function registryFor(state: HomeState, cache: string, supplied: rea
   }
   return registry;
 }
+
+/** Recheck original and loaded cache bytes without importing code under transaction locks. */
+export async function verifyRegistryFiles(state: HomeState, cache: string, supplied: readonly AuthorizedAdapter[], needed?: ReadonlySet<string>): Promise<void> {
+  await registryFor(state, cache, supplied, false, needed);
+  for (const registration of state.adapters.registrations) {
+    if (needed && !needed.has(registration.name) || registration.module === "builtin:codex" || supplied.some(a => a.adapter.name === registration.name)) continue;
+    if ((await inspectContent(path.join(cache, "plugins", registration.signature.slice(7)))).digest !== registration.signature) throw new HarnessError("ADAPTER_CHANGED", "Loaded adapter cache changed before commit.");
+  }
+}

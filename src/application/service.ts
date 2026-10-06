@@ -1,3 +1,5 @@
+import type { AdapterRegistry } from "../adapters/registry.js";
+import { stagePreparation, preparedPublisher } from "./staging.js";
 import { CacheLeases } from "./cache-leases.js";
 import { PlanStore } from "./plan-store.js";
 import { nodeApplicationDependencies, type ApplicationDependencies } from "./dependencies.js";
@@ -18,7 +20,7 @@ import { precondition } from "../planning/resources.js";
 import { catalogAssetReader } from "../ports/planning.js";
 import { TransactionCoordinator, type ExecutionResult } from "../transactions/coordinator.js";
 import { exists, image } from "../execution/files.js";
-import { builtinRegistration, registryFor } from "./adapters.js";
+import { builtinRegistration, registryFor, verifyRegistryFiles } from "./adapters.js";
 
 import { parseRequest, parseReadQuery } from "./requests.js";
 import { diagnose } from "../diagnostics/doctor.js";
@@ -65,6 +67,7 @@ class Application implements HarnessService {
     return measured("prepare", async () => {
       const saved = await prepareChange({ home: this.store.home, cache: this.cache, options: this.options, dependencies: this.dependencies }, state, request);
       saved.resources = [...new Set([...(saved.catalog?.snapshots ?? saved.candidate?.sources.snapshots ?? []).map(s => s.contentLocation), ...(saved.restorations ?? []).map(r => r.staged), ...state.adapters.registrations.filter(a => !a.module.startsWith("builtin:") && !a.module.startsWith("supplied:")).map(a => path.join(this.cache, "plugins", a.signature.slice(7)))])].sort();
+      await stagePreparation(saved, this.cache);
       return saved;
     });
   }
@@ -81,13 +84,17 @@ class Application implements HarnessService {
     for (const expected of saved.contentChecks ?? []) if (canonicalJson(await image(expected.path, true)) !== canonicalJson(expected.before)) throw new HarnessError("PLAN_STALE", "Content changed after preview.");
     for (const expected of saved.inputs) if (canonicalJson(precondition(await this.dependencies.planning.inspect(expected.path))) !== canonicalJson(expected)) throw new HarnessError("PLAN_STALE", "Manifest changed after preview.");
   }
-  private async run(saved: Saved, session: import("../transactions/coordinator.js").TransactionSession): Promise<ExecutionResult> {
+  private async prepareRuntime(saved: Saved, state: HomeState): Promise<AdapterRegistry | undefined> {
+    if (saved.candidate) return saved.request.kind === "adapter.add" ? registryFor(saved.candidate, this.cache, this.options.adapters ?? []) : undefined;
+    return registryFor(state, this.cache, this.options.adapters ?? [], true, new Set(saved.plan!.adapterSignatures.map(a => a.name)));
+  }
+  private async run(saved: Saved, registry: AdapterRegistry | undefined, session: import("../transactions/coordinator.js").TransactionSession): Promise<ExecutionResult> {
     await this.validateInputs(saved);
     const current = await session.read();
     if (current.revision !== saved.baseRevision) throw new HarnessError("PLAN_STALE", "State changed after preview.");
     if (saved.candidate) {
       // Signature validation precedes import, including when applying a saved add plan.
-      if (saved.request.kind === "adapter.add") await registryFor(saved.candidate, this.cache, this.options.adapters ?? []);
+      if (saved.request.kind === "adapter.add") await verifyRegistryFiles(saved.candidate, this.cache, this.options.adapters ?? []);
       if (saved.request.kind === "tap.add" || saved.request.kind === "tap.update") await this.catalog(saved.candidate);
       const result = await session.publish(saved.candidate);
       return { ...result, contentChanges: saved.contentChanges ?? [], diagnostics: [...result.diagnostics, ...saved.diagnostics] };
@@ -95,8 +102,10 @@ class Application implements HarnessService {
     if (!saved.plan || !saved.catalog) throw new HarnessError("INVALID_PLAN", "Incomplete saved plan.");
     const verified = await loadCatalog(saved.catalog.snapshots, saved.catalog.selectedSnapshotIds);
     if (canonicalJson(verified) !== canonicalJson(saved.catalog)) throw new HarnessError("PLAN_STALE", "Source changed after preview.");
-    const registry = await registryFor(current, this.cache, this.options.adapters ?? [], true, new Set(saved.plan.adapterSignatures.map(a => a.name)));
-    const result = await session.apply({ plan: saved.plan, catalog: verified, assets: catalogAssetReader(verified), adapters: registry, ...(saved.bundleLock ? { bundleLock: saved.bundleLock } : {}), ...(saved.restorations ? { restorations: saved.restorations } : {}) });
+    await verifyRegistryFiles(current, this.cache, this.options.adapters ?? [], new Set(saved.plan.adapterSignatures.map(a => a.name)));
+    if (!registry) throw new HarnessError("INVALID_PLAN", "Missing prepared adapter registry.");
+    const prepared = await preparedPublisher(saved, this.cache);
+    const result = await session.apply({ plan: saved.plan, catalog: verified, assets: catalogAssetReader(verified), adapters: registry, prepared, ...(saved.bundleLock ? { bundleLock: saved.bundleLock } : {}), ...(saved.restorations ? { restorations: saved.restorations } : {}) });
     return { ...result, diagnostics: [...result.diagnostics, ...saved.diagnostics] };
   }
   async execute(input: ChangeRequest): Promise<ExecutionResult> {
@@ -105,12 +114,12 @@ class Application implements HarnessService {
   }
   private async executeProtected(input: ChangeRequest): Promise<ExecutionResult> {
     const request = parseRequest(input); await this.initialize();
-    if (request.kind === "repair") {
-      const saved = await this.build(await this.snapshot(), request);
-      return this.coordinator.withSession(session => this.run(saved, session));
-    }
-    return this.coordinator.withSession(async session => this.run(await this.build(await session.read(), request), session));
+    const state = await this.coordinator.withSession(session => session.read());
+    const saved = await this.build(state, request);
+    const registry = await this.prepareRuntime(saved, state);
+    return this.coordinator.withSession(session => this.run(saved, registry, session));
   }
+
   async apply(id: string): Promise<ExecutionResult> {
     this.check();
     return this.leases.withLease(() => this.applyProtected(id));
@@ -121,9 +130,13 @@ class Application implements HarnessService {
     if (saved.baseRevision === "uninitialized") {
       if ((await this.snapshot()).revision !== "uninitialized" || !saved.candidate) throw new HarnessError("PLAN_STALE", "Home changed after preview.");
       await this.initialize();
-      return this.coordinator.withSession(async session => { const state = await session.read(); const normalized = { ...state, revision: "uninitialized", install: { ...state.install, revision: "uninitialized" } }; if (canonicalJson(normalized) !== canonicalJson(await this.initial())) throw new HarnessError("PLAN_STALE", "Home was changed while initializing the saved plan."); saved.baseRevision = state.revision; saved.candidate!.revision = state.revision; saved.candidate!.install.revision = state.revision; return this.run(saved, session); });
+      const registry = await this.prepareRuntime(saved, await this.initial());
+      return this.coordinator.withSession(async session => { const state = await session.read(); const normalized = { ...state, revision: "uninitialized", install: { ...state.install, revision: "uninitialized" } }; if (canonicalJson(normalized) !== canonicalJson(await this.initial())) throw new HarnessError("PLAN_STALE", "Home was changed while initializing the saved plan."); saved.baseRevision = state.revision; saved.candidate!.revision = state.revision; saved.candidate!.install.revision = state.revision; return this.run(saved, registry, session); });
     }
-    return this.coordinator.withSession(session => this.run(saved, session));
+    const state = await this.coordinator.withSession(session => session.read());
+    if (state.revision !== saved.baseRevision) throw new HarnessError("PLAN_STALE", "State changed after preview.");
+    const registry = await this.prepareRuntime(saved, state);
+    return this.coordinator.withSession(session => this.run(saved, registry, session));
   }
   async recover() { this.check(); const pending = await exists(path.join(this.store.home, "transaction.json")); await this.coordinator.recover(); return { recovered: pending, diagnostics: [] }; }
   async doctor(query: { coordinate?: string } = {}) { this.check(); try { record(query, "doctor query", ["coordinate"]); if (query.coordinate !== undefined && (typeof query.coordinate !== "string" || !query.coordinate.trim())) throw new Error("Invalid coordinate"); } catch (cause) { throw new HarnessError("INVALID_ARGUMENT", "Invalid doctor query.", {}, { cause }); } return diagnose(this.store, query.coordinate); }

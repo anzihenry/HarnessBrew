@@ -27,7 +27,9 @@ import { withFileLock } from "./file-lock.js";
 export type TransactionCheckpoint = "before-quarantine" | "after-quarantine" | "prepared" | "before-write" | "after-write" | "after-record" | "before-state" | "after-state" | "committed" | "before-rollback" | "before-cleanup";
 export type TransactionFault = (point: TransactionCheckpoint, context: { transactionId: string; path?: string }) => void | Promise<void>;
 export interface ContentRestoration { digest: import("../domain/identity.js").Digest; staged: string; before: FileImage; bytes: number }
+export interface PreparedContentPublisher { publish(asset: import("../domain/assets.js").ResolvedAsset, destination: string): Promise<boolean> }
 export interface ExecutionInput {
+  prepared?: PreparedContentPublisher;
   restorations?: ContentRestoration[];
   plan: ChangePlan; catalog: CatalogSnapshot; assets: AssetReader; adapters: AdapterProvider;
   bundleLock?: { path: string; before: ResourcePrecondition };
@@ -291,14 +293,17 @@ export class TransactionCoordinator {
             await rename(destination, entry.quarantine); await syncDirectory(path.dirname(destination)); await syncDirectory(this.store.home);
             await checkpoint("after-quarantine", destination);
           }
-          // Copy and verify through the pinned reader; never trust a caller-provided arbitrary directory rename.
+          // Use a host-validated prepared publisher, or rebuild through the pinned reader.
           const asset = plan.desiredState.assets.find(a => a.contentDigest === restoration.digest && catalog.pinned(a))!;
           const source = asset && catalog.pinned(asset);
           if (!source) throw new HarnessError("SOURCE_NOT_FOUND", "Recovery source is unavailable.");
-          await mkdir(staging, { recursive: true, mode: 0o700 });
-          const ready = path.join(staging, restoration.digest.slice(7));
-          await stageContent(ready, source, input.assets); await ensureParents(destination);
-          await step(destination, "content", { kind: "content", digest: restoration.digest, device: "", inode: "" }, () => publishContent(ready, destination));
+          await ensureParents(destination);
+          await step(destination, "content", { kind: "content", digest: restoration.digest, device: "", inode: "" }, async () => {
+            if (await input.prepared?.publish(source, destination)) return;
+            await mkdir(staging, { recursive: true, mode: 0o700 });
+            const ready = path.join(staging, restoration.digest.slice(7));
+            await stageContent(ready, source, input.assets); await publishContent(ready, destination);
+          });
         }
         for (const asset of plan.desiredState.assets) {
           if (outsideRepair(plan, asset.coordinate)) continue;
@@ -311,11 +316,13 @@ export class TransactionCoordinator {
           if (before.install.assets.some(previous => previous.contentDigest === asset.contentDigest)) throw new HarnessError("CONTENT_MODIFIED", "Previously installed content is missing; explicit repair is required.");
           const source = catalog.pinned(asset);
           if (!source || source.snapshotId !== asset.snapshotId) throw new HarnessError("SOURCE_NOT_FOUND", "Missing pinned content for execution.");
-          await mkdir(staging, { recursive: true, mode: 0o700 });
-          const staged = path.join(staging, asset.contentDigest.slice(7));
-          await stageContent(staged, source, input.assets);
           await ensureParents(destination);
-          await step(destination, "content", { kind: "content", digest: asset.contentDigest, device: "", inode: "" }, () => publishContent(staged, destination));
+          await step(destination, "content", { kind: "content", digest: asset.contentDigest, device: "", inode: "" }, async () => {
+            if (await input.prepared?.publish(source, destination)) return;
+            await mkdir(staging, { recursive: true, mode: 0o700 });
+            const staged = path.join(staging, asset.contentDigest.slice(7));
+            await stageContent(staged, source, input.assets); await publishContent(staged, destination);
+          });
         }
         // All content is ready before any target is activated.
         for (const update of plan.fileUpdates) {

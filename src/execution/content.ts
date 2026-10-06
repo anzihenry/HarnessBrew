@@ -27,4 +27,5 @@ export async function stageContent(directory: string, asset: ResolvedAsset, read
 }
 export async function publishContent(staging: string, destination: string): Promise<void> {
   await rename(staging, destination); await syncDirectory(path.dirname(destination));
+  if (path.dirname(staging) !== path.dirname(destination)) await syncDirectory(path.dirname(staging));
 }
