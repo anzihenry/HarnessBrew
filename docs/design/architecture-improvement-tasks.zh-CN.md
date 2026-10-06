@@ -32,10 +32,12 @@
 
 ### A02 — 升级、授权和格式演进 ADR
 
-- [ ] 完成；PR 01；前置：A01。
+- [x] 完成；PR 01；前置：A01。
 - 范围：`docs/design/`，核对 `domain/bundle.ts`、`domain/home-state.ts`、`transactions/journal.ts`、保存计划及 CLI 格式。
 - 工作/交付：确定插件静态检查→候选摘要授权→完整规划的 API/CLI；明确内置签名覆盖范围、多 Bundle 输入、错误码、格式读写兼容矩阵和必要迁移策略。
 - 验收：给出手动安装、两个 Bundle、新增能力、旧格式和未完成旧事务五类完整示例；不存在“先替换注册、稍后更新目标/lock”的中间成功状态。普通 dry-run 不加载新插件。
+
+完成证据：提交主题 `docs(A02): decide preparation and upgrade compatibility`；ADR 001 固定 API/CLI、五类示例、版本矩阵与恢复规则；交叉核对现有严格解析器，无业务代码变更。
 
 ### A03 — 可重复规模基准
 
