@@ -24,3 +24,13 @@
 ## 后续覆盖归属
 
 A06 负责格式与计划读取；A07 负责租约及模拟回收竞争；A08/A09 负责正常路径与复验；A10 负责跨进程组合与崩溃。已有成熟场景复用测试，不复制一套同义测试。
+
+## A10 收口证据
+
+- `preparation-concurrency.test.ts`：暂停 Git 时同 Home 查询和另一 Home 写入可完成；内容在事务前暂存、记录 Journal 后发布。
+- `preparation-freshness.test.ts`：信任/源/目标/Home 替换，别名共享计划，准备后日志及初始化竞争。
+- `preparation-crash.test.ts`：Application 入口在 after-prepare、prepared、目标 after-record/after-write、after-state、committed 的真实进程 SIGKILL；同 Home 初始 revision 竞争；跨 Home 共享配置显式重新规划；插件缓存/暂存字节漂移；历史缓存租约及持久引用。
+- `cache-leases.test.ts`：活 PID 不抢占、死亡租约重验、并发消费者与持久计划引用。
+- `prepared-change.test.ts`：旧格式、嵌套未知字段、摘要、物理 Home 身份。
+
+原协调器及内容修复 SIGKILL 测试继续保留，分别验证底层协议与新应用入口；未记录写入仍保留证据并要求恢复，不承诺无条件自动回滚。

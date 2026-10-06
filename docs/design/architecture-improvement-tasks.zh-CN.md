@@ -104,10 +104,12 @@
 
 ### A10 — 并发与故障专项验收
 
-- [ ] 完成；PR 04；前置：A09。
+- [x] 完成；PR 04；前置：A09。
 - 范围：`tests/application-transactions.test.ts`、真实子进程测试、计划与内容恢复测试。
 - 工作/交付：覆盖两个服务同时准备、准备时撤销信任、共享目标竞争、准备进程 SIGKILL、执行各关键点 SIGKILL。
 - 验收：A01 中属于批次 A 的缺口关闭；恢复结论为完整旧状态、完整新状态或明确冲突；跨 Home 共享文件无丢失更新。
+
+完成证据：提交主题 `test(A10): cover prepared transactions under contention and crashes`；快速套件 203/203 通过，补充后专项 11/11 通过；A01 矩阵已映射到真实 Application SIGKILL、跨 Home 竞争、插件/暂存漂移和历史缓存引用测试。
 
 ### A11 — 基准复测与文档收口
 
