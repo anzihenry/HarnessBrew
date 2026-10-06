@@ -69,3 +69,29 @@ test("manual upgrade refuses active Bundle bindings without changing registratio
   await assert.rejects(f.service.plan(await f.request()), (error: any) => error.code === "ADAPTER_IN_USE" && error.details.bindings.length === 1);
   assert.deepEqual(await new StateStore(f.home).read(), before);
 });
+
+test("upgrade commits registration and migrated targets together and repeat is idempotent", async t => {
+  const f = await upgradeFixture(t), before = await new StateStore(f.home).read();
+  const request = await f.request(), preview = await f.service.plan(request);
+  await f.service.apply(preview.planId);
+  const after = await new StateStore(f.home).read();
+  assert.equal(after.adapters.registrations.find(a => a.name === request.name)!.signature, request.authorizedSignature);
+  assert.deepEqual(after.install.requirements, before.install.requirements);
+  assert.deepEqual(after.install.assets[0]!.commit, before.install.assets[0]!.commit);
+  await assert.rejects(access(before.install.operations[0]!.resource.path), { code: "ENOENT" });
+  await access(after.install.operations[0]!.resource.path);
+  assert.equal((await f.service.execute(request)).committedRevision, after.revision);
+});
+
+for (const point of ["after-record", "after-state"] as const) test(`failed upgrade at ${point} restores old registration and target without importing old plugin`, async t => {
+  const f = await upgradeFixture(t), before = await new StateStore(f.home).read();
+  const { createApplication } = await import("../src/application/service.js");
+  const service = createApplication(f.options, { transactionFault: (current, context) => { if (current === point && (point === "after-state" || context.path?.includes("/next/"))) throw new Error("injected"); } });
+  const request = await f.request();
+  // Old code is unavailable: rollback must use journal evidence only.
+  const { rm } = await import("node:fs/promises"); await rm(f.old, { recursive: true });
+  await assert.rejects(service.execute(request), /injected/);
+  assert.deepEqual(await new StateStore(f.home).read(), before);
+  await access(before.install.operations[0]!.resource.path);
+  await assert.rejects(access(path.join(f.project, ".test-adapter/next/a")), { code: "ENOENT" });
+});

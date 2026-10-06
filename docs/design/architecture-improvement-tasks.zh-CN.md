@@ -160,10 +160,12 @@
 
 ### B04 — 注册与目标的统一事务
 
-- [ ] 完成；PR 06；前置：B03。
+- [x] 完成；PR 06；前置：B03。
 - 范围：`execution/validate.ts`、`execution/state.ts`、`transactions/coordinator.ts`、Journal。
 - 工作/交付：同一候选状态包含新注册、资源和 fingerprints；执行验证显式区分当前身份与获授权候选身份；失败依赖旧状态证据回滚，不要求重新运行旧插件。
 - 验收：无先发 metadata 再改文件的两阶段业务提交；同版本重复操作按定义幂等；回滚恢复旧注册与资源；外部修改进入明确恢复冲突。
+
+完成证据：执行端显式验证旧注册→获授权候选转换及资产/其他 Adapter 不变，再在同一个 Journal 中发布目标和注册；回滚使用真实旧状态，不加载旧插件。专项 8/8（含 saved apply、幂等、目标写后与状态发布后回滚），架构检查通过。提交：feat(B04): commit adapter registration and targets atomically。
 
 ### B05 — 手动升级专项验收
 

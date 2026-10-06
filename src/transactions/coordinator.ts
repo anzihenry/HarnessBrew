@@ -1,3 +1,4 @@
+import { upgradeExecutionState, type AdapterUpgrade } from "../execution/adapter-upgrade.js";
 import { outsideRepair } from "../domain/plan.js";
 import { validateExecution } from "../execution/validate.js";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -29,6 +30,7 @@ export type TransactionFault = (point: TransactionCheckpoint, context: { transac
 export interface ContentRestoration { digest: import("../domain/identity.js").Digest; staged: string; before: FileImage; bytes: number }
 export interface PreparedContentPublisher { publish(asset: import("../domain/assets.js").ResolvedAsset, destination: string): Promise<boolean> }
 export interface ExecutionInput {
+  adapterUpgrade?: AdapterUpgrade;
   prepared?: PreparedContentPublisher;
   restorations?: ContentRestoration[];
   plan: ChangePlan; catalog: CatalogSnapshot; assets: AssetReader; adapters: AdapterProvider;
@@ -218,7 +220,8 @@ export class TransactionCoordinator {
     const plan = structuredClone(input.plan), catalog = new CatalogIndex(input.catalog);
     const before = await access.read();
     await assertPlanFresh(plan, { revision: before.revision, home: this.store.home, io: nodePlanningIO, adapters: input.adapters });
-    await validateExecution(plan, before, catalog, input.adapters, this.store.home);
+    const executionState = upgradeExecutionState(before, plan, input.adapterUpgrade);
+    await validateExecution(plan, executionState, catalog, input.adapters, this.store.home);
     if (Boolean(plan.desiredState.bundleLock) !== Boolean(input.bundleLock)) throw new HarnessError("INVALID_PLAN", "Bundle plans require a lockfile destination and its preview precondition.");
     const restorations = input.restorations ?? [];
     if (canonicalJson(restorations.map(r => r.digest).sort()) !== canonicalJson([...(plan.repair?.contentDigests ?? [])].sort()) || new Set(restorations.map(r => r.digest)).size !== restorations.length) throw new HarnessError("INVALID_PLAN", "Content recovery does not match the repair plan.");
@@ -336,7 +339,7 @@ export class TransactionCoordinator {
           const next: FileImage = { kind: "file", bytes: Buffer.from(`${canonicalJson(plan.desiredState.bundleLock)}\n`).toString("base64"), mode: input.bundleLock.before.mode ?? 0o644 };
           if (!sameImage(await image(lockPath), next)) { await ensureParents(lockPath); await step(lockPath, "lockfile", next); }
         }
-        let candidate = await stateAfterExecution(before, plan, journal.nextRevision, directories);
+        let candidate = await stateAfterExecution(executionState, plan, journal.nextRevision, directories);
         const normalized = { ...candidate, revision: before.revision, install: { ...candidate.install, revision: before.revision } };
         if (!journal.steps.length && canonicalJson(normalized) === canonicalJson(before)) {
           await this.cleanup(store, journal);
@@ -357,7 +360,7 @@ export class TransactionCoordinator {
           const adapter = input.adapters.get(signature.name);
           if (adapter.signature !== signature.signature || adapter.adapter.version !== signature.version) throw new HarnessError("ADAPTER_CHANGED", "Adapter changed during execution.");
         }
-        candidate = await stateAfterExecution(before, plan, journal.nextRevision, directories);
+        candidate = await stateAfterExecution(executionState, plan, journal.nextRevision, directories);
         for (const restoration of journal.restorations ?? []) if (!sameImage(await image(restoration.quarantine, true), restoration.before)) throw new HarnessError("RECOVERY_CONFLICT", "Quarantined content changed during repair.");
         candidate.quarantines.push(...(journal.restorations ?? []).map(r => ({ path: r.quarantine, digest: `sha256:${path.basename(r.path)}` as import("../domain/identity.js").Digest })));
         journal.nextState = candidate; await store.save(journal);

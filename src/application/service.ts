@@ -1,3 +1,4 @@
+import { upgradeExecutionState } from "../execution/adapter-upgrade.js";
 import type { AdapterRegistry } from "../adapters/registry.js";
 import { stagePreparation, preparedPublisher } from "./staging.js";
 import { CacheLeases, withRelatedCacheLeases } from "./cache-leases.js";
@@ -110,7 +111,6 @@ class Application implements HarnessService {
     return registryFor(state, this.cache, this.options.adapters ?? [], true, new Set(saved.plan!.adapterSignatures.map(a => a.name)));
   }
   private async run(saved: Saved, registry: AdapterRegistry | undefined, session: import("../transactions/coordinator.js").TransactionSession): Promise<ExecutionResult> {
-    if (saved.adapterUpgrade) throw new HarnessError("TARGET_UNSUPPORTED", "Adapter upgrade execution is not integrated yet.");
     const actualHome = await this.dependencies.planning.identify(path.join(this.store.home, "CURRENT"));
     if (!sameHomeIdentity(saved.homeIdentity, actualHome)) throw new HarnessError("PLAN_STALE", "Physical Home changed after preparation.");
     const declaredHome = await this.dependencies.planning.identify(path.join(saved.home, "CURRENT"));
@@ -128,10 +128,15 @@ class Application implements HarnessService {
     if (!saved.plan || !saved.catalog) throw new HarnessError("INVALID_PLAN", "Incomplete saved plan.");
     const verified = await loadCatalog(saved.catalog.snapshots, saved.catalog.selectedSnapshotIds);
     if (canonicalJson(verified) !== canonicalJson(saved.catalog)) throw new HarnessError("PLAN_STALE", "Source changed after preview.");
-    await verifyRegistryFiles(current, this.cache, this.options.adapters ?? [], new Set(saved.plan.adapterSignatures.map(a => a.name)));
+    if (saved.adapterUpgrade) {
+      const request = saved.request;
+      if (request.kind !== "adapter.upgrade" || request.name !== saved.adapterUpgrade.after.name || request.authorizedSignature !== saved.adapterUpgrade.after.signature || canonicalJson(request.capabilities) !== canonicalJson(saved.adapterUpgrade.after.capabilities)) throw new HarnessError("INVALID_PLAN", "Upgrade differs from saved authorization.");
+    }
+    const executionState = upgradeExecutionState(current, saved.plan, saved.adapterUpgrade);
+    await verifyRegistryFiles(executionState, this.cache, saved.adapterUpgrade ? [] : this.options.adapters ?? [], new Set(saved.plan.adapterSignatures.map(a => a.name)));
     if (!registry) throw new HarnessError("INVALID_PLAN", "Missing prepared adapter registry.");
     const prepared = await preparedPublisher(saved, this.cache);
-    const result = await session.apply({ plan: saved.plan, catalog: verified, assets: catalogAssetReader(verified), adapters: registry, prepared, ...(saved.bundleLock ? { bundleLock: saved.bundleLock } : {}), ...(saved.restorations ? { restorations: saved.restorations } : {}) });
+    const result = await session.apply({ plan: saved.plan, catalog: verified, assets: catalogAssetReader(verified), adapters: registry, prepared, ...(saved.adapterUpgrade ? { adapterUpgrade: saved.adapterUpgrade } : {}), ...(saved.bundleLock ? { bundleLock: saved.bundleLock } : {}), ...(saved.restorations ? { restorations: saved.restorations } : {}) });
     return { ...result, diagnostics: [...result.diagnostics, ...saved.diagnostics] };
   }
   async execute(input: ChangeRequest): Promise<ExecutionResult> {
