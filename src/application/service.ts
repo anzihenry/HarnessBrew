@@ -79,7 +79,7 @@ class Application implements HarnessService {
   private build(state: HomeState, request: ChangeRequest): Promise<Saved> {
     return withRelatedCacheLeases(this.cacheInputs(state), () => measured("prepare", async () => {
       const saved = await prepareChange({ home: this.store.home, cache: this.cache, options: this.options, dependencies: this.dependencies }, state, request);
-      saved.resources = [...new Set([...(saved.catalog?.snapshots ?? saved.candidate?.sources.snapshots ?? []).map(s => s.contentLocation), ...(saved.restorations ?? []).map(r => r.staged), ...state.adapters.registrations.filter(a => !a.module.startsWith("builtin:") && !a.module.startsWith("supplied:")).map(a => path.join(this.cache, "plugins", a.signature.slice(7)))])].sort();
+      saved.resources = [...new Set([...(saved.catalog?.snapshots ?? saved.candidate?.sources.snapshots ?? []).map(s => s.contentLocation), ...(saved.restorations ?? []).map(r => r.staged), ...(saved.adapterUpgrade ? [saved.adapterUpgrade.after, ...state.adapters.registrations] : state.adapters.registrations).filter(a => !a.module.startsWith("builtin:") && !a.module.startsWith("supplied:")).map(a => path.join(this.cache, "plugins", a.signature.slice(7)))])].sort();
       await stagePreparation(saved, this.cache);
       return saved;
     }));
@@ -93,7 +93,7 @@ class Application implements HarnessService {
     return withRelatedCacheLeases(this.cacheInputs(before), async () => {
       const saved = await this.build(before, request);
       await this.plans.save(saved);
-      return { contentChanges: saved.contentChanges ?? [], planId: saved.id, baseRevision: saved.baseRevision, changes: saved.plan?.assetChanges ?? [{ kind: request.kind, before, after: saved.candidate }], retained: saved.plan?.desiredState.retained ?? [], fileUpdates: saved.plan?.fileUpdates ?? [], operations: saved.plan?.operations ?? [], diagnostics: saved.diagnostics };
+      return { contentChanges: saved.contentChanges ?? [], planId: saved.id, baseRevision: saved.baseRevision, changes: saved.adapterUpgrade ? [{ kind: request.kind, ...saved.adapterUpgrade }, ...(saved.plan?.assetChanges ?? [])] : saved.plan?.assetChanges ?? [{ kind: request.kind, before, after: saved.candidate }], retained: saved.plan?.desiredState.retained ?? [], fileUpdates: saved.plan?.fileUpdates ?? [], operations: saved.plan?.operations ?? [], diagnostics: saved.diagnostics };
     });
   }
   private async validateInputs(saved: Saved): Promise<void> {
@@ -101,10 +101,16 @@ class Application implements HarnessService {
     for (const expected of saved.inputs) if (canonicalJson(precondition(await this.dependencies.planning.inspect(expected.path))) !== canonicalJson(expected)) throw new HarnessError("PLAN_STALE", "Manifest changed after preview.");
   }
   private async prepareRuntime(saved: Saved, state: HomeState): Promise<AdapterRegistry | undefined> {
+    if (saved.adapterUpgrade) {
+      const next = structuredClone(state);
+      next.adapters.registrations = next.adapters.registrations.map(a => a.name === saved.adapterUpgrade!.after.name ? saved.adapterUpgrade!.after : a);
+      return registryFor(next, this.cache, [], true, new Set([saved.adapterUpgrade.after.name, ...saved.plan!.adapterSignatures.map(a => a.name)]));
+    }
     if (saved.candidate) return saved.request.kind === "adapter.add" ? registryFor(saved.candidate, this.cache, this.options.adapters ?? []) : undefined;
     return registryFor(state, this.cache, this.options.adapters ?? [], true, new Set(saved.plan!.adapterSignatures.map(a => a.name)));
   }
   private async run(saved: Saved, registry: AdapterRegistry | undefined, session: import("../transactions/coordinator.js").TransactionSession): Promise<ExecutionResult> {
+    if (saved.adapterUpgrade) throw new HarnessError("TARGET_UNSUPPORTED", "Adapter upgrade execution is not integrated yet.");
     const actualHome = await this.dependencies.planning.identify(path.join(this.store.home, "CURRENT"));
     if (!sameHomeIdentity(saved.homeIdentity, actualHome)) throw new HarnessError("PLAN_STALE", "Physical Home changed after preparation.");
     const declaredHome = await this.dependencies.planning.identify(path.join(saved.home, "CURRENT"));

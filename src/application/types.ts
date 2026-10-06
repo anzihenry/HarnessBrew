@@ -16,6 +16,7 @@ export type ChangeRequest = Exclude<ResolutionRequest, { kind: "bundle.apply" } 
   | { kind: "tap.remove" | "tap.trust" | "tap.untrust"; name: string }
   | { kind: "adapter.add"; module: string; capabilities: AppliedOperationType[] }
   | { kind: "adapter.remove"; name: string }
+  | { kind: "adapter.upgrade"; name: string; module: string; authorizedSignature: string; capabilities: AppliedOperationType[]; bundleFiles?: string[] }
   | { kind: "cleanup" }
   | { kind: "repair"; coordinate?: string; all?: boolean; placement?: Placement; overwriteOwned?: boolean; restoreContent?: boolean };
 export type ReadQuery = { kind: "list" | "taps" | "adapters" | "outdated" } | { kind: "search"; text?: string } | { kind: "info"; coordinate: string };

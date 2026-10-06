@@ -11,11 +11,12 @@ export interface CliIO { stdout(message: string): void; stderr(message: string):
 export interface CliOptions { home?: string; cwd?: string; userHome?: string }
 export interface CliJsonError { code: string; message: string; details: Readonly<Record<string, unknown>>; recovery?: unknown }
 export interface CliJsonEnvelope { format: "harnessbrew.result"; version: 1; ok: boolean; command: string; mode: "query" | "preview" | "execute" | "recover"; result?: unknown; diagnostics: string[]; error?: CliJsonError }
-const help = `HarnessBrew — Git-native package manager for AI Agent assets\nCommands: tap add|update|remove|trust|untrust|list, adapter add|remove|list,\ninstall, upgrade, remove, link, unlink, bundle apply|detach, cleanup, repair,\nrecover, doctor, list, search, info, outdated, apply-plan.\nGlobal: --home <path> --json. Changes: --dry-run.\nPlacement: --target <name> --scope user|project --project <path> --root <path>.\nTap: update retains its tracking ref; --ref <branch|tag> changes it; --default-branch follows remote HEAD.\nRepair: <asset> or --all; --restore-content preserves modified content in quarantine; --overwrite-owned repairs shared target keys/blocks.\nBundle: apply --file <path> [--update-lock]; detach --binding <id>.`;
-const values = new Set(["home", "target", "scope", "project", "root", "file", "binding", "ref", "capabilities"]);
+const help = `HarnessBrew — Git-native package manager for AI Agent assets\nCommands: tap add|update|remove|trust|untrust|list, adapter add|remove|list|inspect-upgrade|upgrade,\ninstall, upgrade, remove, link, unlink, bundle apply|detach, cleanup, repair,\nrecover, doctor, list, search, info, outdated, apply-plan.\nGlobal: --home <path> --json. Changes: --dry-run.\nPlacement: --target <name> --scope user|project --project <path> --root <path>.\nTap: update retains its tracking ref; --ref <branch|tag> changes it; --default-branch follows remote HEAD.\nRepair: <asset> or --all; --restore-content preserves modified content in quarantine; --overwrite-owned repairs shared target keys/blocks.\nBundle: apply --file <path> [--update-lock]; detach --binding <id>.`;
+const values = new Set(["home", "target", "scope", "project", "root", "file", "binding", "ref", "capabilities", "module", "authorize-signature", "capability", "bundle-file"]);
 const flags = new Set(["all", "default-branch", "json", "dry-run", "update-lock", "allow-rewind", "overwrite-owned", "restore-content", "help", "version"]);
 function invalid(message: string): never { throw new HarnessError("INVALID_ARGUMENT", message); }
 export async function runCli(argv: string[], io: CliIO = { stdout: message => process.stdout.write(message), stderr: message => process.stderr.write(message) }, options: CliOptions = {}): Promise<number> {
+  const repeated = new Map<string, string[]>();
   const json = argv.includes("--json"), positional: string[] = [], opts = new Map<string, string | true>();
   let command = "", mode: CliJsonEnvelope["mode"] = "query", service: ReturnType<typeof createHarness> | undefined;
   const output = (envelope: CliJsonEnvelope, code: number): number => {
@@ -31,8 +32,8 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
       if (!token.startsWith("-")) { positional.push(token); continue; }
       if (!token.startsWith("--")) invalid(`Unknown option: ${token}`);
       const key = token.slice(2);
-      if ((!values.has(key) && !flags.has(key)) || opts.has(key)) invalid(`Unknown or repeated option: ${token}`);
-      if (values.has(key)) { const value = argv[++i]; if (!value || value.startsWith("--")) invalid(`Missing value: ${token}`); opts.set(key, value); }
+      if ((!values.has(key) && !flags.has(key)) || opts.has(key) && !["capability", "bundle-file"].includes(key)) invalid(`Unknown or repeated option: ${token}`);
+      if (values.has(key)) { const value = argv[++i]; if (!value || value.startsWith("--")) invalid(`Missing value: ${token}`); opts.set(key, value); if (["capability", "bundle-file"].includes(key)) repeated.set(key, [...(repeated.get(key) ?? []), value]); }
       else opts.set(key, true);
     }
     command = positional.shift() ?? (opts.has("version") ? "version" : "help");
@@ -41,7 +42,7 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
     const name = sub ? `${command}.${sub}` : command;
     const allowed: Record<string, string[]> = {
       "tap.add": ["ref"], "tap.update": ["ref", "default-branch", "allow-rewind"], "tap.remove": [], "tap.trust": [], "tap.untrust": [], "tap.list": [],
-      "adapter.add": ["capabilities"], "adapter.remove": [], "adapter.list": [],
+      "adapter.inspect-upgrade": ["module"], "adapter.upgrade": ["module", "authorize-signature", "capability", "bundle-file"], "adapter.add": ["capabilities"], "adapter.remove": [], "adapter.list": [],
       install: ["target", "scope", "project", "root"], upgrade: [], remove: [], link: ["target", "scope", "project", "root"], unlink: ["target", "scope", "project", "root"],
       "bundle.apply": ["file", "update-lock"], "bundle.detach": ["binding"], repair: ["all", "target", "scope", "project", "root", "overwrite-owned", "restore-content"], cleanup: [], recover: [], doctor: [], list: [], search: [], info: [], outdated: [], "apply-plan": [], help: [], version: []
     };
@@ -60,6 +61,7 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
     const envelope = (result: unknown, ok = true): CliJsonEnvelope => ({ format: "harnessbrew.result", version: 1, ok, command: sub ? `${command} ${sub}` : command, mode, result, diagnostics: [] });
     if (name === "help" || name === "version") { arg(0); return output(envelope(name === "help" ? help : VERSION), 0); }
     service = createHarness({ home: path.resolve(cwd, value("home") ?? options.home ?? process.env.HARNESSBREW_HOME ?? path.join(userHome, ".harnessbrew")), cwd, userHome });
+    if (name === "adapter.inspect-upgrade") { const adapter = arg(1); if (!value("module")) invalid("--module is required"); return output(envelope(await service.inspectAdapterUpgrade({ name: adapter, module: value("module")! })), 0); }
     if (name === "recover") { arg(0); mode = "recover"; return output(envelope(await service.recover()), 0); }
     if (name === "apply-plan") { const id = arg(1); mode = "execute"; return output(envelope(await service.apply(id)), 0); }
     if (name === "doctor") { const coordinate = arg(1, true); const report = await service.doctor(coordinate ? { coordinate } : {}); return output(envelope(report, report.healthy), report.healthy ? 0 : report.findings.some(f => f.code.startsWith("RECOVERY_")) ? 3 : 1); }
@@ -74,6 +76,7 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
       case "tap.update": request = { kind: "tap.update", ...(arg(1, true) ? { name: positional[0]! } : {}), ...(value("ref") ? { ref: value("ref")! } : {}), defaultBranch: opts.has("default-branch"), allowRewind: opts.has("allow-rewind") }; break;
       case "tap.remove": case "tap.trust": case "tap.untrust": request = { kind: name, name: arg(1) }; break;
       case "adapter.add": request = { kind: name, module: arg(1), capabilities: (value("capabilities") ?? "").split(",").filter(Boolean) as AppliedOperationType[] }; break;
+      case "adapter.upgrade": { const adapter = arg(1); if (!value("module") || !value("authorize-signature")) invalid("--module and --authorize-signature are required"); request = { kind: name, name: adapter, module: value("module")!, authorizedSignature: value("authorize-signature")!, capabilities: (repeated.get("capability") ?? []) as AppliedOperationType[], ...(repeated.has("bundle-file") ? { bundleFiles: repeated.get("bundle-file")! } : {}) }; break; }
       case "adapter.remove": request = { kind: name, name: arg(1) }; break;
       case "install": request = { kind: "asset.install", coordinate: arg(1), placements: [placement()] }; break;
       case "upgrade": request = { kind: "asset.upgrade", ...(arg(1, true) ? { coordinate: positional[0]! } : {}) }; break;

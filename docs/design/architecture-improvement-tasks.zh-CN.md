@@ -142,10 +142,12 @@
 
 ### B02 — 显式授权加载与完整升级预览
 
-- [ ] 完成；PR 05；前置：B01、A06–A09。
+- [x] 完成；PR 05；前置：B01、A06–A09。
 - 范围：请求解析、公共类型、CLI、registry、准备结果存储。
 - 工作/交付：按 ADR 接入候选摘要授权和能力选择；在授权后执行候选规划，生成可保存的完整差异。
 - 验收：静态检查结果不可当作可执行计划；授权后换包、增加未授权能力、apply 前漂移均拒绝；预览不更新活动注册或目标。
+
+完成证据：接入 inspect-upgrade / adapter upgrade CLI 与 SDK、显式候选摘要和重复 capability 参数；授权后形成含注册差异和目标差异的 saved-plan v3，静态检查不产生 plan ID。授权错误、能力不足、候选漂移、apply 前漂移和只读预览专项 2/2，架构检查通过。执行暂由显式保护拒绝，按顺序由 B04 接入统一事务。提交：feat(B02): authorize and persist adapter upgrade previews。
 
 ### B03 — 精确资产输入与手动升级 Planner
 

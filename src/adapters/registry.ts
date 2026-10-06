@@ -19,7 +19,7 @@ export class AdapterRegistry implements AdapterProvider {
     }
     this.add(adapter, signature, granted, placementPolicy);
   }
-  registerCodex(signature: Digest): void { this.add(codexAdapter, signature, capabilities, codexPlacement); }
+  registerCodex(signature: Digest, granted: readonly AppliedOperationType[] = capabilities): void { this.add(codexAdapter, signature, granted, codexPlacement); }
   private add(adapter: TargetAdapter, signature: Digest, granted: readonly AppliedOperationType[], placementPolicy?: AuthorizedAdapter["resolvePlacement"]): void {
     if (adapter.protocol !== "harnessbrew.adapter/1") throw new HarnessError("UNSUPPORTED_FORMAT", "Unsupported Adapter protocol.");
     const name = identifier(adapter.name);

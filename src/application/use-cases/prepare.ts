@@ -23,6 +23,7 @@ import type { ChangeRequest } from "../types.js";
 import type { Saved } from "../saved.js";
 import type { PreparationContext } from "./context.js";
 import { prepareSources } from "./sources.js";
+import { prepareAdapterUpgrade } from "./adapter-upgrade.js";
 import { prepareAdapter } from "./adapters.js";
 import { prepareRepair, planCleanup } from "./maintenance.js";
 import { catalogFor } from "./catalog.js";
@@ -32,6 +33,7 @@ export async function prepareChange(context: PreparationContext, state: HomeStat
   const manager = context.dependencies.sources(path.join(context.cache, "sources"));
   if (["tap.add", "tap.update", "bundle.apply"].includes(request.kind)) await cacheDirectory(context.cache, "sources");
   if (request.kind.startsWith("tap.")) return prepareSources(context, state, request, saved, manager);
+  if (request.kind === "adapter.upgrade") return prepareAdapterUpgrade(context, state, request, saved);
   if (request.kind === "adapter.add" || request.kind === "adapter.remove") return prepareAdapter(context, state, request, saved);
   if (request.kind === "cleanup") {
     const cleanup = await planCleanup(state, context.home);
