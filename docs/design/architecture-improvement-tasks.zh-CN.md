@@ -95,10 +95,12 @@
 
 ### A09 — 锁内复验及初始化/恢复竞态
 
-- [ ] 完成；PR 04；前置：A08。
+- [x] 完成；PR 04；前置：A08。
 - 范围：`transactions/coordinator.ts`、`execution/validate.ts`、应用执行入口、StateStore 初始化。
 - 工作/交付：集中执行前复验；处理首次初始化、多个服务竞争、准备完成后出现待恢复事务等路径；恢复改变 revision 后拒绝旧准备结果。
 - 验收：revision、信任、能力、插件、来源、Manifest/lock、目标及父路径漂移均拒绝且不产生部分写入；初始化仅允许明确验证过的 revision 绑定；execute/apply 均不静默重规划。
+
+完成证据：提交主题 `fix(A09): revalidate prepared changes at commit boundaries`；架构检查、快速测试 194/194、packaged 19/19、regressions 3/3 通过；复验物理 Home 与 revision、初始化父身份；路径别名共用缓存，历史缓存输入租约贯穿准备至提交。
 
 ### A10 — 并发与故障专项验收
 

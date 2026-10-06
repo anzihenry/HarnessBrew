@@ -18,9 +18,10 @@ export interface ApplicationDependencies {
   storage: StorageIO;
   documents: PlanDocumentIO;
   transactionFault: TransactionFault;
+  preparationCheckpoint(): void | Promise<void>;
 }
 export const nodeApplicationDependencies: ApplicationDependencies = {
   sources: root => new SourceManager(root), planning: nodePlanningIO, storage: nodeStorageIO,
   documents: { read: file => readFile(file, "utf8"), write: atomicDocument },
-  transactionFault: () => undefined
+  preparationCheckpoint: () => undefined, transactionFault: () => undefined
 };

@@ -1,7 +1,7 @@
 import type { AdapterRegistry } from "../adapters/registry.js";
 import { stagePreparation, preparedPublisher } from "./staging.js";
-import { CacheLeases } from "./cache-leases.js";
-import { PlanStore } from "./plan-store.js";
+import { CacheLeases, withRelatedCacheLeases } from "./cache-leases.js";
+import { PlanStore, sameHomeIdentity } from "./plan-store.js";
 import { nodeApplicationDependencies, type ApplicationDependencies } from "./dependencies.js";
 import type { Saved } from "./saved.js";
 import { prepareChange } from "./use-cases/prepare.js";
@@ -34,15 +34,25 @@ class Application implements HarnessService {
   private closed = false;
   private readonly store: StateStore;
   private readonly coordinator: TransactionCoordinator;
-  private readonly cache: string;
-  private readonly plans: PlanStore;
-  private readonly leases: CacheLeases;
+  private cache: string;
+  private plans: PlanStore;
+  private leases: CacheLeases;
+  private contextReady?: Promise<void>;
   constructor(private readonly options: HarnessOptions, private readonly dependencies: ApplicationDependencies) {
     absolutePath(options.home); absolutePath(options.cwd); absolutePath(options.userHome);
     this.store = new StateStore(options.home, { io: dependencies.storage }); this.coordinator = new TransactionCoordinator(options.home, { store: this.store, fault: dependencies.transactionFault });
     this.cache = path.join(path.dirname(options.home), `.harnessbrew-cache-${stableId(options.home)}`);
     this.leases = new CacheLeases(this.cache);
     this.plans = new PlanStore(this.cache, dependencies.documents, dependencies.planning);
+  }
+  private prepareContext(): Promise<void> {
+    return this.contextReady ??= (async () => {
+      const identity = await this.dependencies.planning.identify(path.join(this.options.home, "CURRENT"));
+      const home = path.dirname(identity.physicalPath);
+      this.cache = path.join(path.dirname(home), `.harnessbrew-cache-${stableId(home)}`);
+      this.leases = new CacheLeases(this.cache);
+      this.plans = new PlanStore(this.cache, this.dependencies.documents, this.dependencies.planning);
+    })();
   }
   private check() { if (this.closed) throw new HarnessError("INVALID_ARGUMENT", "Service is closed."); }
   private async initial(): Promise<HomeState> {
@@ -62,23 +72,29 @@ class Application implements HarnessService {
       await this.store.initialize(await this.initial());
     }
   }
-  private catalog(state: HomeState) { return catalogFor(state); }
+  private cacheInputs(state: HomeState): string[] {
+    return [...state.sources.snapshots.map(s => s.contentLocation), ...state.contents.flatMap(c => c.origins.map(o => o.snapshot.contentLocation))];
+  }
+  private catalog(state: HomeState) { return withRelatedCacheLeases(this.cacheInputs(state), () => catalogFor(state)); }
   private build(state: HomeState, request: ChangeRequest): Promise<Saved> {
-    return measured("prepare", async () => {
+    return withRelatedCacheLeases(this.cacheInputs(state), () => measured("prepare", async () => {
       const saved = await prepareChange({ home: this.store.home, cache: this.cache, options: this.options, dependencies: this.dependencies }, state, request);
       saved.resources = [...new Set([...(saved.catalog?.snapshots ?? saved.candidate?.sources.snapshots ?? []).map(s => s.contentLocation), ...(saved.restorations ?? []).map(r => r.staged), ...state.adapters.registrations.filter(a => !a.module.startsWith("builtin:") && !a.module.startsWith("supplied:")).map(a => path.join(this.cache, "plugins", a.signature.slice(7)))])].sort();
       await stagePreparation(saved, this.cache);
       return saved;
-    });
+    }));
   }
   async plan(input: ChangeRequest): Promise<PlanPreview> {
-    this.check();
+    this.check(); await this.prepareContext();
     return this.leases.withLease(() => this.planProtected(input));
   }
   private async planProtected(input: ChangeRequest): Promise<PlanPreview> {
-    const request = parseRequest(input), saved = await this.build(await this.snapshot(), request);
-    await this.plans.save(saved);
-    return { contentChanges: saved.contentChanges ?? [], planId: saved.id, baseRevision: saved.baseRevision, changes: saved.plan?.assetChanges ?? [{ kind: request.kind, before: await this.snapshot(), after: saved.candidate }], retained: saved.plan?.desiredState.retained ?? [], fileUpdates: saved.plan?.fileUpdates ?? [], operations: saved.plan?.operations ?? [], diagnostics: saved.diagnostics };
+    const request = parseRequest(input), before = await this.snapshot();
+    return withRelatedCacheLeases(this.cacheInputs(before), async () => {
+      const saved = await this.build(before, request);
+      await this.plans.save(saved);
+      return { contentChanges: saved.contentChanges ?? [], planId: saved.id, baseRevision: saved.baseRevision, changes: saved.plan?.assetChanges ?? [{ kind: request.kind, before, after: saved.candidate }], retained: saved.plan?.desiredState.retained ?? [], fileUpdates: saved.plan?.fileUpdates ?? [], operations: saved.plan?.operations ?? [], diagnostics: saved.diagnostics };
+    });
   }
   private async validateInputs(saved: Saved): Promise<void> {
     for (const expected of saved.contentChecks ?? []) if (canonicalJson(await image(expected.path, true)) !== canonicalJson(expected.before)) throw new HarnessError("PLAN_STALE", "Content changed after preview.");
@@ -89,13 +105,17 @@ class Application implements HarnessService {
     return registryFor(state, this.cache, this.options.adapters ?? [], true, new Set(saved.plan!.adapterSignatures.map(a => a.name)));
   }
   private async run(saved: Saved, registry: AdapterRegistry | undefined, session: import("../transactions/coordinator.js").TransactionSession): Promise<ExecutionResult> {
-    await this.validateInputs(saved);
+    const actualHome = await this.dependencies.planning.identify(path.join(this.store.home, "CURRENT"));
+    if (!sameHomeIdentity(saved.homeIdentity, actualHome)) throw new HarnessError("PLAN_STALE", "Physical Home changed after preparation.");
+    const declaredHome = await this.dependencies.planning.identify(path.join(saved.home, "CURRENT"));
+    if (!sameHomeIdentity(declaredHome, actualHome)) throw new HarnessError("INVALID_PLAN", "Prepared Home and execution Home disagree.");
     const current = await session.read();
     if (current.revision !== saved.baseRevision) throw new HarnessError("PLAN_STALE", "State changed after preview.");
+    await this.validateInputs(saved);
     if (saved.candidate) {
       // Signature validation precedes import, including when applying a saved add plan.
       if (saved.request.kind === "adapter.add") await verifyRegistryFiles(saved.candidate, this.cache, this.options.adapters ?? []);
-      if (saved.request.kind === "tap.add" || saved.request.kind === "tap.update") await this.catalog(saved.candidate);
+      if (saved.request.kind === "tap.add" || saved.request.kind === "tap.update") await catalogFor(saved.candidate);
       const result = await session.publish(saved.candidate);
       return { ...result, contentChanges: saved.contentChanges ?? [], diagnostics: [...result.diagnostics, ...saved.diagnostics] };
     }
@@ -109,38 +129,58 @@ class Application implements HarnessService {
     return { ...result, diagnostics: [...result.diagnostics, ...saved.diagnostics] };
   }
   async execute(input: ChangeRequest): Promise<ExecutionResult> {
-    this.check();
+    this.check(); await this.prepareContext();
     return this.leases.withLease(() => this.executeProtected(input));
   }
   private async executeProtected(input: ChangeRequest): Promise<ExecutionResult> {
     const request = parseRequest(input); await this.initialize();
     const state = await this.coordinator.withSession(session => session.read());
-    const saved = await this.build(state, request);
-    const registry = await this.prepareRuntime(saved, state);
-    return this.coordinator.withSession(session => this.run(saved, registry, session));
+    return withRelatedCacheLeases(this.cacheInputs(state), async () => {
+      const saved = await this.build(state, request);
+      const registry = await this.prepareRuntime(saved, state);
+      await this.dependencies.preparationCheckpoint();
+      return withRelatedCacheLeases(saved.resources, () => this.coordinator.withSession(session => this.run(saved, registry, session)));
+    });
   }
 
   async apply(id: string): Promise<ExecutionResult> {
-    this.check();
+    this.check(); await this.prepareContext();
     return this.leases.withLease(() => this.applyProtected(id));
   }
   private async applyProtected(id: string): Promise<ExecutionResult> {
     this.check();
     const saved = await this.plans.load(id, this.store.home);
-    if (saved.baseRevision === "uninitialized") {
-      if ((await this.snapshot()).revision !== "uninitialized" || !saved.candidate) throw new HarnessError("PLAN_STALE", "Home changed after preview.");
-      await this.initialize();
-      const registry = await this.prepareRuntime(saved, await this.initial());
-      return this.coordinator.withSession(async session => { const state = await session.read(); const normalized = { ...state, revision: "uninitialized", install: { ...state.install, revision: "uninitialized" } }; if (canonicalJson(normalized) !== canonicalJson(await this.initial())) throw new HarnessError("PLAN_STALE", "Home was changed while initializing the saved plan."); saved.baseRevision = state.revision; saved.candidate!.revision = state.revision; saved.candidate!.install.revision = state.revision; return this.run(saved, registry, session); });
-    }
-    const state = await this.coordinator.withSession(session => session.read());
-    if (state.revision !== saved.baseRevision) throw new HarnessError("PLAN_STALE", "State changed after preview.");
-    const registry = await this.prepareRuntime(saved, state);
-    return this.coordinator.withSession(session => this.run(saved, registry, session));
+    return withRelatedCacheLeases(saved.resources, async () => {
+      if (saved.baseRevision === "uninitialized") {
+        if ((await this.snapshot()).revision !== "uninitialized" || !saved.candidate) throw new HarnessError("PLAN_STALE", "Home changed after preview.");
+        await this.initialize();
+        const registry = await this.prepareRuntime(saved, await this.initial());
+        await this.dependencies.preparationCheckpoint();
+        return this.coordinator.withSession(async session => {
+          const state = await session.read();
+          const normalized = { ...state, revision: "uninitialized", install: { ...state.install, revision: "uninitialized" } };
+          if (canonicalJson(normalized) !== canonicalJson(await this.initial())) throw new HarnessError("PLAN_STALE", "Home was changed while initializing the saved plan.");
+          const expectedParent = saved.homeIdentity.ancestor;
+          const anchor = await this.dependencies.planning.identify(path.join(expectedParent.path, ".harnessbrew-home-anchor"));
+          const parentIdentity = (value: typeof expectedParent) => ({ realPath: value.realPath, device: value.device, inode: value.inode });
+          if (canonicalJson(parentIdentity(anchor.ancestor)) !== canonicalJson(parentIdentity(expectedParent))) throw new HarnessError("PLAN_STALE", "Initialization parent changed after preview.");
+          saved.homeIdentity = await this.dependencies.planning.identify(path.join(this.store.home, "CURRENT"));
+          saved.baseRevision = state.revision;
+          saved.candidate!.revision = state.revision;
+          saved.candidate!.install.revision = state.revision;
+          return this.run(saved, registry, session);
+        });
+      }
+      const state = await this.coordinator.withSession(session => session.read());
+      if (state.revision !== saved.baseRevision) throw new HarnessError("PLAN_STALE", "State changed after preview.");
+      const registry = await this.prepareRuntime(saved, state);
+      await this.dependencies.preparationCheckpoint();
+      return this.coordinator.withSession(session => this.run(saved, registry, session));
+    });
   }
   async recover() { this.check(); const pending = await exists(path.join(this.store.home, "transaction.json")); await this.coordinator.recover(); return { recovered: pending, diagnostics: [] }; }
   async doctor(query: { coordinate?: string } = {}) { this.check(); try { record(query, "doctor query", ["coordinate"]); if (query.coordinate !== undefined && (typeof query.coordinate !== "string" || !query.coordinate.trim())) throw new Error("Invalid coordinate"); } catch (cause) { throw new HarnessError("INVALID_ARGUMENT", "Invalid doctor query.", {}, { cause }); } return diagnose(this.store, query.coordinate); }
-  async query<Q extends ReadQuery>(query: Q): Promise<QueryResults[Q["kind"]]> { this.check(); return await this.leases.withLease(() => this.readQuery(parseReadQuery(query))) as QueryResults[Q["kind"]]; }
+  async query<Q extends ReadQuery>(query: Q): Promise<QueryResults[Q["kind"]]> { this.check(); await this.prepareContext(); return await this.leases.withLease(() => this.readQuery(parseReadQuery(query))) as QueryResults[Q["kind"]]; }
   private async readQuery(query: ReadQuery): Promise<QueryResult> {
     const state = await this.snapshot();
     record(query, "read query", ["kind", ...(query.kind === "search" ? ["text"] : query.kind === "info" ? ["coordinate"] : [])]);

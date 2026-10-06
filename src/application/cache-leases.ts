@@ -67,3 +67,21 @@ export class CacheLeases {
     });
   }
 }
+
+/** Historical snapshots can live in a previous lexical Home's cache. Protect those roots too. */
+export function relatedCacheRoots(resources: readonly string[]): string[] {
+  const roots = new Set<string>();
+  for (const resource of resources) {
+    let current = path.dirname(absolutePath(resource));
+    while (current !== path.dirname(current)) {
+      if (/^\.harnessbrew-cache-[a-f0-9]+$/u.test(path.basename(current))) { roots.add(current); break; }
+      current = path.dirname(current);
+    }
+  }
+  return [...roots].sort();
+}
+export async function withRelatedCacheLeases<T>(resources: readonly string[], action: () => Promise<T>): Promise<T> {
+  const roots = relatedCacheRoots(resources);
+  const next = (i: number): Promise<T> => i === roots.length ? action() : new CacheLeases(roots[i]!).withLease(() => next(i + 1));
+  return next(0);
+}
