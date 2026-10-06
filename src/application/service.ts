@@ -1,3 +1,4 @@
+import { CacheLeases } from "./cache-leases.js";
 import { PlanStore } from "./plan-store.js";
 import { nodeApplicationDependencies, type ApplicationDependencies } from "./dependencies.js";
 import type { Saved } from "./saved.js";
@@ -33,10 +34,12 @@ class Application implements HarnessService {
   private readonly coordinator: TransactionCoordinator;
   private readonly cache: string;
   private readonly plans: PlanStore;
+  private readonly leases: CacheLeases;
   constructor(private readonly options: HarnessOptions, private readonly dependencies: ApplicationDependencies) {
     absolutePath(options.home); absolutePath(options.cwd); absolutePath(options.userHome);
     this.store = new StateStore(options.home, { io: dependencies.storage }); this.coordinator = new TransactionCoordinator(options.home, { store: this.store, fault: dependencies.transactionFault });
     this.cache = path.join(path.dirname(options.home), `.harnessbrew-cache-${stableId(options.home)}`);
+    this.leases = new CacheLeases(this.cache);
     this.plans = new PlanStore(this.cache, dependencies.documents, dependencies.planning);
   }
   private check() { if (this.closed) throw new HarnessError("INVALID_ARGUMENT", "Service is closed."); }
@@ -61,11 +64,15 @@ class Application implements HarnessService {
   private build(state: HomeState, request: ChangeRequest): Promise<Saved> {
     return measured("prepare", async () => {
       const saved = await prepareChange({ home: this.store.home, cache: this.cache, options: this.options, dependencies: this.dependencies }, state, request);
-      saved.resources = [...new Set([...(saved.catalog?.snapshots ?? saved.candidate?.sources.snapshots ?? []).map(s => s.contentLocation), ...(saved.restorations ?? []).map(r => r.staged)])].sort();
+      saved.resources = [...new Set([...(saved.catalog?.snapshots ?? saved.candidate?.sources.snapshots ?? []).map(s => s.contentLocation), ...(saved.restorations ?? []).map(r => r.staged), ...state.adapters.registrations.filter(a => !a.module.startsWith("builtin:") && !a.module.startsWith("supplied:")).map(a => path.join(this.cache, "plugins", a.signature.slice(7)))])].sort();
       return saved;
     });
   }
   async plan(input: ChangeRequest): Promise<PlanPreview> {
+    this.check();
+    return this.leases.withLease(() => this.planProtected(input));
+  }
+  private async planProtected(input: ChangeRequest): Promise<PlanPreview> {
     const request = parseRequest(input), saved = await this.build(await this.snapshot(), request);
     await this.plans.save(saved);
     return { contentChanges: saved.contentChanges ?? [], planId: saved.id, baseRevision: saved.baseRevision, changes: saved.plan?.assetChanges ?? [{ kind: request.kind, before: await this.snapshot(), after: saved.candidate }], retained: saved.plan?.desiredState.retained ?? [], fileUpdates: saved.plan?.fileUpdates ?? [], operations: saved.plan?.operations ?? [], diagnostics: saved.diagnostics };
@@ -93,6 +100,10 @@ class Application implements HarnessService {
     return { ...result, diagnostics: [...result.diagnostics, ...saved.diagnostics] };
   }
   async execute(input: ChangeRequest): Promise<ExecutionResult> {
+    this.check();
+    return this.leases.withLease(() => this.executeProtected(input));
+  }
+  private async executeProtected(input: ChangeRequest): Promise<ExecutionResult> {
     const request = parseRequest(input); await this.initialize();
     if (request.kind === "repair") {
       const saved = await this.build(await this.snapshot(), request);
@@ -101,6 +112,10 @@ class Application implements HarnessService {
     return this.coordinator.withSession(async session => this.run(await this.build(await session.read(), request), session));
   }
   async apply(id: string): Promise<ExecutionResult> {
+    this.check();
+    return this.leases.withLease(() => this.applyProtected(id));
+  }
+  private async applyProtected(id: string): Promise<ExecutionResult> {
     this.check();
     const saved = await this.plans.load(id, this.store.home);
     if (saved.baseRevision === "uninitialized") {
@@ -112,7 +127,7 @@ class Application implements HarnessService {
   }
   async recover() { this.check(); const pending = await exists(path.join(this.store.home, "transaction.json")); await this.coordinator.recover(); return { recovered: pending, diagnostics: [] }; }
   async doctor(query: { coordinate?: string } = {}) { this.check(); try { record(query, "doctor query", ["coordinate"]); if (query.coordinate !== undefined && (typeof query.coordinate !== "string" || !query.coordinate.trim())) throw new Error("Invalid coordinate"); } catch (cause) { throw new HarnessError("INVALID_ARGUMENT", "Invalid doctor query.", {}, { cause }); } return diagnose(this.store, query.coordinate); }
-  async query<Q extends ReadQuery>(query: Q): Promise<QueryResults[Q["kind"]]> { return await this.readQuery(parseReadQuery(query)) as QueryResults[Q["kind"]]; }
+  async query<Q extends ReadQuery>(query: Q): Promise<QueryResults[Q["kind"]]> { this.check(); return await this.leases.withLease(() => this.readQuery(parseReadQuery(query))) as QueryResults[Q["kind"]]; }
   private async readQuery(query: ReadQuery): Promise<QueryResult> {
     const state = await this.snapshot();
     record(query, "read query", ["kind", ...(query.kind === "search" ? ["text"] : query.kind === "info" ? ["coordinate"] : [])]);

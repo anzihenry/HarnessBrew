@@ -1,3 +1,4 @@
+import { CacheLeases } from "./cache-leases.js";
 import { lstat } from "node:fs/promises";
 import path from "node:path";
 import { HarnessError } from "../domain/errors.js";
@@ -43,6 +44,7 @@ export class PlanStore {
   async save(input: Saved): Promise<void> {
     const saved = parsePrepared(input);
     await cacheDirectory(this.cache, "plans");
+    await new CacheLeases(this.cache).pin(saved.id, [...saved.resources, path.join(this.cache, "plans", `${saved.id}.json`)]);
     await this.documents.write(path.join(this.cache, "plans", `${saved.id}.json`), { digest: hash(canonicalJson(saved)), saved });
   }
   async load(id: string, home: string): Promise<Saved> {
