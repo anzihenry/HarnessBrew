@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.1.0 - 2026-10-06
+
+### Changed
+
+- prepare Git sources, verified adapters and content outside transaction write locks, then revalidate all evidence before commit
+- split application use cases behind internal injectable ports and enforce architectural import boundaries
+- strictly validate saved-plan v2; regenerate v1 previews, while Home/Journal/CLI result contracts remain v1
+- protect active preparation and saved preview caches with process leases and persistent references, including historical cache roots
+- reject stale concurrent work without automatic replanning; preserve journal commit/recovery semantics
+
+### Validation
+
+- add multi-process contention, crash, stale-input and prepared-content integrity coverage
+- record six source-size benchmarks with reduced transaction lock hold time; candidate acceptance is tracked separately in release notes
+
+### Content lifecycle (included from the development baseline)
+
 - track managed content by digest independently of active assets, retaining upgrade history for verified reclamation
 - restore missing installed content from exact trusted commits; require `--restore-content` to quarantine modified originals before recovery
 - expose content changes, shared references and quarantine locations through CLI/SDK and grouped Doctor findings
