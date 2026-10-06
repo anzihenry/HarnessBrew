@@ -151,10 +151,12 @@
 
 ### B03 — 精确资产输入与手动升级 Planner
 
-- [ ] 完成；PR 06；前置：B02。
+- [x] 完成；PR 06；前置：B02。
 - 范围：安装状态、catalog/内容读取、`planning/plan.ts`、资源比较。
 - 工作/交付：从当前安装固定资产版本；补齐必要的精确内容读取/恢复路径；只重规划目标 Adapter 的 placement，生成旧操作删除与新操作变更。
 - 验收：资产 commit、内容摘要和依赖闭包不变；其他 Adapter 不受影响；资源迁移保留外部内容；活动 Bundle 存在时列出 binding 并拒绝手动升级。
+
+完成证据：升级从已安装 pins/内容 provenance 准备精确 catalog，不跟随最新 tap；Planner 只重投放指定 Adapter，保留其他投放。缓存丢失可从精确 commit 重建，损坏内容须先显式 repair；活动 Bundle 在手动阶段列出 bindings 并拒绝。专项 5/5。提交：feat(B03): pin assets and scope adapter upgrade planning。
 
 ### B04 — 注册与目标的统一事务
 

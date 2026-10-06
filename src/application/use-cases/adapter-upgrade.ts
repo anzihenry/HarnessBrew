@@ -1,6 +1,6 @@
 import path from "node:path";
 import { HarnessError } from "../../domain/errors.js";
-import { hash } from "../../domain/identity.js";
+import { hash, stableId } from "../../domain/identity.js";
 import { canonicalJson } from "../../domain/validation.js";
 import type { HomeState } from "../../domain/home-state.js";
 import { planChange } from "../../planning/plan.js";
@@ -23,12 +23,22 @@ export async function prepareAdapterUpgrade(context: PreparationContext, state: 
   const candidate = structuredClone(state);
   candidate.adapters.registrations = candidate.adapters.registrations.map(a => a.name === request.name ? after : a);
   // Digest and capability authorization precede the first candidate import.
-  const registry = await registryFor(candidate, context.cache, [], true);
-  const prepared = await prepareRepair(context, state, { kind: "repair", all: true });
-  if (prepared.restorations.some(r => r.before.kind !== "missing")) throw new HarnessError("CONTENT_MODIFIED", "Repair changed content explicitly before upgrading adapters.");
+  const registry = await registryFor(candidate, context.cache, [], true, new Set([request.name]));
+  const snapshots = new Map<string, import("../../domain/assets.js").SourceSnapshot>();
+  const assets = new Map<string, import("../../domain/assets.js").ResolvedAsset>();
+  for (const coordinate of new Set(inspection.affectedAssets.map(a => a.asset))) {
+    const prepared = await prepareRepair(context, state, { kind: "repair", coordinate });
+    for (const snapshot of prepared.catalog.snapshots) snapshots.set(snapshot.id, snapshot);
+    for (const asset of prepared.catalog.assets) assets.set(`${asset.manifest.coordinate}:${asset.snapshotId}`, asset);
+  }
+  const catalog = { snapshots: [...snapshots.values()].sort((a,b) => a.id.localeCompare(b.id)), assets: [...assets.values()].sort((a,b) => `${a.manifest.coordinate}:${a.snapshotId}`.localeCompare(`${b.manifest.coordinate}:${b.snapshotId}`)), selectedSnapshotIds: [] };
   saved.version = 3; saved.adapterUpgrade = { before: inspection.current, after };
-  saved.catalog = prepared.catalog;
-  saved.plan = await planChange({ state: candidate, desired: currentDesired(state), catalog: prepared.catalog, adapters: registry, io: context.dependencies.planning, assets: catalogAssetReader(prepared.catalog), home: context.home, userHome: context.options.userHome, requestDigest: hash(canonicalJson(request)) });
+  saved.catalog = catalog;
+  saved.plan = await planChange({ state: candidate, reprojectTarget: request.name, desired: currentDesired(state), catalog, adapters: registry, io: context.dependencies.planning, assets: catalogAssetReader(catalog), home: context.home, userHome: context.options.userHome, requestDigest: hash(canonicalJson(request)) });
+  const { id: _id, ...plan } = structuredClone(saved.plan);
+  if (!plan.adapterSignatures.some(a => a.name === after.name)) plan.adapterSignatures.push({ name: after.name, version: after.version, signature: after.signature });
+  plan.adapterSignatures.sort((a,b) => a.name.localeCompare(b.name));
+  saved.plan = { ...plan, id: stableId(plan) };
   saved.diagnostics.push("Candidate code loaded under the explicit signature and capability grant; registration and targets remain unchanged until apply.");
   return saved;
 }

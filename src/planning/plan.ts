@@ -22,6 +22,7 @@ import { validateAdapterPlan } from "./validate.js";
 import { desiredFingerprint, editShared, fingerprint, precondition, resourceFingerprint } from "./resources.js";
 
 export interface PlanningRequest {
+  reprojectTarget?: string;
   state: HomeState; desired: DesiredState; catalog: CatalogSnapshot;
   adapters: AdapterProvider; io: PlanningIO; assets: AssetReader;
   home: string; userHome: string; requestDigest: Digest;
@@ -70,7 +71,7 @@ export async function planChange(input: PlanningRequest): Promise<ChangePlan> {
       const previous = [...old.values()].filter(op => op.asset === asset.coordinate && op.placementIds.includes(pid));
       const source = state.sources.registrations.find(source => source.name === asset.coordinate.split("/").slice(0, 2).join("/"));
       // Cleanup and unchanged projections remain possible without loading source or revoked code.
-      if ((!resolved || !source?.trusted) && installed?.contentDigest === asset.contentDigest && previous.length) {
+      if (input.reprojectTarget && projection.placement.target !== input.reprojectTarget || (!resolved || !source?.trusted) && installed?.contentDigest === asset.contentDigest && previous.length) {
         for (const op of previous) {
           const existing = retained.find(value => value.id === op.id);
           if (existing) {
