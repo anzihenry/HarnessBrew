@@ -1,3 +1,4 @@
+import { measured } from "../observability/measure.js";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { manifest, inventoryDigest, resolvedAsset, sourceSnapshot, type ResolvedAsset, type SourceSnapshot } from "../domain/assets.js";
@@ -9,6 +10,7 @@ import { inspectContent } from "../sources/inventory.js";
 
 /** One verified inventory scan per source snapshot per operation. No global mutable catalog. */
 export async function loadCatalog(snapshots: readonly SourceSnapshot[], selectedSnapshotIds: readonly string[]): Promise<CatalogSnapshot> {
+  return measured("catalog.load", async () => {
   const sources = unique(snapshots.map(sourceSnapshot), snapshot => snapshot.id, "catalog snapshots");
   const selected = unique([...selectedSnapshotIds], id => id, "selected snapshots");
   const selectedSources = selected.map(id => {
@@ -40,6 +42,7 @@ export async function loadCatalog(snapshots: readonly SourceSnapshot[], selected
   }
   return freezeData({ assets: sortBy(assets, asset => `${asset.manifest.coordinate}:${asset.snapshotId}`),
     snapshots: sortBy(sources, snapshot => snapshot.id), selectedSnapshotIds: selected.sort() });
+  });
 }
 async function readJson(file: string): Promise<unknown> {
   try { return JSON.parse(await readFile(file, "utf8")) as unknown; }

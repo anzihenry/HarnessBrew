@@ -1,3 +1,4 @@
+import { emit } from "../observability/measure.js";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { inventory, inventoryDigest, type InventoryEntry } from "../domain/assets.js";
@@ -22,7 +23,9 @@ export async function inspectContent(root: string): Promise<{ entries: Inventory
         result.push({ path: relative, type: "directory", mode });
         await visit(file);
       } else {
-        result.push({ path: relative, type: "file", digest: hash(await readFile(file)), mode });
+        const bytes = await readFile(file);
+        emit("inventory.files", 1, "count"); emit("inventory.bytes", bytes.length, "bytes");
+        result.push({ path: relative, type: "file", digest: hash(bytes), mode });
       }
     }
   }

@@ -1,3 +1,4 @@
+import { emit } from "../observability/measure.js";
 import { lstat, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import type { InventoryEntry } from "../domain/assets.js";
@@ -59,7 +60,9 @@ export class JournalStore {
     } catch (cause) { throw new HarnessError("RECOVERY_REQUIRED", "Journal is damaged; preserve it for explicit inspection.", { path: this.file }, { cause }); }
   }
   async save(journal: Journal): Promise<void> {
-    await atomicDocument(this.file, { digest: hash(canonicalJson(journal)), journal });
+    const envelope = { digest: hash(canonicalJson(journal)), journal };
+    emit("journal.writes", 1, "count"); emit("journal.bytes", Buffer.byteLength(`${canonicalJson(envelope)}\n`), "bytes");
+    await atomicDocument(this.file, envelope);
   }
   async clear(): Promise<void> { await rm(this.file, { force: true }); await syncDirectory(this.home); }
 }

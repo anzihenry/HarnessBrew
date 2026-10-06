@@ -1,3 +1,4 @@
+import { emit, measured } from "../observability/measure.js";
 import { randomUUID, createHash } from "node:crypto";
 import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -100,7 +101,9 @@ export async function withFileLock<T>(lockPath: string, action: () => Promise<T>
       }
     }
     await options.fault?.("acquired");
-    return await action();
+    const kind = path.basename(directory) === "external.lock" ? "external" : path.basename(directory) === ".store.lock" ? "home" : "resource";
+    emit(`lock.${kind}.wait`, Date.now() - startedAt, "ms");
+    return await measured(`lock.${kind}.hold`, action);
   } finally {
     await rm(file, { force: true });
     await rm(temporary, { force: true });

@@ -41,10 +41,12 @@
 
 ### A03 — 可重复规模基准
 
-- [ ] 完成；PR 01；前置：A01。
+- [x] 完成；PR 01；前置：A01。
 - 范围：拟新增 `scripts/benchmark/`，现有 catalog、sources、Journal、锁入口的内部测量挂点。
 - 工作/交付：10/100/1000 资产 fixture、小文件/较大文件两类数据；测量准备、锁等待/持有、扫描量、日志写入量与总耗时，保存命令和基线报告。
 - 验收：输入固定、输出含环境和规模，重复运行可比较；observer 默认关闭，其失败不能影响业务；不记录文件正文和秘密。不设跨机器绝对耗时门槛。
+
+完成证据：提交主题 `perf(A03): add scoped observations and scale baseline`；build 及独立 TMPDIR 快速测试 178/178 通过；六组完整基准见 docs/benchmarks/batch-a-baseline.json，运行范围与互扰说明见 README。
 
 ### A04 — 提取应用用例
 

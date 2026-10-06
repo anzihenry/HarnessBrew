@@ -1,3 +1,4 @@
+import { measured } from "../observability/measure.js";
 import { prepareRestore } from "./restore.js";
 import { planCleanup, type ContentCheck } from "./content.js";
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
@@ -64,7 +65,8 @@ class Application implements HarnessService {
     const needed = new Set([...state.sources.registrations.flatMap(s => s.selectedSnapshot ? [s.selectedSnapshot] : []), ...state.install.assets.filter(a => a.status === "active").map(a => a.snapshotId)]);
     return loadCatalog(state.sources.snapshots.filter(s => needed.has(s.id)), state.sources.registrations.flatMap(s => s.selectedSnapshot ? [s.selectedSnapshot] : []));
   }
-  private async build(state: HomeState, request: ChangeRequest): Promise<Saved> {
+  private build(state: HomeState, request: ChangeRequest): Promise<Saved> { return measured("prepare", () => this.buildChange(state, request)); }
+  private async buildChange(state: HomeState, request: ChangeRequest): Promise<Saved> {
     const saved: Saved = { format: "harnessbrew.saved-plan", version: 1, id: randomUUID(), home: this.store.home, request, baseRevision: state.revision, inputs: [], diagnostics: [] };
     const next = structuredClone(state);
     const manager = new SourceManager(path.join(this.cache, "sources"));

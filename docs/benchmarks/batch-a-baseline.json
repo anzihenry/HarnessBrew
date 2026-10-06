@@ -1,0 +1,133 @@
+{
+  "format": "harnessbrew.benchmark",
+  "version": 1,
+  "sourceCommit": "39f9ce6e5981cf47a503d45b0a854a65e3b28b31",
+  "sourceDirty": true,
+  "node": "v24.19.0",
+  "platform": "darwin",
+  "arch": "arm64",
+  "cpu": "Apple M1 Max",
+  "workload": "tap.add + tap.trust + search + install one pinned asset; source scales, not installed population",
+  "cases": [
+    {
+      "assets": 10,
+      "payloadBytesPerAsset": 256,
+      "sourceFiles": 21,
+      "elapsedMs": 1193.7691249999998,
+      "metrics": {
+        "lock.home.wait": 34,
+        "lock.home.hold": 1133.991998,
+        "lock.external.wait": 16,
+        "lock.resource.wait": 9,
+        "inventory.files": 174,
+        "inventory.bytes": 39081,
+        "lock.resource.hold": 599.537417,
+        "catalog.load": 27.494500000000244,
+        "prepare": 632.1134580000007,
+        "journal.writes": 11,
+        "journal.bytes": 38513,
+        "lock.external.hold": 1079.148376
+      }
+    },
+    {
+      "assets": 10,
+      "payloadBytesPerAsset": 65536,
+      "sourceFiles": 21,
+      "elapsedMs": 1017.9243329999999,
+      "metrics": {
+        "lock.home.wait": 32,
+        "lock.home.hold": 965.5537509999995,
+        "lock.external.wait": 23,
+        "lock.resource.wait": 2,
+        "inventory.files": 174,
+        "inventory.bytes": 5457321,
+        "lock.resource.hold": 523.9556670000002,
+        "catalog.load": 26.523541999999907,
+        "prepare": 542.5215840000001,
+        "journal.writes": 11,
+        "journal.bytes": 38513,
+        "lock.external.hold": 919.8234579999998
+      }
+    },
+    {
+      "assets": 100,
+      "payloadBytesPerAsset": 256,
+      "sourceFiles": 201,
+      "elapsedMs": 4310.437417,
+      "metrics": {
+        "lock.home.wait": 23,
+        "lock.home.hold": 4220.953458000003,
+        "lock.external.wait": 13,
+        "lock.resource.wait": 1,
+        "inventory.files": 1614,
+        "inventory.bytes": 375321,
+        "lock.resource.hold": 3625.123749999999,
+        "catalog.load": 237.51145999999608,
+        "prepare": 3729.4333330000027,
+        "journal.writes": 11,
+        "journal.bytes": 38513,
+        "lock.external.hold": 4188.542042000001
+      }
+    },
+    {
+      "assets": 100,
+      "payloadBytesPerAsset": 65536,
+      "sourceFiles": 201,
+      "elapsedMs": 5097.580000000002,
+      "metrics": {
+        "lock.home.wait": 55,
+        "lock.home.hold": 4970.695791999999,
+        "lock.external.wait": 36,
+        "lock.resource.wait": 10,
+        "inventory.files": 1614,
+        "inventory.bytes": 52795161,
+        "lock.resource.hold": 4209.132290999998,
+        "catalog.load": 227.74758299999667,
+        "prepare": 4322.507124999996,
+        "journal.writes": 11,
+        "journal.bytes": 38513,
+        "lock.external.hold": 4899.147709000003
+      }
+    },
+    {
+      "assets": 1000,
+      "payloadBytesPerAsset": 256,
+      "sourceFiles": 2001,
+      "elapsedMs": 34749.36225,
+      "metrics": {
+        "lock.home.wait": 37,
+        "lock.home.hold": 34241.903957999995,
+        "lock.external.wait": 21,
+        "lock.resource.wait": 29,
+        "inventory.files": 16014,
+        "inventory.bytes": 3737721,
+        "lock.resource.hold": 32018.478833000005,
+        "catalog.load": 2314.3750409999993,
+        "prepare": 33033.816666,
+        "journal.writes": 11,
+        "journal.bytes": 38513,
+        "lock.external.hold": 34183.793751000005
+      }
+    },
+    {
+      "assets": 1000,
+      "payloadBytesPerAsset": 65536,
+      "sourceFiles": 2001,
+      "elapsedMs": 31630.065749999994,
+      "metrics": {
+        "lock.home.wait": 6,
+        "lock.home.hold": 31085.066708,
+        "lock.external.wait": 2,
+        "lock.resource.wait": 0,
+        "inventory.files": 16014,
+        "inventory.bytes": 526173561,
+        "lock.resource.hold": 28690.185458000007,
+        "catalog.load": 2609.890207000004,
+        "prepare": 29760.909668000008,
+        "journal.writes": 11,
+        "journal.bytes": 38513,
+        "lock.external.hold": 31046.227249000018
+      }
+    }
+  ]
+}
