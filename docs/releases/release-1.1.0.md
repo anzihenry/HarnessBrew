@@ -1,6 +1,6 @@
 # 1.1.0 candidate — architecture batch A
 
-Status: candidate validation in progress; not published. The version was absent from the public npm registry on 2026-10-06. Final evidence is tracked in the batch A task ledger and acceptance report.
+Status: local batch A candidate acceptance passed on 2026-10-07; not published. The version was absent from the public npm registry on 2026-10-06. Evidence is recorded in the [batch A acceptance report](batch-a-acceptance.zh-CN.md); production publication still requires its protected workflow.
 
 Preparation of Git sources, adapter copies/imports and content now runs outside transaction write locks. Commit retains full freshness/integrity checks, target locks and durable journal publication. Concurrent changes return an error instead of silently changing the requested plan. Regenerate a stale preview, review it and apply its new ID.
 

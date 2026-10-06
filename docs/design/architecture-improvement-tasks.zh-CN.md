@@ -122,12 +122,14 @@
 
 ### A12 — 发布 A 候选验收
 
-- [ ] 完成；PR 04 收口；前置：A11。
+- [x] 完成；PR 04 收口；前置：A11。
 - 范围：现有发布脚本、候选包、平台与 runtime 报告。
 - 工作/交付：执行快速、packaged、regressions、release gate、Linux/macOS 与真实 Codex preflight；按 A02 确定版本和回退说明。
 - 验收：各平台/运行时报告引用同一个候选包摘要；必需检查无缺项；缺少真实运行环境时保持发布验收未完成。发布操作另按实际发布流程执行。
 
 ## 批次 B：Adapter 原子升级
+
+完成证据：本地候选验收完成：1.1.0，源码 2689d4a，SHA-256 fe505af0bd57818596f64ef46ca77b0f88ebc8d27968e05391050df25ce698c9。fast 205/205、packaged 19/19、regressions 3/3；Linux Docker/macOS gate 与真实 Codex 四项均通过，同摘要证据校验通过。失败历史、平台限制及回退见 docs/releases/batch-a-acceptance.zh-CN.md；未执行生产发布，本地证据不替代受保护 workflow。提交：docs(A12): record verified batch A candidate acceptance。
 
 ### B01 — 候选身份与静态检查
 

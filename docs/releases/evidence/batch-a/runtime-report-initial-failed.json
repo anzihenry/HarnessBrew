@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "artifact": {
+    "filename": "harnessbrew-1.1.0.tgz",
+    "version": "1.1.0",
+    "sha256": "fe505af0bd57818596f64ef46ca77b0f88ebc8d27968e05391050df25ce698c9",
+    "commit": "b4c3408fdc9371e349dde0256004d8f5734bbbf5"
+  },
+  "environment": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "node": "v24.19.0"
+  },
+  "startedAt": "2026-10-06T11:53:56.044Z",
+  "completedAt": "2026-10-06T11:54:44.527Z",
+  "status": "failed",
+  "contentRestoration": {
+    "status": "passed",
+    "digest": "sha256:ead23b78fdb72660e60270ba8acd0cc7e1042a464b74ab0f6cbbbfa00b0c6cd7",
+    "quarantinePreserved": true
+  },
+  "runtimes": [
+    {
+      "name": "codex",
+      "cliVersion": "codex-cli 0.160.1",
+      "status": "failed",
+      "probes": [
+        {
+          "runtime": "codex",
+          "probe": "skill",
+          "status": "passed",
+          "failureClass": null,
+          "markerObserved": true,
+          "requiredEventObserved": true,
+          "durationMs": 12873,
+          "evidence": {
+            "eventTypes": [
+              "item.completed",
+              "item.started",
+              "thread.started",
+              "turn.completed",
+              "turn.started"
+            ],
+            "itemTypes": [
+              "agent_message",
+              "command_execution"
+            ],
+            "toolCalls": []
+          },
+          "attempts": 1
+        },
+        {
+          "runtime": "codex",
+          "probe": "instruction",
+          "status": "passed",
+          "failureClass": null,
+          "markerObserved": true,
+          "requiredEventObserved": true,
+          "durationMs": 7701,
+          "evidence": {
+            "eventTypes": [
+              "item.completed",
+              "thread.started",
+              "turn.completed",
+              "turn.started"
+            ],
+            "itemTypes": [
+              "agent_message"
+            ],
+            "toolCalls": []
+          },
+          "attempts": 1
+        },
+        {
+          "runtime": "codex",
+          "probe": "agent",
+          "status": "failed",
+          "failureClass": "product-failure",
+          "diagnostic": "Codex could not execute the installed runtime probe.",
+          "markerObserved": false,
+          "requiredEventObserved": true,
+          "durationMs": 13250,
+          "evidence": {
+            "eventTypes": [
+              "error",
+              "item.completed",
+              "item.started",
+              "thread.started",
+              "turn.failed",
+              "turn.started"
+            ],
+            "itemTypes": [
+              "agent_message",
+              "collab_tool_call"
+            ],
+            "toolCalls": [
+              {
+                "type": "collab_tool_call",
+                "tool": "wait"
+              },
+              {
+                "type": "collab_tool_call",
+                "tool": "wait"
+              }
+            ],
+            "sessionCleanup": "passed"
+          },
+          "attempts": 1
+        },
+        {
+          "runtime": "codex",
+          "probe": "mcp",
+          "status": "failed",
+          "failureClass": "product-failure",
+          "diagnostic": "Codex could not execute the installed runtime probe.",
+          "markerObserved": false,
+          "requiredEventObserved": false,
+          "durationMs": 8740,
+          "evidence": {
+            "eventTypes": [
+              "error",
+              "thread.started",
+              "turn.failed",
+              "turn.started"
+            ],
+            "itemTypes": [],
+            "toolCalls": []
+          },
+          "attempts": 1
+        }
+      ]
+    }
+  ]
+}
