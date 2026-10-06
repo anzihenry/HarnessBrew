@@ -8,6 +8,7 @@ import { parse } from "yaml";
 
 const execFileAsync = promisify(execFile);
 const releaseCheck = path.resolve("scripts/release-check.mjs");
+const { version } = JSON.parse(await readFile("package.json", "utf8")) as { version: string };
 
 test("dependency downloads use the public npm registry", async () => {
   const lock = JSON.parse(await readFile("package-lock.json", "utf8")) as {
@@ -24,9 +25,9 @@ test("dependency downloads use the public npm registry", async () => {
 });
 
 test("release source metadata is synchronized", async () => {
-  const result = await execFileAsync(process.execPath, [releaseCheck, "v1.0.0"], { encoding: "utf8" });
+  const result = await execFileAsync(process.execPath, [releaseCheck, `v${version}`], { encoding: "utf8" });
 
-  assert.match(result.stdout, /harnessbrew@1\.0\.0 \(v1\.0\.0\)/);
+  assert.ok(result.stdout.includes(`harnessbrew@${version} (v${version})`));
 });
 
 test("release source verification rejects a mismatched tag", async () => {
@@ -34,7 +35,7 @@ test("release source verification rejects a mismatched tag", async () => {
     execFileAsync(process.execPath, [releaseCheck, "v0.6.2"], { encoding: "utf8" }),
     (error: unknown) => {
       assert.ok(error instanceof Error);
-      assert.match(error.message, /release tag v0\.6\.2 must match v1\.0\.0/);
+      assert.ok(error.message.includes(`release tag v0.6.2 must match v${version}`));
       return true;
     }
   );
