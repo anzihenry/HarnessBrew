@@ -50,10 +50,12 @@
 
 ### A04 — 提取应用用例
 
-- [ ] 完成；PR 02；前置：A01、A02。
+- [x] 完成；PR 02；前置：A01、A02。
 - 范围：`application/service.ts`、`application/requests.ts`，拟新增 `application/use-cases/`。
 - 工作/交付：提取来源、Adapter、安装/Bundle、维护处理器；service 保留公共入口、解析、生命周期和组合。
 - 验收：CLI/SDK 行为、错误码及持久化格式不变；同一请求仍走同一业务实现；快速测试通过，不夹带锁语义变更。
+
+完成证据：提交主题 `refactor(A04): extract application preparation use cases`；快速测试 178/178 通过；来源、Adapter、catalog、安装/Bundle 和维护移出 service，协议与锁时序不变。
 
 ### A05 — 窄接口、共享类型与模块约束
 

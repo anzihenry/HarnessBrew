@@ -1,37 +1,26 @@
+import type { Saved } from "./saved.js";
+import { prepareChange } from "./use-cases/prepare.js";
+import { catalogFor } from "./use-cases/catalog.js";
 import { measured } from "../observability/measure.js";
-import { prepareRestore } from "./restore.js";
-import { planCleanup, type ContentCheck } from "./content.js";
-import { lstat, readFile, readdir, realpath } from "node:fs/promises";
+import { lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { parse as parseYaml } from "yaml";
-import { randomUUID } from "node:crypto";
 import { HarnessError } from "../domain/errors.js";
 import { emptyHomeState, parseHomeState, type HomeState } from "../domain/home-state.js";
-import { absolutePath, hash, resolveAsset, stableId, tapName } from "../domain/identity.js";
+import { absolutePath, hash, resolveAsset, stableId } from "../domain/identity.js";
 import { canonicalJson, record } from "../domain/validation.js";
-import { parseBundleLock, parseBundleManifest } from "../domain/bundle.js";
-import { placementId } from "../domain/placement.js";
-import type { CatalogSnapshot } from "../domain/catalog.js";
-import type { ResolutionRequest } from "../domain/resolution.js";
 import { CatalogIndex, sameVersion } from "../domain/catalog-index.js";
 import { StateStore } from "../storage/state-store.js";
-import { SourceManager } from "../sources/manager.js";
 import { loadCatalog } from "../catalog/load.js";
-import { resolveRequest } from "../resolution/resolve.js";
-import { planChange } from "../planning/plan.js";
 import { precondition } from "../planning/resources.js";
 import { nodePlanningIO, catalogAssetReader } from "../ports/planning.js";
-import { TransactionCoordinator, type ExecutionInput, type ExecutionResult } from "../transactions/coordinator.js";
+import { TransactionCoordinator, type ExecutionResult } from "../transactions/coordinator.js";
 import { atomicDocument, exists, image } from "../execution/files.js";
-import { builtinRegistration, inspectPlugin, registryFor } from "./adapters.js";
+import { builtinRegistration, registryFor } from "./adapters.js";
 import { cacheDirectory } from "./cache.js";
 import { parseRequest, parseReadQuery } from "./requests.js";
-import { currentDesired } from "./current.js";
 import { diagnose } from "../diagnostics/doctor.js";
 import type { ChangeRequest, HarnessOptions, HarnessService, PlanPreview, ReadQuery, QueryResults, QueryResult } from "./types.js";
-import type { ResourcePrecondition } from "../domain/plan.js";
 
-type Saved = { restorations?: import("../transactions/coordinator.js").ContentRestoration[]; contentChecks?: ContentCheck[]; contentChanges?: import("./content.js").ContentChange[]; format: "harnessbrew.saved-plan"; version: 1; id: string; home: string; request: ChangeRequest; baseRevision: string; candidate?: HomeState; plan?: ExecutionInput["plan"]; catalog?: CatalogSnapshot; bundleLock?: ExecutionInput["bundleLock"]; inputs: ResourcePrecondition[]; diagnostics: string[] };
 export function createHarness(options: HarnessOptions): HarnessService { return new Application(options); }
 class Application implements HarnessService {
   private closed = false;
@@ -61,108 +50,9 @@ class Application implements HarnessService {
       await this.store.initialize(await this.initial());
     }
   }
-  private async catalog(state: HomeState): Promise<CatalogSnapshot> {
-    const needed = new Set([...state.sources.registrations.flatMap(s => s.selectedSnapshot ? [s.selectedSnapshot] : []), ...state.install.assets.filter(a => a.status === "active").map(a => a.snapshotId)]);
-    return loadCatalog(state.sources.snapshots.filter(s => needed.has(s.id)), state.sources.registrations.flatMap(s => s.selectedSnapshot ? [s.selectedSnapshot] : []));
-  }
-  private build(state: HomeState, request: ChangeRequest): Promise<Saved> { return measured("prepare", () => this.buildChange(state, request)); }
-  private async buildChange(state: HomeState, request: ChangeRequest): Promise<Saved> {
-    const saved: Saved = { format: "harnessbrew.saved-plan", version: 1, id: randomUUID(), home: this.store.home, request, baseRevision: state.revision, inputs: [], diagnostics: [] };
-    const next = structuredClone(state);
-    const manager = new SourceManager(path.join(this.cache, "sources"));
-    if (["tap.add", "tap.update", "bundle.apply"].includes(request.kind)) await cacheDirectory(this.cache, "sources");
-    if (request.kind.startsWith("tap.")) {
-      const sourceRequest = request as Extract<ChangeRequest, { kind: "tap.add" | "tap.update" | "tap.remove" | "tap.trust" | "tap.untrust" }>;
-      const name = sourceRequest.name === undefined ? undefined : tapName(sourceRequest.name);
-      if (request.kind === "tap.add") {
-        if (next.sources.registrations.some(s => s.name === name)) throw new HarnessError("INVALID_ARGUMENT", "Tap is already registered.");
-        const selection = await manager.prepareSelection({ name: name!, url: request.url, ...(request.ref ? { ref: request.ref } : {}) });
-        const { snapshot } = selection;
-        await loadCatalog([snapshot], [snapshot.id]);
-        next.sources.snapshots.push(snapshot); next.sources.registrations.push({ name: name!, url: request.url, trusted: false, ...(selection.ref ? { ref: selection.ref } : {}), selectedSnapshot: snapshot.id });
-      } else if (request.kind === "tap.update") {
-        const sources = next.sources.registrations.filter(s => name === undefined || s.name === name);
-        if (name && !sources.length) throw new HarnessError("SOURCE_NOT_FOUND", "Tap is not registered.");
-        for (const source of sources) {
-          const previous = next.sources.snapshots.find(s => s.id === source.selectedSnapshot);
-          const ref = request.defaultBranch ? undefined : request.ref ?? source.ref;
-          const selection = await manager.prepareSelection({ name: source.name, url: source.url, ...(ref ? { ref } : {}), ...(previous ? { previous } : {}), ...(request.allowRewind === undefined ? {} : { allowRewind: request.allowRewind }) });
-          const { snapshot } = selection;
-          await loadCatalog([snapshot], [snapshot.id]);
-          if (!next.sources.snapshots.some(s => s.id === snapshot.id)) next.sources.snapshots.push(snapshot);
-          source.selectedSnapshot = snapshot.id;
-          if (selection.ref) source.ref = selection.ref; else delete source.ref;
-        }
-      } else {
-        const source = next.sources.registrations.find(s => s.name === name);
-        if (!source) throw new HarnessError("SOURCE_NOT_FOUND", "Tap is not registered.");
-        if (request.kind === "tap.remove") {
-          if (state.install.assets.some(a => a.status === "active" && a.coordinate.startsWith(`${name}/`))) throw new HarnessError("SOURCE_IN_USE", "Tap has active requirements.");
-          next.sources.registrations = next.sources.registrations.filter(s => s.name !== name);
-          next.sources.snapshots = next.sources.snapshots.filter(s => s.tap !== name || next.install.assets.some(a => a.snapshotId === s.id));
-        } else source.trusted = request.kind === "tap.trust";
-      }
-      saved.candidate = parseHomeState(next); return saved;
-    }
-    if (request.kind === "adapter.add" || request.kind === "adapter.remove") {
-      if (request.kind === "adapter.remove") {
-        if (state.install.requirements.some(req => req.placements.some(p => p.target === request.name))) throw new HarnessError("ADAPTER_IN_USE", "Release active placements before removing the adapter.");
-        if (!next.adapters.registrations.some(a => a.name === request.name)) throw new HarnessError("TARGET_UNSUPPORTED", "Adapter is not registered.");
-        next.adapters.registrations = next.adapters.registrations.filter(a => a.name !== request.name);
-      } else {
-        const registration = request.module === "builtin:codex" ? await builtinRegistration() : await inspectPlugin(path.resolve(this.options.cwd, request.module), request.capabilities);
-        if (next.adapters.registrations.some(a => a.name === registration.name)) throw new HarnessError("INVALID_ARGUMENT", "Remove the existing adapter before registering another version.");
-        next.adapters.registrations.push(registration);
-        saved.diagnostics.push("Plugin exports will be checked during authorized execution; preview does not import new plugin code.");
-      }
-      saved.candidate = parseHomeState(next); return saved;
-    }
-    if (request.kind === "cleanup") {
-      const cleanup = await planCleanup(state, this.store.home);
-      saved.candidate = parseHomeState(cleanup.candidate); saved.contentChecks = cleanup.checks; saved.contentChanges = cleanup.changes; saved.diagnostics = cleanup.diagnostics;
-      return saved;
-    }
-    const releasing = ["asset.remove", "placement.unlink", "bundle.detach"].includes(request.kind);
-    const prepared = request.kind === "repair" ? await this.prepareRepair(state, request) : undefined;
-    let catalog: CatalogSnapshot = prepared ? prepared.catalog : releasing ? { snapshots: [], selectedSnapshotIds: [], assets: [] } : await this.catalog(state);
-    let resolution: ResolutionRequest;
-    if (request.kind === "bundle.apply") {
-      const file = path.resolve(this.options.cwd, request.file), directory = await realpath(path.dirname(file));
-      const manifestBefore = precondition(await nodePlanningIO.inspect(file));
-      const manifest = parseBundleManifest(parseYaml(await readFile(file, "utf8")));
-      saved.inputs.push(manifestBefore);
-      const lockPath = `${file}.lock.json`, lockBefore = precondition(await nodePlanningIO.inspect(lockPath));
-      const lock = await exists(lockPath) ? parseBundleLock(JSON.parse(await readFile(lockPath, "utf8"))) : undefined;
-      const snapshots = new Map(catalog.snapshots.map(s => [s.id, s]));
-      const selected = new Map(catalog.selectedSnapshotIds.map(id => { const s = snapshots.get(id)!; return [s.tap, s.id]; }));
-      for (const source of manifest.sources) {
-        if (lock && !request.updateLock) {
-          for (const commit of lock.sources.find(s => s.name === source.name)?.commits ?? []) {
-            const snapshot = await manager.prepare({ name: source.name, url: source.git, commit }); snapshots.set(snapshot.id, snapshot);
-          }
-        } else {
-          const snapshot = await manager.prepare({ name: source.name, url: source.git, ...(source.ref ? { ref: source.ref } : {}) }); snapshots.set(snapshot.id, snapshot); selected.set(source.name, snapshot.id);
-        }
-      }
-      catalog = await loadCatalog([...snapshots.values()], [...selected.values()]);
-      resolution = { kind: "bundle.apply", manifest, directory, ...(lock ? { lock } : {}), ...(request.updateLock === undefined ? {} : { updateLock: request.updateLock }) };
-      saved.bundleLock = { path: lockPath, before: lockBefore };
-    } else if (request.kind === "bundle.detach") resolution = { kind: "bundle.detach", ownerId: request.binding };
-    else if (request.kind !== "repair") resolution = request as ResolutionRequest;
-    else resolution = { kind: "asset.upgrade" }; // repair uses the exact committed desired state below.
-    let repair: { operationIds: string[]; overwriteOwned: boolean; contentDigests?: import("../domain/identity.js").Digest[]; assetCoordinates?: import("../domain/identity.js").Coordinate[] } | undefined;
-    if (request.kind === "repair") {
-      const affected = new Set(prepared!.affected);
-      const operations = state.install.operations.filter(op => affected.has(op.asset) && (prepared!.restorations.some(r => state.install.assets.some(a => a.coordinate === op.asset && a.contentDigest === r.digest)) || !request.placement || op.placementIds.includes(placementId(request.placement))));
-      repair = { operationIds: operations.map(op => op.id), overwriteOwned: request.overwriteOwned ?? false, contentDigests: prepared!.restorations.map(r => r.digest), assetCoordinates: prepared!.affected };
-      saved.restorations = prepared!.restorations; saved.contentChanges = prepared!.changes;
-      saved.diagnostics.push("Repair validates the selected assets only; run doctor to inspect overall Home health.");
-    }
-    const desired = request.kind === "repair" ? currentDesired(state) : resolveRequest(state, catalog, resolution);
-    const needed = new Set(desired.assets.filter(a => (!repair?.assetCoordinates || repair.assetCoordinates.includes(a.coordinate)) && catalog.assets.some(item => item.manifest.coordinate === a.coordinate && item.contentDigest === a.contentDigest) && state.sources.registrations.find(s => a.coordinate.startsWith(`${s.name}/`))?.trusted).flatMap(a => a.placements.map(p => p.placement.target)));
-    const registry = await registryFor(state, this.cache, this.options.adapters ?? [], true, needed);
-    saved.plan = await planChange({ state, desired, catalog, adapters: registry, io: nodePlanningIO, assets: catalogAssetReader(catalog), home: this.store.home, userHome: this.options.userHome, requestDigest: hash(canonicalJson(request)), ...(repair ? { repair } : {}) });
-    saved.catalog = catalog; return saved;
+  private catalog(state: HomeState) { return catalogFor(state); }
+  private build(state: HomeState, request: ChangeRequest): Promise<Saved> {
+    return measured("prepare", () => prepareChange({ home: this.store.home, cache: this.cache, options: this.options }, state, request));
   }
   async plan(input: ChangeRequest): Promise<PlanPreview> {
     const request = parseRequest(input), saved = await this.build(await this.snapshot(), request);
@@ -191,38 +81,6 @@ class Application implements HarnessService {
     const registry = await registryFor(current, this.cache, this.options.adapters ?? [], true, new Set(saved.plan.adapterSignatures.map(a => a.name)));
     const result = await session.apply({ plan: saved.plan, catalog: verified, assets: catalogAssetReader(verified), adapters: registry, ...(saved.bundleLock ? { bundleLock: saved.bundleLock } : {}), ...(saved.restorations ? { restorations: saved.restorations } : {}) });
     return { ...result, diagnostics: [...result.diagnostics, ...saved.diagnostics] };
-  }
-  private async prepareRepair(state: HomeState, request: Extract<ChangeRequest, { kind: "repair" }>) {
-    const active = state.install.assets.filter(a => a.status === "active");
-    const selected = request.all ? active : [resolveAsset(active, request.coordinate!)];
-    const affected = new Set(selected.map(a => a.coordinate));
-    const restorations: import("../transactions/coordinator.js").ContentRestoration[] = [];
-    const changes: import("../domain/content.js").ContentChange[] = [];
-    const snapshots = new Map<string, CatalogSnapshot["snapshots"][number]>();
-    const assets = new Map<string, CatalogSnapshot["assets"][number]>();
-    const preparedDigests = new Set<string>();
-    for (const asset of selected) {
-      const source = state.sources.registrations.find(s => asset.coordinate.startsWith(`${s.name}/`));
-      if (!source?.trusted) throw new HarnessError("SOURCE_UNTRUSTED", "Repair requires trusted sources.", { asset: asset.coordinate });
-      if (preparedDigests.has(asset.contentDigest)) continue;
-      preparedDigests.add(asset.contentDigest);
-      const destination = path.join(this.store.home, "content", asset.contentDigest.slice(7));
-      const before = await image(destination, true);
-      const damaged = before.kind !== "content" || before.digest !== asset.contentDigest;
-      if (damaged && before.kind !== "missing" && !request.restoreContent) throw new HarnessError("CONTENT_MODIFIED", "Content was modified; use --restore-content to preserve it in quarantine and restore the installed version.", { asset: asset.coordinate });
-      const prepared = await prepareRestore(state, asset.coordinate, this.cache);
-      for (const snapshot of prepared.catalog.snapshots) snapshots.set(snapshot.id, snapshot);
-      for (const item of prepared.catalog.assets) assets.set(`${item.manifest.coordinate}:${item.snapshotId}`, item);
-      if (damaged) {
-        const refs = active.filter(a => a.contentDigest === asset.contentDigest).map(a => a.coordinate);
-        for (const name of refs) affected.add(name);
-        let bytes = 0; for (const entry of state.contents.find(c => c.digest === prepared.digest)!.inventory) if (entry.type === "file") bytes += (await lstat(path.join(prepared.staged, entry.path))).size;
-        restorations.push({ digest: prepared.digest, staged: prepared.staged, before, bytes });
-        changes.push({ digest: prepared.digest, action: "restore", path: destination, bytes, commit: prepared.commit, affectedAssets: refs });
-      }
-    }
-    const catalog: CatalogSnapshot = { snapshots: [...snapshots.values()].sort((a,b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0), assets: [...assets.entries()].sort(([a],[b]) => a < b ? -1 : a > b ? 1 : 0).map(([,a]) => a), selectedSnapshotIds: [] };
-    return { catalog, restorations, changes, affected: [...affected].sort() };
   }
   async execute(input: ChangeRequest): Promise<ExecutionResult> {
     const request = parseRequest(input); await this.initialize();
