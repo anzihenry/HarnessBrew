@@ -20,7 +20,7 @@ import { precondition } from "../planning/resources.js";
 import { catalogAssetReader } from "../ports/planning.js";
 import { TransactionCoordinator, type ExecutionResult } from "../transactions/coordinator.js";
 import { exists, image } from "../execution/files.js";
-import { builtinRegistration, registryFor, verifyRegistryFiles } from "./adapters.js";
+import { builtinRegistration, inspectAdapterCandidate, registryFor, verifyRegistryFiles } from "./adapters.js";
 
 import { parseRequest, parseReadQuery } from "./requests.js";
 import { diagnose } from "../diagnostics/doctor.js";
@@ -177,6 +177,11 @@ class Application implements HarnessService {
       await this.dependencies.preparationCheckpoint();
       return this.coordinator.withSession(session => this.run(saved, registry, session));
     });
+  }
+  async inspectAdapterUpgrade(input: { name: string; module: string }) {
+    this.check(); record(input, "adapter inspection", ["name", "module"]);
+    if (typeof input.name !== "string" || typeof input.module !== "string") throw new HarnessError("INVALID_ARGUMENT", "Adapter name and module are required.");
+    return inspectAdapterCandidate(await this.snapshot(), input.name, input.module === "builtin:codex" ? input.module : path.resolve(this.options.cwd, input.module));
   }
   async recover() { this.check(); const pending = await exists(path.join(this.store.home, "transaction.json")); await this.coordinator.recover(); return { recovered: pending, diagnostics: [] }; }
   async doctor(query: { coordinate?: string } = {}) { this.check(); try { record(query, "doctor query", ["coordinate"]); if (query.coordinate !== undefined && (typeof query.coordinate !== "string" || !query.coordinate.trim())) throw new Error("Invalid coordinate"); } catch (cause) { throw new HarnessError("INVALID_ARGUMENT", "Invalid doctor query.", {}, { cause }); } return diagnose(this.store, query.coordinate); }

@@ -127,16 +127,18 @@
 - 工作/交付：执行快速、packaged、regressions、release gate、Linux/macOS 与真实 Codex preflight；按 A02 确定版本和回退说明。
 - 验收：各平台/运行时报告引用同一个候选包摘要；必需检查无缺项；缺少真实运行环境时保持发布验收未完成。发布操作另按实际发布流程执行。
 
-## 批次 B：Adapter 原子升级
-
 完成证据：本地候选验收完成：1.1.0，源码 2689d4a，SHA-256 fe505af0bd57818596f64ef46ca77b0f88ebc8d27968e05391050df25ce698c9。fast 205/205、packaged 19/19、regressions 3/3；Linux Docker/macOS gate 与真实 Codex 四项均通过，同摘要证据校验通过。失败历史、平台限制及回退见 docs/releases/batch-a-acceptance.zh-CN.md；未执行生产发布，本地证据不替代受保护 workflow。提交：docs(A12): record verified batch A candidate acceptance。
+
+## 批次 B：Adapter 原子升级
 
 ### B01 — 候选身份与静态检查
 
-- [ ] 完成；PR 05；前置：A02、A05。开发可在 A 后续工作期间推进，集成依赖发布 A 的接口。
+- [x] 完成；PR 05；前置：A02、A05。开发可在 A 后续工作期间推进，集成依赖发布 A 的接口。
 - 范围：`application/adapters.ts`、`domain/adapter.ts`、内置 Adapter 构建身份。
 - 工作/交付：实现候选包检查、签名覆盖清单、声明/能力差异、受影响安装列表；固定与候选摘要绑定的结果。
 - 验收：候选代码写入标记文件的测试证明静态检查未 import；依赖/入口变化能被摘要识别；内置候选来自实际构建产物。
+
+完成证据：静态检查 SDK 提供候选声明、签名覆盖、能力上限和受影响安装/binding；旧插件无静态能力声明时明确返回 unknown（null），授权加载时继续核验实际要求。内置签名来自 emitted runtime 闭包与生产依赖锁，加载时复核构建清单。专项 2/2，架构检查通过。提交：feat(B01): inspect adapter candidates and bind builtin build identity。
 
 ### B02 — 显式授权加载与完整升级预览
 

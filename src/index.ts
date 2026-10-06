@@ -1,5 +1,5 @@
 export { createHarness } from "./application/service.js";
-export type { ChangeRequest, HarnessOptions, HarnessService, PlanPreview, RecoveryResult, ReadQuery, QueryResult, QueryResults, DoctorFinding, DoctorReport, ExecutionResult } from "./application/types.js";
+export type { AdapterUpgradeInspection, ChangeRequest, HarnessOptions, HarnessService, PlanPreview, RecoveryResult, ReadQuery, QueryResult, QueryResults, DoctorFinding, DoctorReport, ExecutionResult } from "./application/types.js";
 export { HarnessError } from "./domain/errors.js";
 export type { ErrorCode } from "./domain/errors.js";
 export type { Placement } from "./domain/placement.js";
