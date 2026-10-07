@@ -14,7 +14,7 @@ export async function prepareAdapter(context: PreparationContext, state: HomeSta
     next.adapters.registrations = next.adapters.registrations.filter(a => a.name !== request.name);
   } else {
     const registration = request.module === "builtin:codex" ? await builtinRegistration() : await inspectPlugin(path.resolve(context.options.cwd, request.module), request.capabilities);
-    if (next.adapters.registrations.some(a => a.name === registration.name)) throw new HarnessError("INVALID_ARGUMENT", "Remove the existing adapter before registering another version.");
+    if (next.adapters.registrations.some(a => a.name === registration.name)) throw new HarnessError("INVALID_ARGUMENT", "Adapter is already registered; inspect and authorize adapter upgrade to change its implementation.");
     next.adapters.registrations.push(registration);
     saved.diagnostics.push("Plugin exports will be checked during authorized execution; preview does not import new plugin code.");
   }

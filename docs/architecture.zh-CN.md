@@ -2,7 +2,7 @@
 
 [English](architecture.md)
 
-本文描述基于 1.0.0 完成架构 A 批次后的实现。公开入口为 `harnessbrew` 与适配器类型契约 `harnessbrew/adapter`。CLI 和 SDK 共用 Application Service，旧 `src/core` 后端已删除。
+本文描述基于 1.0.0 完成架构 A/B 批次后的实现。公开入口为 `harnessbrew` 与适配器类型契约 `harnessbrew/adapter`。CLI 和 SDK 共用 Application Service，旧 `src/core` 后端已删除。
 
 ## 职责边界
 
@@ -68,6 +68,10 @@ Application facade 通过内部可注入端口组合来源、Adapter、目录和
 每个服务实例拥有独立 AdapterRegistry。第三方 Adapter 必须显式授权能力，目前只支持文件和目录链接。插件签名覆盖依赖及 lockfile；校验后的副本先发布到签名缓存，再加载执行。这用于身份与漂移检查，JavaScript 插件仍具有进程权限。
 
 Doctor 按类别输出问题。Repair 默认只恢复缺失资源；显式覆盖仅限可识别的所有权键或区块。整个文件或链接被修改后，不能仅凭历史路径认定可以覆盖。
+
+Adapter 升级先静态检查候选，再按确切摘要与能力授权加载。规划仅使用当前安装的精确资产版本，并保留其他 Adapter 的操作。提交端区分旧注册证据和候选执行权限，旧注册与所有目标写入共同记录在 v1 Journal，恢复不依赖旧插件。Bundle 升级按 ID 和物理目录要求全部受影响 Manifest，验证已有 lock/要求/闭包，只替换目标 Adapter 签名。多 lock 与目标统一检测重叠、核验前置条件、加锁和写入；提交前再次核验 lock 字节。
+
+升级 saved-plan v3 保存授权注册转换与 lock 更新集合；普通 v2 可继续读取，Home/Journal/Bundle lock 无迁移。内置签名来自 emitted runtime 闭包与生产依赖锁，规则版本为 builtin-closure/1。具体边界见[B08 兼容证据](design/batch-b-compatibility.zh-CN.md)。
 
 ## 兼容性与验证
 

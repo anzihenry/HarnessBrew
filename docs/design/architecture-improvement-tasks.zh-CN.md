@@ -205,10 +205,12 @@
 
 ### B09 — 联合升级与回退验收
 
-- [ ] 完成；PR 07；前置：B05、B07、B08。
+- [x] 完成；PR 07；前置：B05、B07、B08。
 - 范围：Bundle reproduction、CLI/SDK 契约、多文件 crash fixtures。
 - 工作/交付：完成两 Bundle 共享、手动混用、同文件/父子路径冲突、lock 外部修改和迁移/回退演练；更新中英文用法。
 - 验收：注册、目标、锁签名和状态一致；未修改资产版本；每个不支持场景有稳定错误及可行动信息。
+
+完成证据：fast 243/243、packaged 19/19、regressions 3/3；联合/兼容专项 14/14。验证两个 Bundle+手动安装、CLI 重复 bundle-file、相同资源与父子路径冲突、逐 lock 漂移、提交期间外部改锁、显式旧插件反向升级及一致 Home/目标/lock 备份回退。中英文用法和可行动升级错误已更新；格式边界沿用 B08。提交：test(B09): verify joint upgrade rollback and document usage。
 
 ### B10 — 发布 B 候选验收
 

@@ -129,3 +129,15 @@ test("upgrade can replace link-directory capability with link-file while removin
   assert.deepEqual(after.adapters.registrations.find(a => a.name === request.name)!.capabilities, ["link-file"]);
   assert.equal(after.install.operations[0]!.type, "link-file");
 });
+
+for (const overlap of ["same-file", "parent-directory"]) test(`upgrade rejects ${overlap} ownership transition without partial writes`, async t => {
+  const f = await upgradeFixture(t), before = await new StateStore(f.home).read();
+  const entry = path.join(f.next, "index.js"); let code = await readFile(entry, "utf8");
+  if (overlap === "same-file") code = code.replaceAll("link-directory", "link-file").replace("sourceRelativePath:'.'", "sourceRelativePath:'SKILL.md'").replace("pathType:'directory'", "pathType:'file'").replace('"next"', '"old"');
+  else code = code.replace('"next",asset.manifest.coordinate.split(\'/\')[2]', '"old"');
+  await writeFile(entry, code);
+  const request = { ...await f.request(), capabilities: [overlap === "same-file" ? "link-file" as const : "link-directory" as const] };
+  await assert.rejects(f.service.execute(request), { code: "OWNERSHIP_CONFLICT" });
+  assert.deepEqual(await new StateStore(f.home).read(), before);
+  for (const op of before.install.operations) await access(op.resource.path);
+});

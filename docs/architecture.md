@@ -2,7 +2,7 @@
 
 [简体中文](architecture.zh-CN.md)
 
-This describes the implementation after architecture batch A (based on 1.0.0). The package exports `harnessbrew` and the adapter type contract `harnessbrew/adapter`. CLI and SDK share the application service; the legacy `src/core` backend has been removed.
+This describes the implementation after architecture batches A and B (based on 1.0.0). The package exports `harnessbrew` and the adapter type contract `harnessbrew/adapter`. CLI and SDK share the application service; the legacy `src/core` backend has been removed.
 
 ## Responsibilities
 
@@ -68,6 +68,10 @@ The built-in Codex adapter maps skills to directory links, agents to managed TOM
 Each service has its own adapter registry. Third-party adapters require explicit capabilities and currently support file/directory links. Plugin inventory signatures include dependencies and lockfiles. Verified copies are published into a signature cache before import. This checks identity and drift; JavaScript plugins still run with the process's privileges.
 
 Doctor reports grouped findings. Repair recreates missing resources by default. Explicit overwrite is limited to identifiable owned keys or blocks; a modified whole file or link is not overwritten solely because its path was once managed.
+
+Adapter upgrades inspect candidates statically before loading under an exact digest and capability grant. Planning pins installed asset versions and retains other adapters' operations. Execution separates old registration evidence from candidate authorization; the v1 journal records registration and targets together, and recovery does not load the old plugin. Bundle upgrades require every affected Manifest by ID and physical directory, validate existing locks/requirements/closure, and replace only the selected adapter signature. All locks and targets share overlap checks, preconditions, locking and journal writes; lock bytes are checked again before commit.
+
+Upgrade saved-plan v3 stores the authorized registration transition and lock update collection. Ordinary v2 previews remain readable, with no Home/Journal/Bundle lock migration. Built-in identity covers the emitted runtime closure and production dependency lock under builtin-closure/1. See the [B08 compatibility evidence](design/batch-b-compatibility.zh-CN.md).
 
 ## Compatibility and validation
 

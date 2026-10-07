@@ -41,7 +41,7 @@ export async function registryFor(state: HomeState, cache: string, supplied: rea
   for (const registration of state.adapters.registrations) {
     if (needed && !needed.has(registration.name)) continue;
     if (registration.module === "builtin:codex") {
-      if (registration.signature !== builtin.signature) throw new HarnessError("ADAPTER_CHANGED", "Built-in adapter changed; explicitly register the current built-in adapter.");
+      if (registration.signature !== builtin.signature) throw new HarnessError("ADAPTER_CHANGED", "Built-in adapter changed; inspect with adapter inspect-upgrade and explicitly authorize adapter upgrade.");
       registry.registerCodex(builtin.signature, registration.capabilities as AppliedOperationType[]); continue;
     }
     const provided = supplied.find(value => value.adapter.name === registration.name);
