@@ -39,7 +39,7 @@ export interface ExecutionInput {
   bundleLock?: { path: string; before: ResourcePrecondition };
 }
 export type OperationResult = Pick<ChangePlan["operations"][number], "id" | "asset" | "placementIds" | "resource" | "type" | "reason">;
-export interface ExecutionResult { contentChanges?: import("../domain/content.js").ContentChange[]; operations: OperationResult[]; transactionId?: string; committedRevision: string; changes: ChangePlan["assetChanges"]; retained: ChangePlan["desiredState"]["retained"]; diagnostics: string[] }
+export interface ExecutionResult { outcome: "committed" | "unchanged"; maintenance: "complete" | "recovery-required"; effects: import("../domain/operation.js").OperationEffect[]; contentChanges?: import("../domain/content.js").ContentChange[]; operations: OperationResult[]; transactionId?: string; committedRevision: string; changes: ChangePlan["assetChanges"]; retained: ChangePlan["desiredState"]["retained"]; diagnostics: string[] }
 export interface TransactionSession {
   read(): Promise<HomeState>;
   apply(input: ExecutionInput): Promise<ExecutionResult>;
@@ -106,7 +106,7 @@ export class TransactionCoordinator {
   private async publishMetadata(access: ExclusiveStateAccess, store: JournalStore, input: HomeState): Promise<ExecutionResult> {
     const before = await access.read(), candidate = parseHomeState(input);
     if (candidate.revision !== before.revision) throw new HarnessError("PLAN_STALE", "Metadata plan is stale.");
-    if (canonicalJson(before) === canonicalJson(candidate)) return { committedRevision: before.revision, changes: [], operations: [], retained: [], diagnostics: [] };
+    if (canonicalJson(before) === canonicalJson(candidate)) return { outcome: "unchanged", maintenance: "complete", effects: [], committedRevision: before.revision, changes: [], operations: [], retained: [], diagnostics: [] };
     // This port cannot change active ownership or installed versions.
     if (canonicalJson(before.install.operations) !== canonicalJson(candidate.install.operations) || canonicalJson(before.install.requirements) !== canonicalJson(candidate.install.requirements)
       || canonicalJson(before.install.assets.filter(a => a.status === "active")) !== canonicalJson(candidate.install.assets.filter(a => a.status === "active"))) throw new HarnessError("INVALID_PLAN", "Metadata publication cannot change active installs.");
@@ -140,7 +140,7 @@ export class TransactionCoordinator {
     }
     const diagnostics: string[] = [];
     try { await this.fault("committed", { transactionId: journal.id }); await this.cleanup(store, journal); } catch { diagnostics.push("Committed; content cleanup requires recovery."); }
-    return { transactionId: journal.id, committedRevision: revision, changes: [], operations: [], retained: [], diagnostics };
+    return { outcome: "committed", maintenance: diagnostics.length ? "recovery-required" : "complete", effects: [], transactionId: journal.id, committedRevision: revision, changes: [], operations: [], retained: [], diagnostics };
   }
   private async targetsLocked<T>(destinations: string[], action: () => Promise<T>): Promise<T> {
     const names = [...new Set(destinations)].sort();
@@ -358,7 +358,7 @@ export class TransactionCoordinator {
         const normalized = { ...candidate, revision: before.revision, install: { ...candidate.install, revision: before.revision } };
         if (!journal.steps.length && canonicalJson(normalized) === canonicalJson(before)) {
           await this.cleanup(store, journal);
-          return { committedRevision: before.revision, changes: [], operations: [], retained: plan.desiredState.retained, diagnostics: [] };
+          return { outcome: "unchanged", maintenance: "complete", effects: [], committedRevision: before.revision, changes: [], operations: [], retained: plan.desiredState.retained, diagnostics: [] };
         }
         await checkpoint("before-state");
         for (const expected of [...plan.preconditions, ...physicalLocks.map(lock => lock.before)]) {
@@ -388,7 +388,7 @@ export class TransactionCoordinator {
         const diagnostics: string[] = [];
         try { await checkpoint("committed"); await this.cleanup(store, journal); }
         catch { diagnostics.push("Transaction committed; maintenance cleanup is pending."); }
-        return { contentChanges: restorations.map(r => ({ digest: r.digest, action: "restore" as const, path: path.join(this.store.home, "content", r.digest.slice(7)), bytes: r.bytes, commit: before.install.assets.find(a => a.status === "active" && a.contentDigest === r.digest)!.commit, affectedAssets: before.install.assets.filter(a => a.status === "active" && a.contentDigest === r.digest).map(a => a.coordinate), ...(journal.restorations?.find(q => q.path.endsWith(r.digest.slice(7))) ? { quarantine: journal.restorations.find(q => q.path.endsWith(r.digest.slice(7)))!.quarantine } : {}) })), transactionId: journal.id, committedRevision: candidate.revision, changes: plan.assetChanges, operations: plan.operations.map(({ id, asset, placementIds, resource, type, reason }) => ({ id, asset, placementIds, resource, type, reason })), retained: plan.desiredState.retained, diagnostics };
+        return { outcome: "committed", maintenance: diagnostics.length ? "recovery-required" : "complete", effects: plan.assetChanges.map(change => ({ kind: "asset", change })), contentChanges: restorations.map(r => ({ digest: r.digest, action: "restore" as const, path: path.join(this.store.home, "content", r.digest.slice(7)), bytes: r.bytes, commit: before.install.assets.find(a => a.status === "active" && a.contentDigest === r.digest)!.commit, affectedAssets: before.install.assets.filter(a => a.status === "active" && a.contentDigest === r.digest).map(a => a.coordinate), ...(journal.restorations?.find(q => q.path.endsWith(r.digest.slice(7))) ? { quarantine: journal.restorations.find(q => q.path.endsWith(r.digest.slice(7)))!.quarantine } : {}) })), transactionId: journal.id, committedRevision: candidate.revision, changes: plan.assetChanges, operations: plan.operations.map(({ id, asset, placementIds, resource, type, reason }) => ({ id, asset, placementIds, resource, type, reason })), retained: plan.desiredState.retained, diagnostics };
       } catch (cause) {
         let persisted: Journal | undefined;
         try { persisted = await store.load(); }

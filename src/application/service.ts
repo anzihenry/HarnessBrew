@@ -1,3 +1,4 @@
+import { OperationService } from "./operation-service.js";
 import { executeMaintenance } from "./maintenance-execution.js";
 import { previewMaintenance } from "./maintenance.js";
 import { prepareUpgradeBundles } from "./use-cases/upgrade-bundles.js";
@@ -32,7 +33,12 @@ import type { ChangeRequest, HarnessOptions, HarnessService, PlanPreview, ReadQu
 
 export function createHarness(options: HarnessOptions): HarnessService { return createApplication(options); }
 export function createApplication(options: HarnessOptions, overrides: Partial<ApplicationDependencies> = {}): HarnessService {
-  return new Application(options, { ...nodeApplicationDependencies, ...overrides });
+  return new OperationService(new Application(options, { ...nodeApplicationDependencies, ...overrides }));
+}
+function effects(saved: Saved, before: HomeState): import("../domain/operation.js").OperationEffect[] {
+  return [...(saved.adapterUpgrade ? [{ kind: "adapter-upgrade" as const, ...saved.adapterUpgrade }] : []),
+    ...(saved.plan?.assetChanges.map(change => ({ kind: "asset" as const, change })) ?? []),
+    ...(saved.candidate ? [{ kind: "metadata" as const, operation: saved.request.kind, before, after: saved.candidate }] : [])];
 }
 class Application implements HarnessService {
   private closed = false;
@@ -109,7 +115,7 @@ class Application implements HarnessService {
     return withRelatedCacheLeases(this.cacheInputs(before), async () => {
       const saved = await this.build(before, request);
       await this.plans.save(saved);
-      return { contentChanges: saved.contentChanges ?? [], planId: saved.id, baseRevision: saved.baseRevision, changes: saved.adapterUpgrade ? [{ kind: request.kind, ...saved.adapterUpgrade }, ...(saved.plan?.assetChanges ?? [])] : saved.plan?.assetChanges ?? [{ kind: request.kind, before, after: saved.candidate }], retained: saved.plan?.desiredState.retained ?? [], fileUpdates: [...(saved.plan?.fileUpdates ?? []), ...(saved.lockUpdates ?? []).map(u => ({ id: stableId({ lock: u.path }), dependsOn: [], path: u.path, before: u.before, after: { kind: "file" as const, content: `${canonicalJson(u.lock)}\n`, mode: u.before.mode ?? 0o644 }, operationIds: [] }))], operations: saved.plan?.operations ?? [], diagnostics: saved.diagnostics };
+      return { effects: effects(saved, before), contentChanges: saved.contentChanges ?? [], planId: saved.id, baseRevision: saved.baseRevision, changes: saved.adapterUpgrade ? [{ kind: request.kind, ...saved.adapterUpgrade }, ...(saved.plan?.assetChanges ?? [])] : saved.plan?.assetChanges ?? [{ kind: request.kind, before, after: saved.candidate! }], retained: saved.plan?.desiredState.retained ?? [], fileUpdates: [...(saved.plan?.fileUpdates ?? []), ...(saved.lockUpdates ?? []).map(u => ({ id: stableId({ lock: u.path }), dependsOn: [], path: u.path, before: u.before, after: { kind: "file" as const, content: `${canonicalJson(u.lock)}\n`, mode: u.before.mode ?? 0o644 }, operationIds: [] }))], operations: saved.plan?.operations ?? [], diagnostics: saved.diagnostics };
     });
   }
   private async validateInputs(saved: Saved): Promise<void> {
@@ -138,7 +144,7 @@ class Application implements HarnessService {
       if (saved.request.kind === "adapter.add") await verifyRegistryFiles(saved.candidate, this.cache, this.options.adapters ?? []);
       if (saved.request.kind === "tap.add" || saved.request.kind === "tap.update") await catalogFor(saved.candidate);
       const result = await session.publish(saved.candidate);
-      return { ...result, contentChanges: saved.contentChanges ?? [], diagnostics: [...result.diagnostics, ...saved.diagnostics] };
+      return { ...result, effects: result.outcome === "unchanged" ? [] : effects({ ...saved, candidate: { ...saved.candidate, revision: result.committedRevision, install: { ...saved.candidate.install, revision: result.committedRevision } } }, current), contentChanges: saved.contentChanges ?? [], diagnostics: [...result.diagnostics, ...saved.diagnostics] };
     }
     if (!saved.plan || !saved.catalog) throw new HarnessError("INVALID_PLAN", "Incomplete saved plan.");
     const verified = await loadCatalog(saved.catalog.snapshots, saved.catalog.selectedSnapshotIds);
@@ -158,7 +164,7 @@ class Application implements HarnessService {
     if (!registry) throw new HarnessError("INVALID_PLAN", "Missing prepared adapter registry.");
     const prepared = await preparedPublisher(saved, this.cache);
     const result = await session.apply({ plan: saved.plan, catalog: verified, assets: catalogAssetReader(verified), adapters: registry, prepared, ...(saved.adapterUpgrade ? { adapterUpgrade: saved.adapterUpgrade } : {}), ...(saved.lockUpdates ? { lockUpdates: saved.lockUpdates } : {}), ...(saved.bundleLock ? { bundleLock: saved.bundleLock } : {}), ...(saved.restorations ? { restorations: saved.restorations } : {}) });
-    return { ...result, diagnostics: [...result.diagnostics, ...saved.diagnostics] };
+    return { ...result, effects: result.outcome === "unchanged" ? [] : effects(saved, current), diagnostics: [...result.diagnostics, ...saved.diagnostics] };
   }
   async execute(input: ChangeRequest): Promise<ExecutionResult> {
     this.check(); await this.prepareContext();

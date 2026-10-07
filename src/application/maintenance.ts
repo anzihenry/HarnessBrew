@@ -37,7 +37,7 @@ export async function inspectTree(file: string): Promise<{ bytes: number; modifi
 }
 export async function maintenanceSnapshot(home: string, cache: string, state: HomeState, policy: Partial<RetentionPolicy> = {}, now = Date.now(), protection?: CacheProtection, excludeMaintenancePlan?: string): Promise<Omit<MaintenancePreview, "planId">> {
   await cacheDirectory(cache, "maintenance");
-  if (!protection && await exists(path.join(cache, "maintenance", "transaction.json"))) throw new HarnessError("RECOVERY_REQUIRED", "Recover pending maintenance before generating another preview.");
+  if (!protection && await exists(path.join(cache, "maintenance", "transaction.json"))) throw new HarnessError("RECOVERY_REQUIRED", "Recover pending maintenance before generating another preview.", { action: "recover-maintenance" });
   const parsedPolicy = retentionPolicy(policy), objects: RetentionObject[] = [], fingerprints: MaintenancePreview["fingerprints"] = [];
   const retiredReferences: MaintenancePreview["retiredReferences"] = [];
   const knowledge: RetentionKnowledge = { references: stateReferences(home, cache, state), activeLease: false, unknown: [] };

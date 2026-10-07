@@ -12,3 +12,4 @@ export type { ContentRecord, ContentChange } from "./domain/content.js";
 export type { MaintenancePreview } from "./application/maintenance.js";
 export type { RetentionPolicy, RetentionDecision, RetentionReport } from "./application/retention.js";
 export type { MaintenanceResult } from "./application/maintenance-execution.js";
+export type { OperationOptions, OperationPhase, ProgressEvent, OperationEffect } from "./application/types.js";

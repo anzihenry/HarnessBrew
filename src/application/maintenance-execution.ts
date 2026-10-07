@@ -15,7 +15,7 @@ export type MaintenanceFault = (point: "journal-durable" | "quarantined" | "dele
 interface Entry { source: string; quarantine: string; digest: string; tree: MaintenanceTreeEntry[]; phase: "pending" | "quarantined" | "deleting" | "done"; reference: boolean }
 interface MaintenanceJournal { format: "harnessbrew.maintenance-journal"; version: 1; id: string; home: string; cache: string; rootDevice: string; rootInode: string; homeDevice?: string; homeInode?: string; entries: Entry[] }
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
-const conflict = (message: string): never => { throw new HarnessError("RECOVERY_CONFLICT", message); };
+const conflict = (message: string): never => { throw new HarnessError("RECOVERY_CONFLICT", message, { action: "recover-maintenance" }); };
 const stale = (message: string): never => { throw new HarnessError("PLAN_STALE", message); };
 const journalFile = (cache: string) => path.join(cache, "maintenance", "transaction.json");
 async function save(journal: MaintenanceJournal) { await atomicDocument(journalFile(journal.cache), { digest: hash(canonicalJson(journal)), journal }); }
@@ -52,7 +52,7 @@ async function load(cache: string, home: string): Promise<MaintenanceJournal | u
       if (!paths.has("")) throw new Error("Missing root evidence");
     }
     return value as unknown as MaintenanceJournal;
-  } catch (cause) { throw new HarnessError("RECOVERY_REQUIRED", "Maintenance journal is damaged; preserve it for inspection.", {}, { cause }); }
+  } catch (cause) { throw new HarnessError("RECOVERY_REQUIRED", "Maintenance journal is damaged; preserve it for inspection.", { action: "recover-maintenance" }, { cause }); }
 }
 async function verifyCache(journal: MaintenanceJournal) {
   const stat = await lstat(journal.cache);
@@ -136,7 +136,7 @@ export async function executeMaintenance(store: StateStore, cache: string, id: s
     const result = await new CacheLeases(cache).tryMaintenance(async (resources, references) => {
       const existing = await load(cache, store.home);
       if (existing) {
-        if (id !== undefined && existing.id !== id) throw new HarnessError("RECOVERY_REQUIRED", "Recover the pending maintenance before applying another preview.");
+        if (id !== undefined && existing.id !== id) throw new HarnessError("RECOVERY_REQUIRED", "Recover the pending maintenance before applying another preview.", { action: "recover-maintenance" });
         return finish(existing, true, fault);
       }
       if (id === undefined) return undefined;

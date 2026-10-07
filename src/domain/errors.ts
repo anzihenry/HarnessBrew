@@ -1,4 +1,5 @@
 export type ErrorCode =
+  | "OPERATION_ABORTED" | "OPERATION_TIMEOUT"
   | "INVALID_ARGUMENT" | "INVALID_STATE" | "UNSUPPORTED_FORMAT"
   | "ASSET_NOT_FOUND" | "AMBIGUOUS_ASSET" | "DEPENDENCY_MISSING" | "DEPENDENCY_CYCLE"
   | "ASSET_CONFLICT" | "VERSION_CONFLICT" | "OWNERSHIP_CONFLICT"
@@ -10,8 +11,8 @@ export type ErrorCode =
   | "STATE_CORRUPT" | "PLAN_STALE" | "RECOVERY_REQUIRED" | "RECOVERY_CONFLICT" | "LOCK_TIMEOUT" | "LOCK_CORRUPT";
 
 export class HarnessError extends Error {
-  get recovery(): { action: "recover"; preserveEvidence: true } | undefined {
-    return this.code === "RECOVERY_REQUIRED" || this.code === "RECOVERY_CONFLICT" ? { action: "recover", preserveEvidence: true } : undefined;
+  get recovery(): { action: "recover" | "recover-maintenance"; preserveEvidence: true } | undefined {
+    return this.code === "RECOVERY_REQUIRED" || this.code === "RECOVERY_CONFLICT" ? { action: this.details.action === "recover-maintenance" ? "recover-maintenance" : "recover", preserveEvidence: true } : undefined;
   }
   constructor(
     public readonly code: ErrorCode,

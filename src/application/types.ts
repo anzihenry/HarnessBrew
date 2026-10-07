@@ -1,3 +1,6 @@
+import type { OperationOptions } from "../observability/operation.js";
+export type { OperationOptions, OperationPhase, ProgressEvent } from "../observability/operation.js";
+export type { OperationEffect } from "../domain/operation.js";
 import type { HomeState, SourceRegistration, AdapterRegistration } from "../domain/home-state.js";
 import type { AssetManifest, ResolvedAsset } from "../domain/assets.js";
 import type { InstalledAsset, UsageRequirement } from "../domain/state.js";
@@ -31,19 +34,19 @@ export interface QueryResults {
 export type QueryResult = QueryResults[keyof QueryResults];
 import type { DoctorReport } from "../diagnostics/types.js";
 export type { DoctorFinding, DoctorReport } from "../diagnostics/types.js";
-export interface PlanPreview { contentChanges: import("./content.js").ContentChange[]; planId: string; baseRevision: string; changes: unknown[]; retained: ChangePlan["desiredState"]["retained"]; fileUpdates: ChangePlan["fileUpdates"]; operations: ChangePlan["operations"]; diagnostics: string[] }
+export interface PlanPreview { contentChanges: import("./content.js").ContentChange[]; planId: string; baseRevision: string; effects: import("../domain/operation.js").OperationEffect[]; changes: (import("../domain/plan.js").AssetChange | { kind: ChangeRequest["kind"]; before: HomeState | AdapterRegistration; after?: HomeState | AdapterRegistration })[]; retained: ChangePlan["desiredState"]["retained"]; fileUpdates: ChangePlan["fileUpdates"]; operations: ChangePlan["operations"]; diagnostics: string[] }
 export interface RecoveryResult { recovered: boolean; diagnostics: string[] }
 export interface HarnessService {
-  applyMaintenance(planId: string): Promise<import("./maintenance-execution.js").MaintenanceResult>;
-  recoverMaintenance(): Promise<import("./maintenance-execution.js").MaintenanceResult | undefined>;
-  planMaintenance(policy?: Partial<import("./retention.js").RetentionPolicy>): Promise<import("./maintenance.js").MaintenancePreview>;
-  inspectAdapterUpgrade(input: { name: string; module: string }): Promise<AdapterUpgradeInspection>;
-  plan(request: ChangeRequest): Promise<PlanPreview>;
-  execute(request: ChangeRequest): Promise<ExecutionResult>;
-  apply(planId: string): Promise<ExecutionResult>;
-  recover(): Promise<RecoveryResult>;
-  doctor(query?: { coordinate?: string }): Promise<DoctorReport>;
-  query<Q extends ReadQuery>(query: Q): Promise<QueryResults[Q["kind"]]>;
+  applyMaintenance(planId: string, options?: OperationOptions): Promise<import("./maintenance-execution.js").MaintenanceResult>;
+  recoverMaintenance(options?: OperationOptions): Promise<import("./maintenance-execution.js").MaintenanceResult | undefined>;
+  planMaintenance(policy?: Partial<import("./retention.js").RetentionPolicy>, options?: OperationOptions): Promise<import("./maintenance.js").MaintenancePreview>;
+  inspectAdapterUpgrade(input: { name: string; module: string }, options?: OperationOptions): Promise<AdapterUpgradeInspection>;
+  plan(request: ChangeRequest, options?: OperationOptions): Promise<PlanPreview>;
+  execute(request: ChangeRequest, options?: OperationOptions): Promise<ExecutionResult>;
+  apply(planId: string, options?: OperationOptions): Promise<ExecutionResult>;
+  recover(options?: OperationOptions): Promise<RecoveryResult>;
+  doctor(query?: { coordinate?: string }, options?: OperationOptions): Promise<DoctorReport>;
+  query<Q extends ReadQuery>(query: Q, options?: OperationOptions): Promise<QueryResults[Q["kind"]]>;
   close(): Promise<void>;
 }
 export interface HarnessOptions { home: string; cwd: string; userHome: string; adapters?: readonly AuthorizedAdapter[] }

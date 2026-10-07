@@ -270,10 +270,12 @@
 
 ### C06 — 操作选项与结构化结果契约
 
-- [ ] 完成；PR 10；前置：A02、A06；升级结果与 B02/B07 的契约对齐。
+- [x] 完成；PR 10；前置：A02、A06；升级结果与 B02/B07 的契约对齐。
 - 范围：`application/types.ts`、`index.ts`、CLI JSON 契约及版本说明。
 - 工作/交付：固定 signal/timeout/onProgress 参数、阶段事件、判别联合变更与 committed/maintenance 状态；定义超时从调用开始计算，恢复收尾可超出期限；定义 close 行为。
 - 验收：现有调用按兼容策略可用；回调/signal 不进入保存计划或 request digest；调用方不解析自然语言即可判断是否提交、是否需要恢复。
+
+完成证据：独立 OperationOptions、单调调用级时钟、预先取消/零超时、隔离进度回调、effects 判别联合及 outcome/maintenance 状态已接入公开 SDK，保留旧 changes 和调用方式。类型穷尽检查及 SDK/执行回归 38 项通过；架构检查通过。契约见 operation-control.zh-CN.md；运行中传播由 C07/C08 实现。
 
 ### C07 — 准备阶段与锁等待取消
 
