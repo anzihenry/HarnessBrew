@@ -1,3 +1,4 @@
+import { planExpired } from "./retention.js";
 import { CacheLeases, relatedCacheRoots } from "./cache-leases.js";
 import { lstat } from "node:fs/promises";
 import path from "node:path";
@@ -64,7 +65,9 @@ export class PlanStore {
     try {
       const file = path.join(this.cache, "plans", `${id}.json`);
       for (const dir of [this.cache, path.dirname(file)]) if (!(await lstat(dir)).isDirectory()) throw new HarnessError("INVALID_PLAN", "Unsafe saved plan directory.");
-      if (!(await lstat(file)).isFile()) throw new HarnessError("INVALID_PLAN", "Saved plan must be a regular file.");
+      const info = await lstat(file);
+      if (!info.isFile()) throw new HarnessError("INVALID_PLAN", "Saved plan must be a regular file.");
+      if (planExpired(info.mtimeMs, Date.now())) throw new HarnessError("PLAN_STALE", "Saved plan expired after 30 days; generate a new preview.", { reason: "expired" });
       const envelope = record(JSON.parse(await this.documents.read(file)), "plan envelope", ["digest", "saved"]);
       if (envelope.digest !== hash(canonicalJson(envelope.saved))) throw new HarnessError("INVALID_PLAN", "Saved plan integrity failed.");
       const saved = parsePrepared(envelope.saved);

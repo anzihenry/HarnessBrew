@@ -225,10 +225,12 @@
 
 ### C01 — 回收策略与引用集合
 
-- [ ] 完成；PR 08；前置：A07、A09。
+- [x] 完成；PR 08；前置：A07、A09。
 - 范围：缓存、状态、计划与 Journal 数据模型，拟新增维护用例。
 - 工作/交付：定义 TTL/保留数量/容量策略及优先级；计算 CURRENT、Journal、有效计划、租约、活动/选中来源和 Adapter 引用；明确过期计划的 API 行为。
 - 验收：每类对象都有“可删/受保护/未知”的判定及原因；无法解析引用时保守拒绝删除；所有受保护数据超出预算时报告而不强制删除，不承诺总磁盘必然低于配额。
+
+完成证据：`retention.ts` 定义保护优先、TTL/数量/容量规则和 CURRENT/Journal 引用集合；CacheLeases 提供只读保护检查；30 天过期计划 apply 返回 PLAN_STALE。新增策略、双 revision、过期 apply 与租约回归共 7 项通过，架构边界检查通过。协议见 `maintenance-retention.zh-CN.md`。
 
 ### C02 — plans/restore 回收预览
 

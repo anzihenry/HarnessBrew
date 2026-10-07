@@ -50,19 +50,27 @@ export class CacheLeases {
     }
     return [...resources].sort();
   }
-  /** C-batch GC must mark/delete under this guard and exclude every protected root/descendant. */
-  async tryMaintenance<T>(action: (protectedResources: readonly string[]) => Promise<T>): Promise<{ ran: false } | { ran: true; value: T }> {
-    return this.guarded(async () => {
-      const dir = path.join(this.root, "leases");
+  /** Read protection without removing stale leases or persistent references. */
+  async inspect(): Promise<{ activeLease: boolean; resources: string[] }> {
+    return this.guarded(async () => ({ activeLease: await this.activeLeases(false), resources: await this.references() }));
+  }
+  private async activeLeases(reap: boolean): Promise<boolean> {
+    const dir = path.join(this.root, "leases");
       for (const name of await readdir(dir)) {
         if (!name.endsWith(".json") || !uuid.test(name.slice(0, -5))) throw new HarnessError("LOCK_CORRUPT", "Inspect interrupted cache lease before maintenance.");
         const file = path.join(dir, name);
         if (!(await lstat(file)).isFile()) throw new HarnessError("LOCK_CORRUPT", "Unsafe cache lease.");
         const value = record(JSON.parse(await readFile(file, "utf8")), "cache lease", ["format", "version", "token", "pid"]);
         if (value.format !== "harnessbrew.cache-lease" || value.version !== 1 || `${value.token}.json` !== name || !Number.isSafeInteger(value.pid) || (value.pid as number) < 1) throw new HarnessError("LOCK_CORRUPT", "Invalid cache lease.");
-        if (alive(value.pid as number)) return { ran: false };
-        await rm(file); // Unique file of a proven dead process; PID reuse conservatively protects it.
+        if (alive(value.pid as number)) return true;
+        if (reap) await rm(file); // Reap only proven dead processes; PID reuse conservatively protects.
       }
+    return false;
+  }
+  /** C-batch GC must mark/delete under this guard and exclude every protected root/descendant. */
+  async tryMaintenance<T>(action: (protectedResources: readonly string[]) => Promise<T>): Promise<{ ran: false } | { ran: true; value: T }> {
+    return this.guarded(async () => {
+      if (await this.activeLeases(true)) return { ran: false };
       return { ran: true, value: await action(await this.references()) };
     });
   }
