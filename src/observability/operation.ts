@@ -26,6 +26,6 @@ export async function runOperation<T>(options: OperationOptions | undefined, pha
   const context: Context = { signal: controller.signal, ...(value.timeoutMs === undefined ? {} : { deadline: started + value.timeoutMs }), ...(value.onProgress ? { onProgress: value.onProgress } : {}), phase, protected: false, timedOut: false };
   const abort = () => controller.abort(); value.signal?.addEventListener("abort", abort, { once: true }); if (value.signal?.aborted) abort();
   const timer = value.timeoutMs === undefined ? undefined : setTimeout(() => { context.timedOut = true; controller.abort(); }, value.timeoutMs); timer?.unref();
-  try { return await contexts.run(context, async () => { operationCheckpoint(); progress(phase); const result = await action(); progress("complete"); return result; }); }
+  try { return await contexts.run(context, async () => { operationCheckpoint(); progress(phase); operationCheckpoint(); const result = await action(); progress("complete"); return result; }); }
   finally { if (timer) clearTimeout(timer); value.signal?.removeEventListener("abort", abort); }
 }

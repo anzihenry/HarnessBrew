@@ -1,3 +1,4 @@
+import { withoutCancellation } from "../observability/operation.js";
 import { emit } from "../observability/measure.js";
 import { randomUUID } from "node:crypto";
 import { lstat, readFile, readdir, rm } from "node:fs/promises";
@@ -29,7 +30,7 @@ export class CacheLeases {
       await atomicDocument(file, { format: "harnessbrew.cache-lease", version: 1, token, pid: process.pid });
     });
     try { return await action(); }
-    finally { await this.guarded(async () => { await rm(file, { force: true }); }).catch(() => emit("cache.lease.release-failed", 1, "count")); }
+    finally { await withoutCancellation(() => this.guarded(async () => { await rm(file, { force: true }); })).catch(() => emit("cache.lease.release-failed", 1, "count")); }
   }
   /** Publish references before releasing the producer lease, even if the plan write later fails. */
   async pin(id: string, resources: readonly string[]): Promise<void> {

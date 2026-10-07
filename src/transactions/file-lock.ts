@@ -1,3 +1,4 @@
+import { operationCheckpoint } from "../observability/operation.js";
 import { emit, measured } from "../observability/measure.js";
 import { randomUUID, createHash } from "node:crypto";
 import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
@@ -7,6 +8,7 @@ import { HarnessError } from "../domain/errors.js";
 
 export type LockCheckpoint = "directory-ready" | "choosing-published" | "ticket-staged" | "ticket-published" | "acquired" | "released";
 export interface LockOptions {
+  signal?: AbortSignal;
   timeoutMs?: number;
   retryMs?: number;
   fault?: (point: LockCheckpoint) => void | Promise<void>;
@@ -50,13 +52,16 @@ async function readParticipant(directory: string, name: string): Promise<Partici
  * The namespace stays in place: releasing/reaping never removes another owner's directory.
  */
 export async function withFileLock<T>(lockPath: string, action: () => Promise<T>, options: LockOptions = {}): Promise<T> {
+  const check = () => { operationCheckpoint(); if (options.signal?.aborted) throw new HarnessError("OPERATION_ABORTED", "Lock wait aborted.", { committed: false }); };
+  check();
   const directory = path.resolve(lockPath), startedAt = Date.now();
   const owner: Participant = { version: 1, token: randomUUID(), pid: process.pid, ticket: null };
   const name = `${owner.pid}-${owner.token}.json`, file = path.join(directory, name), temporary = `${file}.tmp`;
   const timeoutMs = options.timeoutMs ?? 15_000, retryMs = options.retryMs ?? 50;
   const wait = async () => {
+    check();
     if (Date.now() - startedAt >= timeoutMs) throw new HarnessError("LOCK_TIMEOUT", `Timed out waiting for lock: ${directory}`, { path: directory });
-    await delay(retryMs);
+    await delay(retryMs); check();
   };
   await mkdir(directory, { recursive: true, mode: 0o700 });
   if (!(await lstat(directory)).isDirectory()) corrupt(directory);
@@ -64,6 +69,7 @@ export async function withFileLock<T>(lockPath: string, action: () => Promise<T>
   const participants = async (): Promise<string[]> => {
     const result: string[] = [];
     for (const entry of await readdir(directory)) {
+      check();
       const match = participantName.exec(entry);
       if (!match || !Number.isSafeInteger(Number(match[1]))) corrupt(path.join(directory, entry));
       if (!processIsAlive(Number(match[1]))) {
@@ -100,7 +106,7 @@ export async function withFileLock<T>(lockPath: string, action: () => Promise<T>
         await wait();
       }
     }
-    await options.fault?.("acquired");
+    check(); await options.fault?.("acquired"); check();
     const kind = path.basename(directory) === "external.lock" ? "external" : path.basename(directory) === ".store.lock" ? "home" : "resource";
     emit(`lock.${kind}.wait`, Date.now() - startedAt, "ms");
     return await measured(`lock.${kind}.hold`, action);

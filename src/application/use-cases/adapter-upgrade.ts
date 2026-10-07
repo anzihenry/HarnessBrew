@@ -1,3 +1,4 @@
+import { operationCheckpoint } from "../../observability/operation.js";
 import { prepareUpgradeBundles } from "./upgrade-bundles.js";
 import path from "node:path";
 import { HarnessError } from "../../domain/errors.js";
@@ -25,10 +26,12 @@ export async function prepareAdapterUpgrade(context: PreparationContext, state: 
   const candidate = structuredClone(state);
   candidate.adapters.registrations = candidate.adapters.registrations.map(a => a.name === request.name ? after : a);
   // Digest and capability authorization precede the first candidate import.
+  operationCheckpoint();
   const registry = await registryFor(candidate, context.cache, [], true, new Set([request.name]));
   const snapshots = new Map<string, import("../../domain/assets.js").SourceSnapshot>();
   const assets = new Map<string, import("../../domain/assets.js").ResolvedAsset>();
   for (const coordinate of new Set(inspection.affectedAssets.map(a => a.asset))) {
+    operationCheckpoint();
     const prepared = await prepareRepair(context, state, { kind: "repair", coordinate });
     for (const snapshot of prepared.catalog.snapshots) snapshots.set(snapshot.id, snapshot);
     for (const asset of prepared.catalog.assets) assets.set(`${asset.manifest.coordinate}:${asset.snapshotId}`, asset);
@@ -38,6 +41,7 @@ export async function prepareAdapterUpgrade(context: PreparationContext, state: 
   saved.catalog = catalog;
   const planningState = structuredClone(candidate);
   planningState.adapters.registrations.find(a => a.name === request.name)!.capabilities = [...new Set([...inspection.current.capabilities, ...after.capabilities])];
+  operationCheckpoint();
   saved.plan = await planChange({ state: planningState, reprojectTarget: request.name, desired: currentDesired(state), catalog, adapters: registry, io: context.dependencies.planning, assets: catalogAssetReader(catalog), home: context.home, userHome: context.options.userHome, requestDigest: hash(canonicalJson(request)) });
   const { id: _id, ...plan } = structuredClone(saved.plan);
   if (!plan.adapterSignatures.some(a => a.name === after.name)) plan.adapterSignatures.push({ name: after.name, version: after.version, signature: after.signature });

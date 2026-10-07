@@ -1,3 +1,4 @@
+import { operationCheckpoint, operationSignal } from "../observability/operation.js";
 import { createHash, randomUUID } from "node:crypto";
 import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -33,15 +34,19 @@ export class SourceManager {
     absolutePath(cacheRoot);
   }
   private async command(args: readonly string[], cwd: string, signal?: AbortSignal): Promise<string> {
-    try { return await this.git.run({ args: ["-c", "protocol.ext.allow=never", ...args], cwd, ...(signal ? { signal } : {}) }); }
+    operationCheckpoint();
+    try { const result = await this.git.run({ args: ["-c", "protocol.ext.allow=never", ...args], cwd, ...(signal ? { signal } : {}) }); operationCheckpoint(); return result; }
     catch (cause) {
+      operationCheckpoint();
       if (signal?.aborted) throw cause;
       throw new HarnessError("GIT_FAILED", "Git source operation failed.", { operation: args[0] }, { cause });
     }
   }
   private async bytes(command: GitCommand): Promise<Uint8Array> {
-    try { return await this.git.bytes(command); }
+    operationCheckpoint();
+    try { const result = await this.git.bytes(command); operationCheckpoint(); return result; }
     catch (cause) {
+      operationCheckpoint();
       if (command.signal?.aborted) throw cause;
       throw new HarnessError("GIT_FAILED", "Could not read Git source objects.", { operation: command.args[0] }, { cause });
     }
@@ -51,6 +56,9 @@ export class SourceManager {
   }
   /** Resolve tracking policy independently from immutable snapshot identity. */
   async prepareSelection(input: SourceRequest): Promise<{ snapshot: SourceSnapshot; ref?: string }> {
+    operationCheckpoint();
+    const contextSignal = operationSignal();
+    if (contextSignal) input = { ...input, signal: input.signal ? AbortSignal.any([input.signal, contextSignal]) : contextSignal };
     const request = structuredClone({ ...input, signal: undefined });
     const name = tapName(request.name);
     const url = text(request.url, "source URL");
@@ -92,6 +100,7 @@ export class SourceManager {
         if (algorithm !== locked.algorithm) throw new HarnessError("SOURCE_MISMATCH", "Git object format differs from the lock.");
         try { revision = await this.command(["rev-parse", "--verify", `${locked.value}^{commit}`], repository, input.signal); }
         catch (error) {
+          operationCheckpoint();
           if (input.signal?.aborted) throw error;
           await this.command(["fetch", "--quiet", "origin", locked.value], repository, input.signal);
           revision = await this.command(["rev-parse", "--verify", `${locked.value}^{commit}`], repository, input.signal);
@@ -106,12 +115,12 @@ export class SourceManager {
         const choices = ref.startsWith("refs/heads/") || ref.startsWith("refs/tags/") ? [ref] : [`refs/heads/${ref}`, `refs/tags/${ref}`];
         for (const choice of choices) {
           try { await this.command(["check-ref-format", choice], repository, input.signal); }
-          catch (cause) { if (input.signal?.aborted) throw cause; throw new HarnessError("INVALID_ARGUMENT", "Expected a literal Git branch or tag.", {}, { cause }); }
+          catch (cause) { operationCheckpoint(); if (input.signal?.aborted) throw cause; throw new HarnessError("INVALID_ARGUMENT", "Expected a literal Git branch or tag.", {}, { cause }); }
         }
         const found: { ref: string; revision: string }[] = [];
         for (const choice of choices) {
           try { found.push({ ref: choice, revision: await this.command(["rev-parse", "--verify", `${choice}^{commit}`], repository, input.signal) }); }
-          catch (error) { if (input.signal?.aborted) throw error; }
+          catch (error) { operationCheckpoint(); if (input.signal?.aborted) throw error; }
         }
         if (!found.length) throw new HarnessError("SOURCE_NOT_FOUND", `Git ref not found: ${ref}`);
         if (new Set(found.map(value => value.revision)).size > 1) throw new HarnessError("INVALID_ARGUMENT", "Git ref is ambiguous; use refs/heads/ or refs/tags/.", { ref });
@@ -123,6 +132,7 @@ export class SourceManager {
         try {
           await this.git.run({ args: ["merge-base", "--is-ancestor", previous.commit.value, commit.value], cwd: repository, ...(input.signal ? { signal: input.signal } : {}) });
         } catch (cause) {
+          operationCheckpoint();
           if (input.signal?.aborted) throw cause;
           if ((cause as { code?: number }).code === 1) throw new HarnessError("SOURCE_REWIND", "Source update is not a fast-forward.", { before: previous.commit, after: commit });
           throw new HarnessError("GIT_FAILED", "Could not verify source continuity.", {}, { cause });
@@ -160,7 +170,7 @@ export class SourceManager {
         await rename(temporary, destination);
         return { snapshot, ...(trackingRef ? { ref: trackingRef } : {}) };
       } finally { await rm(temporary, { recursive: true, force: true }); }
-    });
+    }, input.signal ? { signal: input.signal } : {});
   }
   private async readMetadata(directoryPath: string): Promise<SourceSnapshot> {
     const file = path.join(directoryPath, "snapshot.json");

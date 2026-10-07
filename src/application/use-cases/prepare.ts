@@ -1,3 +1,4 @@
+import { operationCheckpoint } from "../../observability/operation.js";
 import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -76,9 +77,12 @@ export async function prepareChange(context: PreparationContext, state: HomeStat
     saved.restorations = prepared!.restorations; saved.contentChanges = prepared!.changes;
     saved.diagnostics.push("Repair validates the selected assets only; run doctor to inspect overall Home health.");
   }
+  operationCheckpoint();
   const desired = request.kind === "repair" ? currentDesired(state) : resolveRequest(state, catalog, resolution);
   const needed = new Set(desired.assets.filter(a => (!repair?.assetCoordinates || repair.assetCoordinates.includes(a.coordinate)) && catalog.assets.some(item => item.manifest.coordinate === a.coordinate && item.contentDigest === a.contentDigest) && state.sources.registrations.find(s => a.coordinate.startsWith(`${s.name}/`))?.trusted).flatMap(a => a.placements.map(p => p.placement.target)));
+  operationCheckpoint();
   const registry = await registryFor(state, context.cache, context.options.adapters ?? [], true, needed);
+  operationCheckpoint();
   saved.plan = await planChange({ state, desired, catalog, adapters: registry, io: context.dependencies.planning, assets: catalogAssetReader(catalog), home: context.home, userHome: context.options.userHome, requestDigest: hash(canonicalJson(request)), ...(repair ? { repair } : {}) });
   saved.catalog = catalog; return saved;
 }
