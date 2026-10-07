@@ -187,10 +187,12 @@
 
 ### B07 — 多 lock 原子提交与恢复
 
-- [ ] 完成；PR 07；前置：B04、B06、B08。
+- [x] 完成；PR 07；前置：B04、B06、B08。
 - 范围：ExecutionInput、PreparedChange、执行验证、协调器、Journal 和恢复。
 - 工作/交付：将单 lock 输入扩展为文件更新集合；对注册、目标及所有 lock 统一做重叠检测、加锁、预条件验证、写入和恢复。
 - 验收：任意一个 lock 被修改时整笔事务拒绝；任意 lock 写入点崩溃后无部分成功；手动安装与多个 Bundle 混用保持一致。
+
+完成证据：B08 前置已完成。提交 1d84cc0：ExecutionInput lockUpdates 集合与注册/目标共用同一 Journal；复核全部 Manifest/lock，限制只改授权 Adapter 身份，统一重叠检测、加锁、写入和提交前字节验证。专项 9/9、架构检查通过（上轮工具结果）；每个 lock after-record SIGKILL 可回滚，after-write 缺少完成证据时保留日志并拒绝恢复，未宣称部分成功。
 
 ### B08 — 格式兼容及迁移实现
 
