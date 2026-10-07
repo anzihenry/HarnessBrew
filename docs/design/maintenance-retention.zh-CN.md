@@ -80,3 +80,20 @@ maintenance/trash-<id>/<序号>；原目录和隔离目录均 fsync。
 恢复不清理未记录的对象；发现身份变化、新增文件或改写数据时返回 RECOVERY_CONFLICT，保留日志与剩余数据。
 新消费者遇到待恢复维护日志返回 RECOVERY_REQUIRED，需调用 recover-maintenance。
 四个 SIGKILL 检查点覆盖意图持久化、隔离、删除意图与部分条目删除。
+
+## 来源与插件缓存（C04）
+
+预览/执行现在纳入 sources/snapshots/<摘要> 与 plugins/<签名摘要>。
+来源快照必须只有 content 和 snapshot.json，声明身份与目录名/内容位置一致，且内容摘要可验证；
+插件静态声明和完整目录摘要必须与签名目录名一致。检查不会 import 插件代码。
+修改过、结构未知或含 symlink 的缓存保留，Git bare repositories 和锁目录不纳入自动删除。
+来源多层父目录在预览和恢复时逐层 lstat 检查。
+
+CURRENT 中全部 catalog snapshots 仍是现有查询输入，因此即使不是 selected 也保留；
+contents origins 仍是离线 repair 输入，不能以“可以重新下载”为由回收。
+已注册插件、有效计划的候选插件及全部声明资源受保护。
+过期计划可释放同根候选引用，未被当前状态或其他有效计划使用的候选才进入 TTL/数量判定。
+跨根引用仍保守保留，不通过远端 cache 的锁推断本地安全性。
+
+回归覆盖断开原 Git 仓库后的 search/info/install/restore repair，
+以及维护回收过期升级候选后，另一有效升级计划仍可离线 apply。

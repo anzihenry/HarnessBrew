@@ -21,6 +21,8 @@ const journalFile = (cache: string) => path.join(cache, "maintenance", "transact
 async function save(journal: MaintenanceJournal) { await atomicDocument(journalFile(journal.cache), { digest: hash(canonicalJson(journal)), journal }); }
 function allowedSource(cache: string, source: string, reference: boolean): boolean {
   const relative = path.relative(cache, source).split(path.sep);
+  if (!reference && relative.length === 3 && relative[0] === "sources" && relative[1] === "snapshots" && /^[a-f0-9]{64}$/u.test(relative[2]!)) return true;
+  if (!reference && relative.length === 2 && relative[0] === "plugins" && /^[a-f0-9]{64}$/u.test(relative[1]!)) return true;
   return relative.length === 2 && (reference ? relative[0] === "references" && uuid.test(relative[1]!.replace(/\.json$/u, "")) && relative[1]!.endsWith(".json")
     : relative[0] === "plans" ? uuid.test(relative[1]!.replace(/\.json$/u, "")) && relative[1]!.endsWith(".json")
     : ["prepared", "restores"].includes(relative[0]!) && uuid.test(relative[1]!));
@@ -83,11 +85,19 @@ async function deleteTree(entry: Entry, fault: MaintenanceFault) {
     await syncDirectory(path.dirname(file)); await fault("entry-deleted", file);
   }
 }
+async function verifySourceParents(cache: string, source: string): Promise<void> {
+  let current = cache;
+  for (const part of path.relative(cache, path.dirname(source)).split(path.sep).filter(Boolean)) {
+    current = path.join(current, part);
+    if (!(await lstat(current)).isDirectory()) conflict("Unsafe maintenance source ancestor.");
+  }
+}
 async function finish(journal: MaintenanceJournal, recovered: boolean, fault: MaintenanceFault): Promise<MaintenanceResult> {
   for (const entry of journal.entries) {
     await verifyCache(journal);
     if (entry.phase === "done") continue;
     if (entry.phase === "pending") {
+      await verifySourceParents(journal.cache, entry.source);
       if (await exists(entry.source)) {
         if (await exists(entry.quarantine)) conflict("Both maintenance source and quarantine exist.");
         const tree = await inspectTree(entry.source); if (!tree.safe || tree.digest !== entry.digest) conflict("Maintenance source changed after intent was recorded.");

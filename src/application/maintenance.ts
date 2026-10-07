@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { hash } from "../domain/identity.js";
-import { canonicalJson, record } from "../domain/validation.js";
+import { hash, stableId } from "../domain/identity.js";
+import { sourceSnapshot } from "../domain/assets.js";
+import { inspectContent } from "../sources/inventory.js";
+import { inspectPlugin } from "./adapters.js";
+import { canonicalJson, format, record } from "../domain/validation.js";
 import type { HomeState } from "../domain/home-state.js";
 import { HarnessError } from "../domain/errors.js";
 import { atomicDocument, exists } from "../execution/files.js";
@@ -57,16 +60,17 @@ export async function maintenanceSnapshot(home: string, cache: string, state: Ho
       if (!retired) knowledge.references.push(...reference.resources.map(p => ({ path: p, reason: "saved-plan-reference" })));
     }
   } catch { knowledge.unknown.push("unreadable-cache-protection"); }
-  for (const [directory, kind] of [["plans", "plan"], ["prepared", "prepared"], ["restores", "restore"]] as const) {
+  for (const [directory, kind] of [["plans", "plan"], ["prepared", "prepared"], ["restores", "restore"], ["sources/snapshots", "source"], ["plugins", "plugin"]] as const) {
     const parent = path.join(cache, directory);
     try {
+      if (kind === "source" && !(await lstat(path.join(cache, "sources"))).isDirectory()) { knowledge.unknown.push("unsafe-sources-directory"); continue; }
       if (!(await lstat(parent)).isDirectory()) { knowledge.unknown.push(`unsafe-${directory}-directory`); continue; }
       for (const name of (await readdir(parent)).sort()) {
         const file = path.join(parent, name);
         try {
           const tree = await inspectTree(file), stat = await lstat(file);
-          let owned = tree.safe && (kind === "plan" ? stat.isFile() && name.endsWith(".json") && uuid.test(name.slice(0, -5)) : stat.isDirectory() && uuid.test(name));
-          if (kind !== "plan" && owned) {
+          let owned = tree.safe && (kind === "plan" ? stat.isFile() && name.endsWith(".json") && uuid.test(name.slice(0, -5)) : stat.isDirectory() && (kind === "source" || kind === "plugin" ? /^[a-f0-9]{64}$/u.test(name) : uuid.test(name)));
+          if ((kind === "prepared" || kind === "restore") && owned) {
             try {
               const marker = path.join(file, ".owner.json");
               if (!(await lstat(marker)).isFile()) throw new Error("Unsafe owner receipt");
@@ -82,6 +86,18 @@ export async function maintenanceSnapshot(home: string, cache: string, state: Ho
               if (envelope.digest !== hash(canonicalJson(saved)) || `${saved.id}.json` !== name || saved.home !== home) throw new Error("Plan identity mismatch");
             } catch { owned = false; knowledge.unknown.push("unreadable-saved-plan"); }
           }
+          if (kind === "source" && owned) {
+            try {
+              if (canonicalJson((await readdir(file)).sort()) !== canonicalJson(["content", "snapshot.json"])) throw new Error("Unknown snapshot files");
+              const value = format(JSON.parse(await readFile(path.join(file, "snapshot.json"), "utf8")), "harnessbrew.source-snapshot", ["snapshot"]);
+              const snapshot = sourceSnapshot(value.snapshot);
+              owned = snapshot.id === name && snapshot.id === stableId({ tap: snapshot.tap, url: snapshot.url, commit: snapshot.commit }) && snapshot.contentLocation === path.join(file, "content") && (await inspectContent(snapshot.contentLocation)).digest === snapshot.treeDigest;
+            } catch { owned = false; }
+          }
+          if (kind === "plugin" && owned) {
+            try { owned = (await inspectPlugin(file, [])).signature === `sha256:${name}`; }
+            catch { owned = false; }
+          }
           objects.push({ path: file, kind, bytes: tree.bytes, modifiedAt: tree.modifiedAt, owned }); fingerprints.push({ path: file, digest: tree.digest });
         } catch { objects.push({ path: file, kind, bytes: 0, modifiedAt: now, owned: false }); knowledge.unknown.push("candidate-changed-during-inspection"); }
       }
@@ -89,7 +105,7 @@ export async function maintenanceSnapshot(home: string, cache: string, state: Ho
   }
   // Other cache domains are deliberately retained until their ownership rules are implemented.
   for (const name of (await readdir(cache)).sort()) {
-    if (["plans", "prepared", "restores", "leases", "references", ".leases.guard", "maintenance"].includes(name)) continue;
+    if (["plans", "prepared", "restores", "plugins", "leases", "references", ".leases.guard", "maintenance"].includes(name)) continue;
     const file = path.join(cache, name);
     const stat = await lstat(file);
     objects.push({ path: file, kind: "unknown", bytes: stat.isFile() ? stat.size : 0, modifiedAt: Math.floor(stat.mtimeMs), owned: false });
