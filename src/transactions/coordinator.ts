@@ -1,9 +1,10 @@
-import { upgradeExecutionState, type AdapterUpgrade } from "../execution/adapter-upgrade.js";
+import { upgradeExecutionState, type AdapterUpgrade, type UpgradeLockUpdate } from "../execution/adapter-upgrade.js";
+import { parseBundleLock } from "../domain/bundle.js";
 import { outsideRepair } from "../domain/plan.js";
 import { validateExecution } from "../execution/validate.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
-import { lstat, mkdir, realpath, rename, rm } from "node:fs/promises";
+import { lstat, mkdir, readFile, realpath, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { AdapterProvider, AssetReader } from "../domain/adapter.js";
@@ -31,6 +32,7 @@ export interface ContentRestoration { digest: import("../domain/identity.js").Di
 export interface PreparedContentPublisher { publish(asset: import("../domain/assets.js").ResolvedAsset, destination: string): Promise<boolean> }
 export interface ExecutionInput {
   adapterUpgrade?: AdapterUpgrade;
+  lockUpdates?: UpgradeLockUpdate[];
   prepared?: PreparedContentPublisher;
   restorations?: ContentRestoration[];
   plan: ChangePlan; catalog: CatalogSnapshot; assets: AssetReader; adapters: AdapterProvider;
@@ -236,14 +238,27 @@ export class TransactionCoordinator {
       const staged = await image(restoration.staged, true);
       if (staged.kind !== "content" || staged.digest !== restoration.digest) throw new HarnessError("CONTENT_MODIFIED", "Prepared recovery content changed.");
     }
+    if (input.lockUpdates && (!input.adapterUpgrade || input.bundleLock)) throw new HarnessError("INVALID_PLAN", "Joint lock updates require an adapter upgrade.");
+    if (input.adapterUpgrade) {
+      const required = before.install.owners.filter(o => o.kind === "bundle" && before.install.requirements.some(r => r.ownerId === o.id && r.placements.some(p => p.target === input.adapterUpgrade!.after.name))).map(o => o.id).sort();
+      if (canonicalJson(required) !== canonicalJson((input.lockUpdates ?? []).map(u => u.binding).sort())) throw new HarnessError("LOCK_MISMATCH", "Joint transaction must include every affected binding exactly once.");
+    }
+    const lockWrites = input.bundleLock ? [{ ...input.bundleLock, lock: plan.desiredState.bundleLock! }] : input.lockUpdates ?? [];
     const destinations = plan.fileUpdates.map(update => update.path);
-    let lockPath: string | undefined;
-    if (input.bundleLock) {
-      const requested = absolutePath(input.bundleLock.path);
-      if (requested !== input.bundleLock.before.path || canonicalJson(precondition(await nodePlanningIO.inspect(requested))) !== canonicalJson(input.bundleLock.before)) throw new HarnessError("PLAN_STALE", "Bundle lockfile changed after preview.");
-      lockPath = (await nodePlanningIO.identify(requested)).physicalPath;
-      if (contained(this.store.home, lockPath) || plan.preconditions.some(p => p.identity.physicalPath === lockPath) || destinations.some(p => contained(p, lockPath!) || contained(lockPath!, p))) throw new HarnessError("OWNERSHIP_CONFLICT", "Bundle lockfile overlaps another transaction resource.");
+    const physicalLocks: { path: string; before: ResourcePrecondition; lock: import("../domain/bundle.js").BundleLock }[] = [];
+    for (const lock of lockWrites) {
+      const requested = absolutePath(lock.path);
+      if (requested !== lock.before.path || canonicalJson(precondition(await nodePlanningIO.inspect(requested))) !== canonicalJson(lock.before)) throw new HarnessError("PLAN_STALE", "Bundle lockfile changed after preview.");
+      if (input.adapterUpgrade) {
+        const oldLock = parseBundleLock(JSON.parse(await readFile(requested, "utf8")));
+        const after = input.adapterUpgrade.after;
+        const expected = parseBundleLock({ ...oldLock, adapterSignatures: oldLock.adapterSignatures.map(a => a.name === after.name ? { name: after.name, version: after.version, signature: after.signature } : a) });
+        if (!oldLock.adapterSignatures.some(a => a.name === after.name && a.signature === input.adapterUpgrade!.before.signature && a.version === input.adapterUpgrade!.before.version) || canonicalJson(expected) !== canonicalJson(parseBundleLock(lock.lock))) throw new HarnessError("INVALID_PLAN", "Joint lock update may only change its authorized adapter identity.");
+      }
+      const lockPath = (await nodePlanningIO.identify(requested)).physicalPath;
+      if (contained(this.store.home, lockPath) || contained(lockPath, this.store.home) || plan.preconditions.some(p => p.identity.physicalPath === lockPath) || destinations.some(p => contained(p, lockPath!) || contained(lockPath!, p))) throw new HarnessError("OWNERSHIP_CONFLICT", "Bundle lockfile overlaps another transaction resource.");
       destinations.push(lockPath);
+      physicalLocks.push({ path: lockPath, before: lock.before, lock: lock.lock });
     }
     return this.targetsLocked(destinations, async () => {
       await assertPlanFresh(plan, { revision: before.revision, home: this.store.home, io: nodePlanningIO, adapters: input.adapters });
@@ -334,10 +349,10 @@ export class TransactionCoordinator {
           const next: FileImage = update.after.kind === "file" ? { kind: "file", bytes: Buffer.from(update.after.content, "utf8").toString("base64"), mode: update.after.mode } : update.after;
           await step(update.path, "target", next);
         }
-        if (lockPath && input.bundleLock) {
-          await checkExpected(input.bundleLock.before);
-          const next: FileImage = { kind: "file", bytes: Buffer.from(`${canonicalJson(plan.desiredState.bundleLock)}\n`).toString("base64"), mode: input.bundleLock.before.mode ?? 0o644 };
-          if (!sameImage(await image(lockPath), next)) { await ensureParents(lockPath); await step(lockPath, "lockfile", next); }
+        for (const lock of physicalLocks) {
+          await checkExpected(lock.before);
+          const next: FileImage = { kind: "file", bytes: Buffer.from(`${canonicalJson(lock.lock)}\n`).toString("base64"), mode: lock.before.mode ?? 0o644 };
+          if (!sameImage(await image(lock.path), next)) { await ensureParents(lock.path); await step(lock.path, "lockfile", next); }
         }
         let candidate = await stateAfterExecution(executionState, plan, journal.nextRevision, directories);
         const normalized = { ...candidate, revision: before.revision, install: { ...candidate.install, revision: before.revision } };
@@ -346,7 +361,7 @@ export class TransactionCoordinator {
           return { committedRevision: before.revision, changes: [], operations: [], retained: plan.desiredState.retained, diagnostics: [] };
         }
         await checkpoint("before-state");
-        for (const expected of [...plan.preconditions, ...(input.bundleLock ? [input.bundleLock.before] : [])]) {
+        for (const expected of [...plan.preconditions, ...physicalLocks.map(lock => lock.before)]) {
           const actual = await nodePlanningIO.identify(expected.path);
           const anchor = await nodePlanningIO.identify(path.join(expected.identity.ancestor.path, ".harnessbrew-parent-check"));
           if (actual.physicalPath !== expected.identity.physicalPath || canonicalJson(anchor.ancestor) !== canonicalJson(expected.identity.ancestor)) throw new HarnessError("PLAN_STALE", "A planned parent path changed during execution.");
@@ -359,6 +374,10 @@ export class TransactionCoordinator {
         for (const signature of plan.adapterSignatures) {
           const adapter = input.adapters.get(signature.name);
           if (adapter.signature !== signature.signature || adapter.adapter.version !== signature.version) throw new HarnessError("ADAPTER_CHANGED", "Adapter changed during execution.");
+        }
+        for (const lock of physicalLocks) {
+          const expected: FileImage = { kind: "file", bytes: Buffer.from(`${canonicalJson(lock.lock)}\n`).toString("base64"), mode: lock.before.mode ?? 0o644 };
+          if (!sameImage(await image(lock.path), expected)) throw new HarnessError("TARGET_MODIFIED", "Bundle lock changed before commit.", { path: lock.path });
         }
         candidate = await stateAfterExecution(executionState, plan, journal.nextRevision, directories);
         for (const restoration of journal.restorations ?? []) if (!sameImage(await image(restoration.quarantine, true), restoration.before)) throw new HarnessError("RECOVERY_CONFLICT", "Quarantined content changed during repair.");

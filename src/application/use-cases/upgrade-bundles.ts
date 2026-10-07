@@ -9,7 +9,8 @@ import type { AdapterRegistration, HomeState } from "../../domain/home-state.js"
 import type { ResourcePrecondition } from "../../domain/plan.js";
 import { precondition } from "../../planning/resources.js";
 import type { PreparationContext } from "./context.js";
-export interface UpgradeLockUpdate { path: string; before: ResourcePrecondition; binding: string; lock: BundleLock }
+import type { UpgradeLockUpdate } from "../../execution/adapter-upgrade.js";
+export type { UpgradeLockUpdate } from "../../execution/adapter-upgrade.js";
 const equal = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
 const sorted = (a: unknown[]) => [...a].sort((a,b) => canonicalJson(a).localeCompare(canonicalJson(b)));
 const mismatch = (message: string, details = {}): never => { throw new HarnessError("LOCK_MISMATCH", message, details); };

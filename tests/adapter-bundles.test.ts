@@ -4,16 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { upgradeFixture } from "./helpers/adapter-upgrade.js";
 import { StateStore } from "../src/storage/state-store.js";
-export async function bundleFixture(t: Parameters<typeof upgradeFixture>[0]) {
-  const f = await upgradeFixture(t), files: string[] = [];
-  for (const name of ["one", "two"]) {
-    const dir = path.join(f.root, name); await mkdir(dir);
-    const file = path.join(dir, "Harnessfile.yaml");
-    await writeFile(file, JSON.stringify({ format: "harnessbrew.manifest", version: 1, id: "shared", sources: [{ name: "test/assets", git: f.repository }], assets: [{ coordinate: "test/assets/a", placements: [{ target: "test-adapter", scope: "project" }] }] }));
-    await f.service.execute({ kind: "bundle.apply", file }); files.push(file);
-  }
-  return { ...f, files };
-}
+import { bundleFixture } from "./helpers/adapter-bundles.js";
 
 test("joint preview requires every exact binding and updates only lock adapter signatures", async t => {
   const f = await bundleFixture(t), request = await f.request(), before = await new StateStore(f.home).read();
@@ -38,4 +29,26 @@ test("joint preview rejects alias duplicates, extra checkouts and declaration dr
   const manifest = JSON.parse(await readFile(f.files[1]!, "utf8")); manifest.assets[0].placements[0].scope = "user";
   await writeFile(f.files[1]!, JSON.stringify(manifest));
   await assert.rejects(f.service.plan({ ...request, bundleFiles: f.files }), { code: "LOCK_MISMATCH" });
+});
+
+test("joint commit migrates manual and two Bundle targets while preserving every asset pin", async t => {
+  const f = await bundleFixture(t), before = await new StateStore(f.home).read();
+  const request = { ...await f.request(), bundleFiles: f.files };
+  const preview = await f.service.plan(request); await f.service.apply(preview.planId);
+  const after = await new StateStore(f.home).read();
+  assert.deepEqual(after.install.requirements, before.install.requirements);
+  assert.deepEqual(after.install.assets.map(({ operations, ...a }) => a), before.install.assets.map(({ operations, ...a }) => a));
+  assert.equal(after.install.operations.length, 3);
+  for (const file of f.files) assert.equal(JSON.parse(await readFile(`${file}.lock.json`, "utf8")).adapterSignatures[0].signature, request.authorizedSignature);
+  assert.equal(after.adapters.registrations.find(a => a.name === request.name)!.signature, request.authorizedSignature);
+  assert.equal((await f.service.execute(request)).committedRevision, after.revision);
+});
+
+for (const index of [0, 1]) test(`lock ${index + 1} edited after preview rejects joint transaction`, async t => {
+  const f = await bundleFixture(t), before = await new StateStore(f.home).read();
+  const preview = await f.service.plan({ ...await f.request(), bundleFiles: f.files });
+  const lock = `${f.files[index]}.lock.json`;
+  const { appendFile } = await import("node:fs/promises"); await appendFile(lock, "\n");
+  await assert.rejects(f.service.apply(preview.planId), { code: "PLAN_STALE" });
+  assert.deepEqual(await new StateStore(f.home).read(), before);
 });

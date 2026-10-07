@@ -1,3 +1,4 @@
+import { prepareUpgradeBundles } from "./use-cases/upgrade-bundles.js";
 import { upgradeExecutionState } from "../execution/adapter-upgrade.js";
 import type { AdapterRegistry } from "../adapters/registry.js";
 import { stagePreparation, preparedPublisher } from "./staging.js";
@@ -111,7 +112,6 @@ class Application implements HarnessService {
     return registryFor(state, this.cache, this.options.adapters ?? [], true, new Set(saved.plan!.adapterSignatures.map(a => a.name)));
   }
   private async run(saved: Saved, registry: AdapterRegistry | undefined, session: import("../transactions/coordinator.js").TransactionSession): Promise<ExecutionResult> {
-    if (saved.lockUpdates?.length) throw new HarnessError("TARGET_UNSUPPORTED", "Joint Bundle commit is not integrated yet.");
     const actualHome = await this.dependencies.planning.identify(path.join(this.store.home, "CURRENT"));
     if (!sameHomeIdentity(saved.homeIdentity, actualHome)) throw new HarnessError("PLAN_STALE", "Physical Home changed after preparation.");
     const declaredHome = await this.dependencies.planning.identify(path.join(saved.home, "CURRENT"));
@@ -133,11 +133,17 @@ class Application implements HarnessService {
       const request = saved.request;
       if (request.kind !== "adapter.upgrade" || request.name !== saved.adapterUpgrade.after.name || request.authorizedSignature !== saved.adapterUpgrade.after.signature || canonicalJson(request.capabilities) !== canonicalJson(saved.adapterUpgrade.after.capabilities)) throw new HarnessError("INVALID_PLAN", "Upgrade differs from saved authorization.");
     }
+    if (saved.adapterUpgrade && saved.request.kind === "adapter.upgrade") {
+      const name = saved.adapterUpgrade.after.name;
+      const bindings = current.install.owners.filter(o => o.kind === "bundle" && current.install.requirements.some(r => r.ownerId === o.id && r.placements.some(p => p.target === name))).map(o => o.id);
+      const checked = await prepareUpgradeBundles({ home: this.store.home, cache: this.cache, options: this.options, dependencies: this.dependencies }, current, saved.adapterUpgrade.after, saved.request.bundleFiles ?? [], bindings);
+      if (canonicalJson(checked.updates) !== canonicalJson(saved.lockUpdates ?? [])) throw new HarnessError("PLAN_STALE", "Joint lock updates differ from prepared evidence.");
+    }
     const executionState = upgradeExecutionState(current, saved.plan, saved.adapterUpgrade);
     await verifyRegistryFiles(executionState, this.cache, saved.adapterUpgrade ? [] : this.options.adapters ?? [], new Set(saved.plan.adapterSignatures.map(a => a.name)));
     if (!registry) throw new HarnessError("INVALID_PLAN", "Missing prepared adapter registry.");
     const prepared = await preparedPublisher(saved, this.cache);
-    const result = await session.apply({ plan: saved.plan, catalog: verified, assets: catalogAssetReader(verified), adapters: registry, prepared, ...(saved.adapterUpgrade ? { adapterUpgrade: saved.adapterUpgrade } : {}), ...(saved.bundleLock ? { bundleLock: saved.bundleLock } : {}), ...(saved.restorations ? { restorations: saved.restorations } : {}) });
+    const result = await session.apply({ plan: saved.plan, catalog: verified, assets: catalogAssetReader(verified), adapters: registry, prepared, ...(saved.adapterUpgrade ? { adapterUpgrade: saved.adapterUpgrade } : {}), ...(saved.lockUpdates ? { lockUpdates: saved.lockUpdates } : {}), ...(saved.bundleLock ? { bundleLock: saved.bundleLock } : {}), ...(saved.restorations ? { restorations: saved.restorations } : {}) });
     return { ...result, diagnostics: [...result.diagnostics, ...saved.diagnostics] };
   }
   async execute(input: ChangeRequest): Promise<ExecutionResult> {

@@ -1,8 +1,9 @@
 import { HarnessError } from "../domain/errors.js";
-import { parseHomeState, type HomeState, type AdapterRegistration } from "../domain/home-state.js";
+import { emptyHomeState, parseHomeState, type HomeState, type AdapterRegistration } from "../domain/home-state.js";
 import type { ChangePlan } from "../domain/plan.js";
 import { placementId } from "../domain/placement.js";
 import { canonicalJson } from "../domain/validation.js";
+export interface UpgradeLockUpdate { path: string; before: import("../domain/plan.js").ResourcePrecondition; binding: string; lock: import("../domain/bundle.js").BundleLock }
 export interface AdapterUpgrade { before: AdapterRegistration; after: AdapterRegistration }
 const equal = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
 /** Validate the registration transition independently of plugin code. The actual old
@@ -21,6 +22,7 @@ export function upgradeExecutionState(before: HomeState, plan: ChangePlan, upgra
   const selected = new Set(before.install.requirements.flatMap(r => r.placements.filter(p => p.target === after.name).map(placementId)));
   const unselected = before.install.operations.filter(op => !op.placementIds.some(id => selected.has(id)));
   if (!equal(unselected, plan.retainedOperations.filter(op => unselected.some(old => old.id === op.id))) || plan.expectedOperations.some(op => op.placementIds.some(id => !selected.has(id)))) throw new HarnessError("INVALID_PLAN", "Upgrade must preserve other adapters' operations.");
+  const registrationCheck = emptyHomeState("validation"); registrationCheck.adapters.registrations = [after]; parseHomeState(registrationCheck);
   const next = structuredClone(before);
   next.adapters.registrations = next.adapters.registrations.map(a => a.name === after.name ? after : a);
   // Old operation capabilities may have been revoked by the new grant. Validate
