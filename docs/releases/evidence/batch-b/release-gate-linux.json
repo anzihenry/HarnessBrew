@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "artifact": {
+    "filename": "harnessbrew-1.2.0.tgz",
+    "version": "1.2.0",
+    "sha256": "1d61c99b85ed663a89582e828751656c4dad678db571b75073741dc7690019de",
+    "commit": "fc40a3efda361301b0801feae7a1cf72bf18b6d9"
+  },
+  "platform": "linux",
+  "architecture": "arm64",
+  "startedAt": "2026-10-07T12:53:28.520Z",
+  "completedAt": "2026-10-07T12:53:52.539Z",
+  "checks": [
+    "artifact",
+    "package-smoke",
+    "packaged-e2e"
+  ]
+}

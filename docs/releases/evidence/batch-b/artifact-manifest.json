@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "harnessbrew",
+    "version": "1.2.0",
+    "filename": "harnessbrew-1.2.0.tgz",
+    "sha256": "1d61c99b85ed663a89582e828751656c4dad678db571b75073741dc7690019de"
+  },
+  "source": {
+    "commit": "fc40a3efda361301b0801feae7a1cf72bf18b6d9",
+    "tag": "v1.2.0",
+    "dirty": false
+  },
+  "runtime": {
+    "node": "v24.19.0",
+    "npm": "12.0.2",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "createdAt": "2026-10-07T12:50:58.142Z"
+}

@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "artifact": {
+    "filename": "harnessbrew-1.2.0.tgz",
+    "version": "1.2.0",
+    "sha256": "1d61c99b85ed663a89582e828751656c4dad678db571b75073741dc7690019de",
+    "commit": "fc40a3efda361301b0801feae7a1cf72bf18b6d9"
+  },
+  "environment": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "node": "v24.19.0"
+  },
+  "startedAt": "2026-10-07T12:51:33.230Z",
+  "completedAt": "2026-10-07T12:52:51.434Z",
+  "status": "passed",
+  "contentRestoration": {
+    "status": "passed",
+    "digest": "sha256:12cc6da995c1b207dfe086e40d451fa5b73015a4d4c1182dfa125a0b36c6442b",
+    "quarantinePreserved": true
+  },
+  "runtimes": [
+    {
+      "name": "codex",
+      "cliVersion": "codex-cli 0.162.0-alpha.2",
+      "status": "passed",
+      "probes": [
+        {
+          "runtime": "codex",
+          "probe": "skill",
+          "status": "passed",
+          "failureClass": null,
+          "markerObserved": true,
+          "requiredEventObserved": true,
+          "durationMs": 14860,
+          "evidence": {
+            "eventTypes": [
+              "item.completed",
+              "item.started",
+              "thread.started",
+              "turn.completed",
+              "turn.started"
+            ],
+            "itemTypes": [
+              "agent_message",
+              "command_execution"
+            ],
+            "toolCalls": []
+          },
+          "attempts": 1
+        },
+        {
+          "runtime": "codex",
+          "probe": "instruction",
+          "status": "passed",
+          "failureClass": null,
+          "markerObserved": true,
+          "requiredEventObserved": true,
+          "durationMs": 8010,
+          "evidence": {
+            "eventTypes": [
+              "item.completed",
+              "thread.started",
+              "turn.completed",
+              "turn.started"
+            ],
+            "itemTypes": [
+              "agent_message"
+            ],
+            "toolCalls": []
+          },
+          "attempts": 1
+        },
+        {
+          "runtime": "codex",
+          "probe": "agent",
+          "status": "passed",
+          "failureClass": null,
+          "markerObserved": true,
+          "requiredEventObserved": true,
+          "durationMs": 22292,
+          "evidence": {
+            "eventTypes": [
+              "item.completed",
+              "item.started",
+              "thread.started",
+              "turn.completed",
+              "turn.started"
+            ],
+            "itemTypes": [
+              "agent_message",
+              "collab_tool_call"
+            ],
+            "toolCalls": [
+              {
+                "type": "collab_tool_call",
+                "tool": "wait"
+              },
+              {
+                "type": "collab_tool_call",
+                "tool": "wait"
+              }
+            ],
+            "sessionCleanup": "passed"
+          },
+          "attempts": 1
+        },
+        {
+          "runtime": "codex",
+          "probe": "mcp",
+          "status": "passed",
+          "failureClass": null,
+          "markerObserved": true,
+          "requiredEventObserved": true,
+          "durationMs": 24536,
+          "evidence": {
+            "eventTypes": [
+              "item.completed",
+              "item.started",
+              "thread.started",
+              "turn.completed",
+              "turn.started"
+            ],
+            "itemTypes": [
+              "agent_message",
+              "mcp_tool_call"
+            ],
+            "toolCalls": [
+              {
+                "type": "mcp_tool_call",
+                "server": "harnessbrew-runtime-mcp",
+                "tool": "harnessbrew_runtime_nonce"
+              },
+              {
+                "type": "mcp_tool_call",
+                "server": "harnessbrew-runtime-mcp",
+                "tool": "harnessbrew_runtime_nonce"
+              }
+            ]
+          },
+          "fixtureToolCallObserved": true,
+          "attempts": 1
+        }
+      ]
+    }
+  ]
+}

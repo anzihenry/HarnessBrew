@@ -214,10 +214,12 @@
 
 ### B10 — 发布 B 候选验收
 
-- [ ] 完成；PR 07 收口；前置：A12、B09。
+- [x] 完成；PR 07 收口；前置：A12、B09。
 - 范围：与 A12 相同的候选包和平台/runtime 发布链路。
 - 工作/交付：执行全部必需 gate；真实打包升级覆盖旧安装；记录格式版本、升级指令和回退条件。
 - 验收：同一候选包通过跨平台与真实 Codex 验收；保留恢复所需旧包和备份；无证据的兼容性声明不得进入发布说明。
+
+完成证据：本地 1.2.0 候选验收通过：源码 fc40a3e，SHA-256 1d61c99b85ed663a89582e828751656c4dad678db571b75073741dc7690019de。fast 243/243、packaged 19/19、regressions 3/3、Linux/macOS gate 和真实 Codex 四项均通过并验证同一包身份。保留实际 A 1.1.0 包，完成其手动+两 Bundle 安装→B 升级→一致备份回退演练。报告及边界见 docs/releases/batch-b-acceptance.zh-CN.md；未正式发布。提交：docs(B10): record verified adapter upgrade candidate acceptance。
 
 ## 批次 C：长期维护与 SDK 操作控制
 
