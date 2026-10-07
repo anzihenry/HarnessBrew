@@ -261,10 +261,12 @@
 
 ### C05 — revisions 保留与维护验收
 
-- [ ] 完成；PR 09；前置：C03、C04。
+- [x] 完成；PR 09；前置：C03、C04。
 - 范围：`storage/state-store.ts`、Journal 引用、维护策略和测试。
 - 工作/交付：实现版本数/期限保留、保护 CURRENT 和 before/next revision；明确历史审计快照与恢复备份的差别；完成长期循环安装/升级/维护 fixture。
 - 验收：当前状态及待恢复事务始终可读/可恢复；保留规则可解释；用户修改隔离副本不受普通 TTL 清理；长期 fixture 中可回收部分不会无限增长。
+
+完成证据：revision 与维护预览按类保留、CURRENT/有效计划 baseRevision 保护、Home Journal 阻断和同文件系统 revision 隔离恢复已实现。五轮真实 install/upgrade/maintenance fixture 验证可回收对象收敛及用户 quarantine 保留；维护线 14 项联合回归通过，新增 revision 隔离恢复与其余 revision 测试 3 项通过，架构检查通过。
 
 ### C06 — 操作选项与结构化结果契约
 

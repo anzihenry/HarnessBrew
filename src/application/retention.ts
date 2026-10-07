@@ -5,7 +5,7 @@ import { absolutePath } from "../domain/identity.js";
 import { HarnessError } from "../domain/errors.js";
 
 export const PLAN_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
-export type RetentionKind = "plan" | "prepared" | "restore" | "source" | "plugin" | "revision" | "unknown";
+export type RetentionKind = "plan" | "prepared" | "restore" | "source" | "plugin" | "revision" | "maintenance-plan" | "unknown";
 export interface RetentionPolicy { ttlMs: number; keepNewest: number; maxBytes: number }
 export const DEFAULT_RETENTION: Readonly<RetentionPolicy> = { ttlMs: PLAN_LIFETIME_MS, keepNewest: 10, maxBytes: 1024 * 1024 * 1024 };
 export interface RetentionObject { path: string; kind: RetentionKind; bytes: number; modifiedAt: number; owned: boolean }
@@ -41,7 +41,7 @@ export function evaluateRetention(objects: readonly RetentionObject[], knowledge
     if (knowledge.activeLease) reasons.push("active-cache-lease");
     if (newest.has(o.path)) reasons.push("keep-newest");
     if (now - o.modifiedAt < policy.ttlMs) reasons.push("within-ttl");
-    if (o.kind === "plan" && !planExpired(o.modifiedAt, now)) reasons.push("valid-plan");
+    if ((o.kind === "plan" || o.kind === "maintenance-plan") && !planExpired(o.modifiedAt, now)) reasons.push("valid-plan");
     return { ...o, status: reasons.length ? "protected" : "deletable", reasons: [...new Set(reasons.length ? reasons : ["expired-unreferenced"])] };
   });
   const size = (items: RetentionDecision[]) => items.reduce((n, o) => n + (Number.isSafeInteger(o.bytes) && o.bytes > 0 ? o.bytes : 0), 0);

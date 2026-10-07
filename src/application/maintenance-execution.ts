@@ -13,31 +13,36 @@ import { inspectTree, maintenanceSnapshot, type MaintenancePreview, type Mainten
 export interface MaintenanceResult { status: "complete"; planId: string; deleted: string[]; retiredReferences: string[]; recovered: boolean }
 export type MaintenanceFault = (point: "journal-durable" | "quarantined" | "delete-recorded" | "entry-deleted", file?: string) => void | Promise<void>;
 interface Entry { source: string; quarantine: string; digest: string; tree: MaintenanceTreeEntry[]; phase: "pending" | "quarantined" | "deleting" | "done"; reference: boolean }
-interface MaintenanceJournal { format: "harnessbrew.maintenance-journal"; version: 1; id: string; home: string; cache: string; rootDevice: string; rootInode: string; entries: Entry[] }
+interface MaintenanceJournal { format: "harnessbrew.maintenance-journal"; version: 1; id: string; home: string; cache: string; rootDevice: string; rootInode: string; homeDevice?: string; homeInode?: string; entries: Entry[] }
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
 const conflict = (message: string): never => { throw new HarnessError("RECOVERY_CONFLICT", message); };
 const stale = (message: string): never => { throw new HarnessError("PLAN_STALE", message); };
 const journalFile = (cache: string) => path.join(cache, "maintenance", "transaction.json");
 async function save(journal: MaintenanceJournal) { await atomicDocument(journalFile(journal.cache), { digest: hash(canonicalJson(journal)), journal }); }
-function allowedSource(cache: string, source: string, reference: boolean): boolean {
+function allowedSource(cache: string, home: string, source: string, reference: boolean): boolean {
+  if (!reference && path.dirname(source) === path.join(home, "revisions") && uuid.test(path.basename(source).replace(/\.json$/u, "")) && source.endsWith(".json")) return true;
   const relative = path.relative(cache, source).split(path.sep);
   if (!reference && relative.length === 3 && relative[0] === "sources" && relative[1] === "snapshots" && /^[a-f0-9]{64}$/u.test(relative[2]!)) return true;
   if (!reference && relative.length === 2 && relative[0] === "plugins" && /^[a-f0-9]{64}$/u.test(relative[1]!)) return true;
   return relative.length === 2 && (reference ? relative[0] === "references" && uuid.test(relative[1]!.replace(/\.json$/u, "")) && relative[1]!.endsWith(".json")
-    : relative[0] === "plans" ? uuid.test(relative[1]!.replace(/\.json$/u, "")) && relative[1]!.endsWith(".json")
+    : ["plans", "maintenance"].includes(relative[0]!) ? uuid.test(relative[1]!.replace(/\.json$/u, "")) && relative[1]!.endsWith(".json")
     : ["prepared", "restores"].includes(relative[0]!) && uuid.test(relative[1]!));
+}
+function quarantinePath(cache: string, home: string, id: string, index: number, source: string): string {
+  return path.dirname(source) === path.join(home, "revisions") ? path.join(home, "revisions", `.maintenance-${id}-${index}`) : path.join(cache, "maintenance", `trash-${id}`, String(index));
 }
 async function load(cache: string, home: string): Promise<MaintenanceJournal | undefined> {
   const file = journalFile(cache); if (!await exists(file)) return undefined;
   try {
     if (!(await lstat(file)).isFile()) throw new Error("Unsafe maintenance journal");
     const envelope = record(JSON.parse(await readFile(file, "utf8")), "maintenance envelope", ["digest", "journal"]);
-    const value = record(envelope.journal, "maintenance journal", ["format", "version", "id", "home", "cache", "rootDevice", "rootInode", "entries"]);
+    const value = record(envelope.journal, "maintenance journal", ["format", "version", "id", "home", "cache", "rootDevice", "rootInode", "homeDevice", "homeInode", "entries"]);
     if (value.format !== "harnessbrew.maintenance-journal" || value.version !== 1 || value.cache !== cache || value.home !== home || typeof value.id !== "string" || !uuid.test(value.id) || envelope.digest !== hash(canonicalJson(value)) || !Array.isArray(value.entries)) throw new Error("Invalid maintenance journal");
     const seen = new Set<string>();
     for (const [index, raw] of value.entries.entries()) {
       const e = record(raw, "maintenance entry", ["source", "quarantine", "digest", "tree", "phase", "reference"]);
-      if (typeof e.source !== "string" || typeof e.reference !== "boolean" || !allowedSource(cache, e.source, e.reference) || seen.has(e.source) || e.quarantine !== path.join(cache, "maintenance", `trash-${value.id}`, String(index)) || !["pending", "quarantined", "deleting", "done"].includes(e.phase as string) || !Array.isArray(e.tree) || !e.tree.length || e.digest !== hash(canonicalJson(e.tree))) throw new Error("Invalid maintenance entry");
+      if (typeof e.source !== "string" || typeof e.reference !== "boolean" || !allowedSource(cache, home, e.source, e.reference) || seen.has(e.source) || e.quarantine !== quarantinePath(cache, home, value.id, index, e.source) || !["pending", "quarantined", "deleting", "done"].includes(e.phase as string) || !Array.isArray(e.tree) || !e.tree.length || e.digest !== hash(canonicalJson(e.tree))) throw new Error("Invalid maintenance entry");
+      if (path.dirname(e.source) === path.join(home, "revisions") && (typeof value.homeDevice !== "string" || typeof value.homeInode !== "string")) throw new Error("Missing Home identity");
       seen.add(e.source); const paths = new Set<string>();
       for (const rawNode of e.tree) {
         const n = record(rawNode, "maintenance tree node", ["path", "device", "inode", "mode", "modifiedAt", "digest", "directory"]);
@@ -52,6 +57,11 @@ async function load(cache: string, home: string): Promise<MaintenanceJournal | u
 async function verifyCache(journal: MaintenanceJournal) {
   const stat = await lstat(journal.cache);
   if (!stat.isDirectory() || String(stat.dev) !== journal.rootDevice || String(stat.ino) !== journal.rootInode) conflict("Maintenance cache identity changed.");
+  if (journal.homeDevice !== undefined) {
+    const home = await lstat(journal.home);
+    if (!home.isDirectory() || String(home.dev) !== journal.homeDevice || String(home.ino) !== journal.homeInode) conflict("Maintenance Home identity changed.");
+    if (!(await lstat(path.join(journal.home, "revisions"))).isDirectory()) conflict("Unsafe revisions parent.");
+  }
   for (const directory of [path.join(journal.cache, "maintenance"), path.join(journal.cache, "maintenance", `trash-${journal.id}`)]) if (!(await lstat(directory)).isDirectory()) conflict("Unsafe maintenance quarantine parent.");
 }
 /** A partial deletion can only remove remaining exact recorded files; new files make rmdir fail closed. */
@@ -97,7 +107,7 @@ async function finish(journal: MaintenanceJournal, recovered: boolean, fault: Ma
     await verifyCache(journal);
     if (entry.phase === "done") continue;
     if (entry.phase === "pending") {
-      await verifySourceParents(journal.cache, entry.source);
+      await verifySourceParents(path.dirname(entry.source) === path.join(journal.home, "revisions") ? journal.home : journal.cache, entry.source);
       if (await exists(entry.source)) {
         if (await exists(entry.quarantine)) conflict("Both maintenance source and quarantine exist.");
         const tree = await inspectTree(entry.source); if (!tree.safe || tree.digest !== entry.digest) conflict("Maintenance source changed after intent was recorded.");
@@ -137,7 +147,7 @@ export async function executeMaintenance(store: StateStore, cache: string, id: s
       const preview = envelope.preview;
       if (envelope.digest !== hash(canonicalJson(preview)) || preview.format !== "harnessbrew.maintenance-plan" || preview.version !== 1 || preview.planId !== id || preview.home !== store.home || preview.cache !== cache || !Number.isSafeInteger(preview.createdAt) || preview.createdAt > Date.now()) stale("Invalid maintenance preview.");
       const state = await access.read();
-      const actual = await maintenanceSnapshot(store.home, cache, state, preview.policy, preview.createdAt, { activeLease: false, resources: [...resources], references: [...references] });
+      const actual = await maintenanceSnapshot(store.home, cache, state, preview.policy, preview.createdAt, { activeLease: false, resources: [...resources], references: [...references] }, id);
       const { planId: ignored, ...expected } = preview; void ignored;
       if (canonicalJson(actual) !== canonicalJson(expected)) stale("Maintenance inputs or references changed after preview.");
       if (actual.diagnostics.length) stale("Maintenance protection evidence is unknown.");
@@ -146,12 +156,12 @@ export async function executeMaintenance(store: StateStore, cache: string, id: s
       if ((await readdir(quarantine)).length) conflict("Maintenance quarantine is not empty.");
       const entries: Entry[] = [];
       for (const candidate of candidates) {
-        if (!allowedSource(cache, candidate.path, candidate.reference)) stale("Unsupported maintenance candidate.");
+        if (!allowedSource(cache, store.home, candidate.path, candidate.reference)) stale("Unsupported maintenance candidate.");
         const tree = await inspectTree(candidate.path); if (!tree.safe || tree.digest !== candidate.digest) stale("Maintenance candidate changed.");
-        entries.push({ source: candidate.path, quarantine: path.join(quarantine, String(entries.length)), digest: tree.digest, tree: tree.entries, phase: "pending", reference: candidate.reference });
+        entries.push({ source: candidate.path, quarantine: quarantinePath(cache, store.home, id, entries.length, candidate.path), digest: tree.digest, tree: tree.entries, phase: "pending", reference: candidate.reference });
       }
-      const root = await lstat(cache);
-      const journal: MaintenanceJournal = { format: "harnessbrew.maintenance-journal", version: 1, id, home: store.home, cache, rootDevice: String(root.dev), rootInode: String(root.ino), entries };
+      const root = await lstat(cache), home = await lstat(store.home);
+      const journal: MaintenanceJournal = { format: "harnessbrew.maintenance-journal", version: 1, id, home: store.home, cache, rootDevice: String(root.dev), rootInode: String(root.ino), homeDevice: String(home.dev), homeInode: String(home.ino), entries };
       await save(journal); await fault("journal-durable"); return finish(journal, false, fault);
     });
     if (!result.ran) throw new HarnessError("PLAN_STALE", "Active cache leases prevent maintenance; retry after the operations finish.");

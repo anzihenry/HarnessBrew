@@ -97,3 +97,19 @@ contents origins 仍是离线 repair 输入，不能以“可以重新下载”�
 
 回归覆盖断开原 Git 仓库后的 search/info/install/restore repair，
 以及维护回收过期升级候选后，另一有效升级计划仍可离线 apply。
+
+## revisions 与长期保留（C05）
+
+Home/revisions 中身份有效的不可变状态文件参与按类 TTL 和最新数量判定。
+CURRENT 和未过期保存计划的 baseRevision 始终保留；Home Journal 待恢复时整个维护入口拒绝执行，
+因此 before/next revision 不会在恢复期间被回收。
+revision 隔离路径位于同一 revisions 目录，避免 Home 与缓存处于不同文件系统时依赖跨设备 rename。
+日志记录并恢复核验 Home 设备/inode；修改过或解析失败的 revision 文件不自动删除。
+
+维护预览自身也有 30 天有效保留窗口，过期预览参与独立的最新数量策略；执行复核排除自身预览文件。
+这样反复生成预览不会让已过期、可回收的维护记录永久堆积。
+长期 fixture 连续五轮安装版本更新与维护，检查可回收的 prepared/revisions/维护记录数量收敛，
+CURRENT、离线输入和用户 quarantine 始终完整。受保护历史 catalog 或近期预览仍可能超出容量预算。
+
+revisions 是审计快照，不是备份：单独恢复旧 JSON 不能恢复目标文件、Bundle lock、内容及插件/来源输入。
+正式降级仍需一致性备份与既有恢复流程。用户 quarantine 永远不会因为 TTL 或磁盘预算而自动删除。

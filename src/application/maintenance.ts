@@ -6,7 +6,7 @@ import { sourceSnapshot } from "../domain/assets.js";
 import { inspectContent } from "../sources/inventory.js";
 import { inspectPlugin } from "./adapters.js";
 import { canonicalJson, format, record } from "../domain/validation.js";
-import type { HomeState } from "../domain/home-state.js";
+import { parseHomeState, type HomeState } from "../domain/home-state.js";
 import { HarnessError } from "../domain/errors.js";
 import { atomicDocument, exists } from "../execution/files.js";
 import { CacheLeases, type CacheProtection } from "./cache-leases.js";
@@ -35,7 +35,7 @@ export async function inspectTree(file: string): Promise<{ bytes: number; modifi
   await visit(file);
   return { bytes, modifiedAt, digest: hash(canonicalJson(entries)), safe, entries };
 }
-export async function maintenanceSnapshot(home: string, cache: string, state: HomeState, policy: Partial<RetentionPolicy> = {}, now = Date.now(), protection?: CacheProtection): Promise<Omit<MaintenancePreview, "planId">> {
+export async function maintenanceSnapshot(home: string, cache: string, state: HomeState, policy: Partial<RetentionPolicy> = {}, now = Date.now(), protection?: CacheProtection, excludeMaintenancePlan?: string): Promise<Omit<MaintenancePreview, "planId">> {
   await cacheDirectory(cache, "maintenance");
   if (!protection && await exists(path.join(cache, "maintenance", "transaction.json"))) throw new HarnessError("RECOVERY_REQUIRED", "Recover pending maintenance before generating another preview.");
   const parsedPolicy = retentionPolicy(policy), objects: RetentionObject[] = [], fingerprints: MaintenancePreview["fingerprints"] = [];
@@ -60,16 +60,17 @@ export async function maintenanceSnapshot(home: string, cache: string, state: Ho
       if (!retired) knowledge.references.push(...reference.resources.map(p => ({ path: p, reason: "saved-plan-reference" })));
     }
   } catch { knowledge.unknown.push("unreadable-cache-protection"); }
-  for (const [directory, kind] of [["plans", "plan"], ["prepared", "prepared"], ["restores", "restore"], ["sources/snapshots", "source"], ["plugins", "plugin"]] as const) {
-    const parent = path.join(cache, directory);
+  for (const [directory, kind] of [["plans", "plan"], ["prepared", "prepared"], ["restores", "restore"], ["sources/snapshots", "source"], ["plugins", "plugin"], ["revisions", "revision"], ["maintenance", "maintenance-plan"]] as const) {
+    const parent = path.join(kind === "revision" ? home : cache, directory);
     try {
       if (kind === "source" && !(await lstat(path.join(cache, "sources"))).isDirectory()) { knowledge.unknown.push("unsafe-sources-directory"); continue; }
       if (!(await lstat(parent)).isDirectory()) { knowledge.unknown.push(`unsafe-${directory}-directory`); continue; }
       for (const name of (await readdir(parent)).sort()) {
+        if (kind === "maintenance-plan" && name === `${excludeMaintenancePlan}.json`) continue;
         const file = path.join(parent, name);
         try {
           const tree = await inspectTree(file), stat = await lstat(file);
-          let owned = tree.safe && (kind === "plan" ? stat.isFile() && name.endsWith(".json") && uuid.test(name.slice(0, -5)) : stat.isDirectory() && (kind === "source" || kind === "plugin" ? /^[a-f0-9]{64}$/u.test(name) : uuid.test(name)));
+          let owned = tree.safe && (["plan", "revision", "maintenance-plan"].includes(kind) ? stat.isFile() && name.endsWith(".json") && uuid.test(name.slice(0, -5)) : stat.isDirectory() && (kind === "source" || kind === "plugin" ? /^[a-f0-9]{64}$/u.test(name) : uuid.test(name)));
           if ((kind === "prepared" || kind === "restore") && owned) {
             try {
               const marker = path.join(file, ".owner.json");
@@ -84,7 +85,19 @@ export async function maintenanceSnapshot(home: string, cache: string, state: Ho
               const envelope = record(JSON.parse(await readFile(file, "utf8")), "plan envelope", ["digest", "saved"]);
               const saved = parsePrepared(envelope.saved);
               if (envelope.digest !== hash(canonicalJson(saved)) || `${saved.id}.json` !== name || saved.home !== home) throw new Error("Plan identity mismatch");
+              if (!planExpired(stat.mtimeMs, now)) knowledge.references.push({ path: path.join(home, "revisions", `${saved.baseRevision}.json`), reason: "valid-plan-base-revision" });
             } catch { owned = false; knowledge.unknown.push("unreadable-saved-plan"); }
+          }
+          if (kind === "revision" && owned) {
+            try { owned = `${parseHomeState(JSON.parse(await readFile(file, "utf8"))).revision}.json` === name; }
+            catch { owned = false; }
+          }
+          if (kind === "maintenance-plan" && owned) {
+            try {
+              const envelope = record(JSON.parse(await readFile(file, "utf8")), "maintenance plan envelope", ["digest", "preview"]);
+              const preview = record(envelope.preview, "maintenance preview", ["format", "version", "planId", "home", "cache", "baseRevision", "createdAt", "policy", "objects", "totalBytes", "retainedBytes", "protectedBytes", "overBudgetBytes", "retiredReferences", "fingerprints", "referencesDigest", "diagnostics"]);
+              owned = preview.format === "harnessbrew.maintenance-plan" && preview.version === 1 && `${preview.planId}.json` === name && preview.home === home && preview.cache === cache && envelope.digest === hash(canonicalJson(preview));
+            } catch { owned = false; }
           }
           if (kind === "source" && owned) {
             try {
