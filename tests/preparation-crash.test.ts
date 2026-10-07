@@ -117,7 +117,8 @@ test("prepared bytes modified after planning are rejected before Journal publica
   const cache = path.join(path.dirname(f.home), `.harnessbrew-cache-${stableId(f.home)}`);
   const service = createApplication(f.options, { preparationCheckpoint: async () => {
     const [id] = await readdir(path.join(cache, "prepared"));
-    const [digest] = await readdir(path.join(cache, "prepared", id!));
+    const digest = (await readdir(path.join(cache, "prepared", id!))).find(name => /^[a-f0-9]{64}$/u.test(name));
+    assert.ok(digest, "prepared content directory exists alongside its ownership receipt");
     await writeFile(path.join(cache, "prepared", id!, digest!, "SKILL.md"), "external change");
   } });
   try { await assert.rejects(service.execute({ kind: "asset.install", coordinate: "a" }), { code: "CONTENT_MODIFIED" }); }

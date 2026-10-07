@@ -17,11 +17,12 @@ export interface ApplicationDependencies {
   planning: PlanningIO;
   storage: StorageIO;
   documents: PlanDocumentIO;
+  maintenanceFault: import("./maintenance-execution.js").MaintenanceFault;
   transactionFault: TransactionFault;
   preparationCheckpoint(): void | Promise<void>;
 }
 export const nodeApplicationDependencies: ApplicationDependencies = {
   sources: root => new SourceManager(root), planning: nodePlanningIO, storage: nodeStorageIO,
   documents: { read: file => readFile(file, "utf8"), write: atomicDocument },
-  preparationCheckpoint: () => undefined, transactionFault: () => undefined
+  maintenanceFault: () => undefined, preparationCheckpoint: () => undefined, transactionFault: () => undefined
 };

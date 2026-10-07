@@ -4,38 +4,58 @@ import path from "node:path";
 import { hash } from "../domain/identity.js";
 import { canonicalJson, record } from "../domain/validation.js";
 import type { HomeState } from "../domain/home-state.js";
-import { atomicDocument } from "../execution/files.js";
-import { CacheLeases } from "./cache-leases.js";
+import { HarnessError } from "../domain/errors.js";
+import { atomicDocument, exists } from "../execution/files.js";
+import { CacheLeases, type CacheProtection } from "./cache-leases.js";
 import { cacheDirectory } from "./cache.js";
 import { parsePrepared } from "./plan-store.js";
-import { evaluateRetention, retentionPolicy, stateReferences, type RetentionPolicy, type RetentionObject, type RetentionReport, type RetentionKnowledge } from "./retention.js";
+import { evaluateRetention, planExpired, retentionPolicy, stateReferences, type RetentionPolicy, type RetentionObject, type RetentionReport, type RetentionKnowledge } from "./retention.js";
 
 export interface MaintenancePreview extends RetentionReport {
   format: "harnessbrew.maintenance-plan"; version: 1; planId: string; home: string; cache: string;
   baseRevision: string; createdAt: number; policy: RetentionPolicy;
+  retiredReferences: { path: string; digest: string }[];
   fingerprints: { path: string; digest: string }[]; referencesDigest: string; diagnostics: string[];
 }
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
 /** No symlink following, including within a candidate directory. Fingerprints include identity and bytes. */
-async function inspectTree(file: string): Promise<{ bytes: number; modifiedAt: number; digest: string; safe: boolean }> {
-  const entries: unknown[] = []; let bytes = 0, safe = true, modifiedAt = 0;
+export interface MaintenanceTreeEntry { path: string; device: string; inode: string; mode: number; modifiedAt: number; digest?: string; directory?: boolean; unsupported?: boolean }
+export async function inspectTree(file: string): Promise<{ bytes: number; modifiedAt: number; digest: string; safe: boolean; entries: MaintenanceTreeEntry[] }> {
+  const entries: MaintenanceTreeEntry[] = []; let bytes = 0, safe = true, modifiedAt = 0;
   async function visit(current: string): Promise<void> {
     const stat = await lstat(current); modifiedAt = Math.max(modifiedAt, Math.floor(stat.mtimeMs));
     const identity = { path: path.relative(file, current), device: String(stat.dev), inode: String(stat.ino), mode: stat.mode, modifiedAt: stat.mtimeMs };
     if (stat.isFile()) { const content = await readFile(current); bytes += content.length; entries.push({ ...identity, digest: hash(content) }); }
-    else if (stat.isDirectory()) { entries.push(identity); for (const name of (await readdir(current)).sort()) await visit(path.join(current, name)); }
+    else if (stat.isDirectory()) { entries.push({ ...identity, directory: true }); for (const name of (await readdir(current)).sort()) await visit(path.join(current, name)); }
     else { safe = false; entries.push({ ...identity, unsupported: true }); }
   }
   await visit(file);
-  return { bytes, modifiedAt, digest: hash(canonicalJson(entries)), safe };
+  return { bytes, modifiedAt, digest: hash(canonicalJson(entries)), safe, entries };
 }
-export async function maintenanceSnapshot(home: string, cache: string, state: HomeState, policy: Partial<RetentionPolicy> = {}, now = Date.now()): Promise<Omit<MaintenancePreview, "planId">> {
+export async function maintenanceSnapshot(home: string, cache: string, state: HomeState, policy: Partial<RetentionPolicy> = {}, now = Date.now(), protection?: CacheProtection): Promise<Omit<MaintenancePreview, "planId">> {
   await cacheDirectory(cache, "maintenance");
+  if (!protection && await exists(path.join(cache, "maintenance", "transaction.json"))) throw new HarnessError("RECOVERY_REQUIRED", "Recover pending maintenance before generating another preview.");
   const parsedPolicy = retentionPolicy(policy), objects: RetentionObject[] = [], fingerprints: MaintenancePreview["fingerprints"] = [];
+  const retiredReferences: MaintenancePreview["retiredReferences"] = [];
   const knowledge: RetentionKnowledge = { references: stateReferences(home, cache, state), activeLease: false, unknown: [] };
   try {
-    const leases = await new CacheLeases(cache).inspect(); knowledge.activeLease = leases.activeLease;
-    knowledge.references.push(...leases.resources.map(p => ({ path: p, reason: "saved-plan-reference" })));
+    const leases = protection ?? await new CacheLeases(cache).inspect(); knowledge.activeLease = leases.activeLease;
+    for (const reference of leases.references) {
+      const planFile = path.join(cache, "plans", `${reference.id}.json`);
+      let retired = false;
+      // Cross-cache references remain protected; another cache's producer cannot be excluded by this guard.
+      if (!leases.activeLease && reference.resources.includes(planFile) && reference.resources.every(p => p.startsWith(`${cache}${path.sep}`))) {
+        const stat = await lstat(planFile);
+        if (stat.isFile() && planExpired(stat.mtimeMs, now)) {
+          const envelope = record(JSON.parse(await readFile(planFile, "utf8")), "plan envelope", ["digest", "saved"]);
+          const saved = parsePrepared(envelope.saved);
+          if (saved.id !== reference.id || saved.home !== home || envelope.digest !== hash(canonicalJson(saved)) || canonicalJson([...new Set([...saved.resources, planFile])].sort()) !== canonicalJson([...new Set(reference.resources)].sort())) throw new Error("Invalid expired reference");
+          const referenceFile = path.join(cache, "references", `${reference.id}.json`);
+          retiredReferences.push({ path: referenceFile, digest: (await inspectTree(referenceFile)).digest }); retired = true;
+        }
+      }
+      if (!retired) knowledge.references.push(...reference.resources.map(p => ({ path: p, reason: "saved-plan-reference" })));
+    }
   } catch { knowledge.unknown.push("unreadable-cache-protection"); }
   for (const [directory, kind] of [["plans", "plan"], ["prepared", "prepared"], ["restores", "restore"]] as const) {
     const parent = path.join(cache, directory);
@@ -75,7 +95,7 @@ export async function maintenanceSnapshot(home: string, cache: string, state: Ho
     objects.push({ path: file, kind: "unknown", bytes: stat.isFile() ? stat.size : 0, modifiedAt: Math.floor(stat.mtimeMs), owned: false });
   }
   return { format: "harnessbrew.maintenance-plan", version: 1, home, cache, baseRevision: state.revision, createdAt: now, policy: parsedPolicy,
-    ...evaluateRetention(objects, knowledge, parsedPolicy, now), fingerprints, referencesDigest: hash(canonicalJson(knowledge)), diagnostics: knowledge.unknown };
+    ...evaluateRetention(objects, knowledge, parsedPolicy, now), retiredReferences, fingerprints, referencesDigest: hash(canonicalJson(knowledge)), diagnostics: knowledge.unknown };
 }
 export async function previewMaintenance(home: string, cache: string, state: HomeState, policy: Partial<RetentionPolicy> = {}): Promise<MaintenancePreview> {
   const snapshot = await maintenanceSnapshot(home, cache, state, policy);

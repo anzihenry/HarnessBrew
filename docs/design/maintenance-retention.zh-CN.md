@@ -57,3 +57,26 @@ harnessbrew maintenance --dry-run --ttl-days 30 --keep-newest 10 --max-bytes 107
 
 预览是观测快照，不是删除授权；执行必须重新检查引用、路径身份和全部候选指纹。
 任何当前事务待恢复时，应用层拒绝生成维护预览。预览不恢复事务、不修改 CURRENT 或目标文件。
+
+## 回收执行与恢复（C03）
+
+使用 `applyMaintenance(planId)` / `apply-maintenance <id>` 执行预览，
+`recoverMaintenance()` / `recover-maintenance` 完成已记录但中断的回收。
+执行要求 Home 已初始化。执行复核严格使用保存的时点和策略，新增候选不会自动纳入。
+
+锁序为 Home store 锁 → 本 cache 的 leases guard。消费者只在短 guard 中登记租约，
+然后释放 guard 才请求 Home 锁；维护若发现活跃租约立即返回 PLAN_STALE，不等待消费者。
+维护持有 guard 直到回收完成，因此它与新租约登记互斥，不需要目标文件锁。
+预览不构成稳定锁定；apply 总是再次验证状态 revision、引用摘要及对象身份/内容指纹。
+
+仅限当前 cache 内且已过期、完整通过保存计划及引用摘要验证的计划 references 可以退休。
+跨 cache 引用保守保留。退休引用本身也作为回收对象记录在同一日志中；未完成日志恢复前阻止新消费者，
+所以不能在隔离计划后又开始使用已经退休的输入。
+
+日志位于 cache/maintenance/transaction.json，先 fsync 写入逐对象证据，再 rename 到
+maintenance/trash-<id>/<序号>；原目录和隔离目录均 fsync。
+隔离后的对象再次核验；持久记录 deleting 阶段后按深度逐项检查 inode、设备、模式、文件摘要并删除，
+对已删除的条目允许缺失。目录只在没有其他文件时 rmdir。
+恢复不清理未记录的对象；发现身份变化、新增文件或改写数据时返回 RECOVERY_CONFLICT，保留日志与剩余数据。
+新消费者遇到待恢复维护日志返回 RECOVERY_REQUIRED，需调用 recover-maintenance。
+四个 SIGKILL 检查点覆盖意图持久化、隔离、删除意图与部分条目删除。

@@ -33,7 +33,7 @@ test("maintenance preview preserves files, saved plans, unknown entries and user
   const saved = JSON.parse(await readFile(path.join(cache, "maintenance", `${preview.planId}.json`), "utf8"));
   assert.equal(saved.digest, hash(canonicalJson(saved.preview))); assert.deepEqual(saved.preview, preview);
 });
-test("active preparation and corrupt references fail closed; expired pins remain until retirement", async t => {
+test("active preparation and corrupt references fail closed; expired local pins become retirement candidates", async t => {
   const f = await applicationFixture(t); await f.register();
   const plan = await f.service.plan({ kind: "tap.trust", name: "test/assets" });
   const cache = path.join(path.dirname(f.home), `.harnessbrew-cache-${stableId(f.home)}`), leases = new CacheLeases(cache);
@@ -45,7 +45,8 @@ test("active preparation and corrupt references fail closed; expired pins remain
     assert.ok(preview.objects.some(o => o.reasons.includes("active-cache-lease")));
   });
   const preview = await f.service.planMaintenance(limits);
-  assert.equal(preview.objects.find(o => o.path.endsWith(`${plan.planId}.json`))?.status, "protected");
+  assert.equal(preview.objects.find(o => o.path.endsWith(`${plan.planId}.json`))?.status, "deletable");
+  assert.equal(preview.retiredReferences.length, 1);
   await writeFile(path.join(cache, "references", "unknown.tmp"), "interrupted");
   const blocked = await f.service.planMaintenance(limits);
   assert.ok(blocked.objects.every(o => o.status !== "deletable"));

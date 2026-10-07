@@ -1,3 +1,4 @@
+import { executeMaintenance } from "./maintenance-execution.js";
 import { previewMaintenance } from "./maintenance.js";
 import { prepareUpgradeBundles } from "./use-cases/upgrade-bundles.js";
 import { upgradeExecutionState } from "../execution/adapter-upgrade.js";
@@ -86,6 +87,14 @@ class Application implements HarnessService {
       await stagePreparation(saved, this.cache);
       return saved;
     }));
+  }
+  async applyMaintenance(planId: string): Promise<import("./maintenance-execution.js").MaintenanceResult> {
+    this.check(); await this.prepareContext();
+    return (await executeMaintenance(this.store, this.cache, planId, this.dependencies.maintenanceFault))!;
+  }
+  async recoverMaintenance(): Promise<import("./maintenance-execution.js").MaintenanceResult | undefined> {
+    this.check(); await this.prepareContext();
+    return executeMaintenance(this.store, this.cache, undefined, this.dependencies.maintenanceFault);
   }
   async planMaintenance(policy: Partial<import("./retention.js").RetentionPolicy> = {}): Promise<import("./maintenance.js").MaintenancePreview> {
     this.check(); await this.prepareContext();
