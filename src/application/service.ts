@@ -94,7 +94,7 @@ class Application implements HarnessService {
     return withRelatedCacheLeases(this.cacheInputs(before), async () => {
       const saved = await this.build(before, request);
       await this.plans.save(saved);
-      return { contentChanges: saved.contentChanges ?? [], planId: saved.id, baseRevision: saved.baseRevision, changes: saved.adapterUpgrade ? [{ kind: request.kind, ...saved.adapterUpgrade }, ...(saved.plan?.assetChanges ?? [])] : saved.plan?.assetChanges ?? [{ kind: request.kind, before, after: saved.candidate }], retained: saved.plan?.desiredState.retained ?? [], fileUpdates: saved.plan?.fileUpdates ?? [], operations: saved.plan?.operations ?? [], diagnostics: saved.diagnostics };
+      return { contentChanges: saved.contentChanges ?? [], planId: saved.id, baseRevision: saved.baseRevision, changes: saved.adapterUpgrade ? [{ kind: request.kind, ...saved.adapterUpgrade }, ...(saved.plan?.assetChanges ?? [])] : saved.plan?.assetChanges ?? [{ kind: request.kind, before, after: saved.candidate }], retained: saved.plan?.desiredState.retained ?? [], fileUpdates: [...(saved.plan?.fileUpdates ?? []), ...(saved.lockUpdates ?? []).map(u => ({ id: stableId({ lock: u.path }), dependsOn: [], path: u.path, before: u.before, after: { kind: "file" as const, content: `${canonicalJson(u.lock)}\n`, mode: u.before.mode ?? 0o644 }, operationIds: [] }))], operations: saved.plan?.operations ?? [], diagnostics: saved.diagnostics };
     });
   }
   private async validateInputs(saved: Saved): Promise<void> {
@@ -111,6 +111,7 @@ class Application implements HarnessService {
     return registryFor(state, this.cache, this.options.adapters ?? [], true, new Set(saved.plan!.adapterSignatures.map(a => a.name)));
   }
   private async run(saved: Saved, registry: AdapterRegistry | undefined, session: import("../transactions/coordinator.js").TransactionSession): Promise<ExecutionResult> {
+    if (saved.lockUpdates?.length) throw new HarnessError("TARGET_UNSUPPORTED", "Joint Bundle commit is not integrated yet.");
     const actualHome = await this.dependencies.planning.identify(path.join(this.store.home, "CURRENT"));
     if (!sameHomeIdentity(saved.homeIdentity, actualHome)) throw new HarnessError("PLAN_STALE", "Physical Home changed after preparation.");
     const declaredHome = await this.dependencies.planning.identify(path.join(saved.home, "CURRENT"));

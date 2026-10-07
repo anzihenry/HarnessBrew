@@ -178,10 +178,12 @@
 
 ### B06 — Bundle 范围与输入验证
 
-- [ ] 完成；PR 07；前置：B03、A02。
+- [x] 完成；PR 07；前置：B03、A02。
 - 范围：`domain/bundle.ts`、Bundle 用例、请求解析及 CLI。
 - 工作/交付：接收全部受影响 Manifest 路径，按 ID 和物理目录匹配 binding；核对当前 lock、声明和资产闭包；生成仅更新 Adapter 身份所需的 lock 内容。
 - 验收：漏项、重复/路径别名、Manifest 缺失、声明漂移、额外 checkout 均有确定处理；不自动更新资产版本或未请求的 checkout。
+
+完成证据：验证全部受影响 Manifest 的 ID+物理目录、当前要求/placements、锁声明摘要、来源与已安装闭包，生成只替换目标 Adapter 签名的 lock 集合。漏项返回 missingBindings，别名重复/额外 checkout/声明漂移拒绝；联合预览不写状态/lock，提交暂由 B07 保护。升级及 Bundle 专项 16/16。提交：feat(B06): validate complete bundle upgrade inputs。
 
 ### B07 — 多 lock 原子提交与恢复
 

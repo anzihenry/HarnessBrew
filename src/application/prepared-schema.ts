@@ -57,6 +57,7 @@ export const contentChanges = list(object({ digest, action: literal("restore", "
 export const restorations = list(object({ digest, staged: absolutePath, before: fileImage, bytes: num }));
 export const stagedContents = list(object({ digest, staged: absolutePath }));
 export const contentChecks = list(object({ path: absolutePath, before: fileImage }));
+export const lockUpdates = list(object({ path: absolutePath, before: resourcePrecondition, binding: str, lock: parseBundleLock }));
 export const bundleLock = object({ path: absolutePath, before: resourcePrecondition });
 export const planData = object({
   format: literal("harnessbrew.plan"), version: literal(1), id: str, requestDigest: digest, homeIdentity: str, userHome: absolutePath, baseRevision: identifier,

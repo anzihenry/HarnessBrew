@@ -1,3 +1,4 @@
+import { prepareUpgradeBundles } from "./upgrade-bundles.js";
 import path from "node:path";
 import { HarnessError } from "../../domain/errors.js";
 import { hash, stableId } from "../../domain/identity.js";
@@ -17,9 +18,10 @@ export async function prepareAdapterUpgrade(context: PreparationContext, state: 
   const inspection = await inspectAdapterCandidate(state, request.name, module);
   if (inspection.candidate.signature !== request.authorizedSignature) throw new HarnessError("ADAPTER_CHANGED", "Candidate differs from the explicitly authorized signature.");
   if (request.capabilities.some(c => !inspection.allowedCapabilities.includes(c))) throw new HarnessError("CAPABILITY_DENIED", "Candidate capability grant exceeds permitted operations.");
-  if (inspection.affectedBindings.length) throw new HarnessError("ADAPTER_IN_USE", "Bundle upgrades require all affected manifests; joint upgrade is not yet enabled.", { bindings: inspection.affectedBindings });
-  if (request.bundleFiles?.length) throw new HarnessError("LOCK_MISMATCH", "No affected Bundle accepts these manifest paths.");
   const after = { ...inspection.candidate, capabilities: [...request.capabilities] };
+  const bundles = await prepareUpgradeBundles(context, state, after, request.bundleFiles ?? [], inspection.affectedBindings);
+  saved.inputs.push(...bundles.inputs);
+  if (bundles.updates.length) saved.lockUpdates = bundles.updates;
   const candidate = structuredClone(state);
   candidate.adapters.registrations = candidate.adapters.registrations.map(a => a.name === request.name ? after : a);
   // Digest and capability authorization precede the first candidate import.

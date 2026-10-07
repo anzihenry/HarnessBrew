@@ -66,7 +66,7 @@ test("manual upgrade refuses active Bundle bindings without changing registratio
   await writeFile(file, JSON.stringify({ format: "harnessbrew.manifest", version: 1, id: "bundle", sources: [{ name: "test/assets", git: f.repository }], assets: [{ coordinate: "test/assets/a", placements: [{ target: "test-adapter", scope: "project" }] }] }));
   await f.service.execute({ kind: "bundle.apply", file });
   const before = await new StateStore(f.home).read();
-  await assert.rejects(f.service.plan(await f.request()), (error: any) => error.code === "ADAPTER_IN_USE" && error.details.bindings.length === 1);
+  await assert.rejects(f.service.plan(await f.request()), (error: any) => error.code === "LOCK_MISMATCH" && error.details.missingBindings.length === 1);
   assert.deepEqual(await new StateStore(f.home).read(), before);
 });
 

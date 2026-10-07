@@ -17,7 +17,7 @@ import * as schema from "./prepared-schema.js";
 export function parsePrepared(value: unknown): Saved {
   if (value && typeof value === "object" && (value as { format?: unknown }).format === "harnessbrew.saved-plan" && (value as { version?: unknown }).version === 1) throw new HarnessError("PLAN_STALE", "Version 1 preview must be generated again.");
   try {
-    const v = record(value, "prepared change", ["format", "version", "id", "home", "homeIdentity", "resources", "preparedContent", "request", "baseRevision", "adapterUpgrade", "candidate", "plan", "catalog", "bundleLock", "inputs", "diagnostics", "restorations", "contentChecks", "contentChanges"]);
+    const v = record(value, "prepared change", ["format", "version", "id", "home", "homeIdentity", "resources", "preparedContent", "request", "baseRevision", "adapterUpgrade", "candidate", "plan", "catalog", "bundleLock", "lockUpdates", "inputs", "diagnostics", "restorations", "contentChecks", "contentChanges"]);
     if (v.format !== "harnessbrew.saved-plan" || ![2, 3].includes(v.version as number) || typeof v.id !== "string" || !/^[a-f0-9-]{36}$/u.test(v.id)) throw new Error("Unsupported prepared identity");
     absolutePath(v.home); identifier(v.baseRevision); schema.pathIdentity(v.homeIdentity);
     array(v.resources, "resources", absolutePath); array(v.diagnostics, "diagnostics", x => text(x, "diagnostic"));
@@ -33,6 +33,7 @@ export function parsePrepared(value: unknown): Saved {
         const state = emptyHomeState("validation"); state.adapters.registrations.push(registration as never); parseHomeState(state);
       }
     }
+    if (v.lockUpdates !== undefined) { if (v.version !== 3 || !v.adapterUpgrade) throw new Error("Joint upgrade requires prepared v3"); schema.lockUpdates(v.lockUpdates); }
     if (v.bundleLock !== undefined) schema.bundleLock(v.bundleLock);
     if (v.restorations !== undefined) schema.restorations(v.restorations);
     if (v.preparedContent !== undefined) schema.stagedContents(v.preparedContent);
