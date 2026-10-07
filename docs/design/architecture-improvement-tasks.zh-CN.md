@@ -194,10 +194,12 @@
 
 ### B08 — 格式兼容及迁移实现
 
-- [ ] 完成；PR 07；前置：A02、B06；须在 B07 集成完成前落实。
+- [x] 完成；PR 07；前置：A02、B06；须在 B07 集成完成前落实。
 - 范围：受影响格式的解析器/写入器、迁移入口、旧格式 fixture、备份与回退文档。
 - 工作/交付：按兼容矩阵实现必要版本升级和显式迁移；若确认无需迁移，提交字段与语义兼容证据，不能直接跳过此任务。
 - 验收：旧格式可按承诺读取或明确拒绝；未完成旧事务不会被新迁移覆盖；迁移中断可恢复，备份可验证。旧 CLI JSON 消费者的变化有说明。
+
+完成证据：按依赖先于 B07 完成。与 A 基线逐字核对 Home/install/Bundle/ChangePlan/Journal schema 无改动；普通 saved-plan v2 继续读取，升级 v3 严格校验授权字段对应关系，v1 明确失效。固定 v2 fixture、v3 roundtrip 和 pending v1 journal 恢复专项 4/4。无活动 Home 迁移；回退限制及备份要求见 batch-b-compatibility.zh-CN.md。提交：test(B08): establish adapter upgrade format compatibility。
 
 ### B09 — 联合升级与回退验收
 

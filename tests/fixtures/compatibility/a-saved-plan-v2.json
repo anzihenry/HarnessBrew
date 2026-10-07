@@ -1,0 +1,49 @@
+{
+  "format": "harnessbrew.saved-plan",
+  "version": 2,
+  "id": "00000000-0000-4000-8000-000000000001",
+  "home": "/fixture/home",
+  "homeIdentity": {
+    "physicalPath": "/fixture/home/CURRENT",
+    "ancestor": {
+      "path": "/fixture/home",
+      "realPath": "/fixture/home",
+      "device": "1",
+      "inode": "2"
+    }
+  },
+  "resources": [],
+  "request": {
+    "kind": "cleanup"
+  },
+  "baseRevision": "legacy-a",
+  "candidate": {
+    "format": "harnessbrew.home-state",
+    "version": 1,
+    "revision": "legacy-a",
+    "quarantines": [],
+    "contents": [],
+    "install": {
+      "format": "harnessbrew.install-state",
+      "version": 1,
+      "revision": "legacy-a",
+      "owners": [],
+      "requirements": [],
+      "assets": [],
+      "operations": []
+    },
+    "sources": {
+      "format": "harnessbrew.source-state",
+      "version": 1,
+      "registrations": [],
+      "snapshots": []
+    },
+    "adapters": {
+      "format": "harnessbrew.adapter-state",
+      "version": 1,
+      "registrations": []
+    }
+  },
+  "inputs": [],
+  "diagnostics": []
+}

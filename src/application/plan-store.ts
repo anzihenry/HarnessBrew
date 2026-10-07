@@ -25,6 +25,8 @@ export function parsePrepared(value: unknown): Saved {
     if ((v.candidate !== undefined) === (v.plan !== undefined)) throw new Error("Choose metadata or installation plan");
     if (v.candidate !== undefined) { const state = parseHomeState(v.candidate); if (state.revision !== v.baseRevision || v.catalog !== undefined) throw new Error("Invalid candidate revision"); }
     if (v.plan !== undefined) { schema.planData(v.plan); schema.catalogData(v.catalog); if ((v.plan as { baseRevision: string }).baseRevision !== v.baseRevision) throw new Error("Invalid plan revision"); }
+    const isUpgrade = (v.request as ChangeRequest).kind === "adapter.upgrade";
+    if (isUpgrade !== (v.adapterUpgrade !== undefined) || (v.version === 3) !== isUpgrade) throw new Error("Prepared version and upgrade authorization disagree");
     if (v.adapterUpgrade !== undefined) {
       if (v.version !== 3 || (v.request as ChangeRequest).kind !== "adapter.upgrade") throw new Error("Upgrade requires prepared v3");
       const upgrade = record(v.adapterUpgrade, "adapter upgrade", ["before", "after"]);
