@@ -11,8 +11,8 @@ export interface CliIO { stdout(message: string): void; stderr(message: string):
 export interface CliOptions { home?: string; cwd?: string; userHome?: string }
 export interface CliJsonError { code: string; message: string; details: Readonly<Record<string, unknown>>; recovery?: unknown }
 export interface CliJsonEnvelope { format: "harnessbrew.result"; version: 1; ok: boolean; command: string; mode: "query" | "preview" | "execute" | "recover"; result?: unknown; diagnostics: string[]; error?: CliJsonError }
-const help = `HarnessBrew — Git-native package manager for AI Agent assets\nCommands: tap add|update|remove|trust|untrust|list, adapter add|remove|list|inspect-upgrade|upgrade,\ninstall, upgrade, remove, link, unlink, bundle apply|detach, cleanup, repair,\nrecover, doctor, list, search, info, outdated, apply-plan.\nGlobal: --home <path> --json. Changes: --dry-run.\nPlacement: --target <name> --scope user|project --project <path> --root <path>.\nTap: update retains its tracking ref; --ref <branch|tag> changes it; --default-branch follows remote HEAD.\nRepair: <asset> or --all; --restore-content preserves modified content in quarantine; --overwrite-owned repairs shared target keys/blocks.\nBundle: apply --file <path> [--update-lock]; detach --binding <id>.`;
-const values = new Set(["home", "target", "scope", "project", "root", "file", "binding", "ref", "capabilities", "module", "authorize-signature", "capability", "bundle-file"]);
+const help = `HarnessBrew — Git-native package manager for AI Agent assets\nCommands: tap add|update|remove|trust|untrust|list, adapter add|remove|list|inspect-upgrade|upgrade,\ninstall, upgrade, remove, link, unlink, bundle apply|detach, cleanup, repair,\nrecover, doctor, list, search, info, outdated, apply-plan, maintenance --dry-run.\nGlobal: --home <path> --json. Changes: --dry-run.\nPlacement: --target <name> --scope user|project --project <path> --root <path>.\nTap: update retains its tracking ref; --ref <branch|tag> changes it; --default-branch follows remote HEAD.\nRepair: <asset> or --all; --restore-content preserves modified content in quarantine; --overwrite-owned repairs shared target keys/blocks.\nBundle: apply --file <path> [--update-lock]; detach --binding <id>.`;
+const values = new Set(["home", "target", "scope", "project", "root", "file", "binding", "ref", "capabilities", "module", "authorize-signature", "capability", "bundle-file", "ttl-days", "keep-newest", "max-bytes"]);
 const flags = new Set(["all", "default-branch", "json", "dry-run", "update-lock", "allow-rewind", "overwrite-owned", "restore-content", "help", "version"]);
 function invalid(message: string): never { throw new HarnessError("INVALID_ARGUMENT", message); }
 export async function runCli(argv: string[], io: CliIO = { stdout: message => process.stdout.write(message), stderr: message => process.stderr.write(message) }, options: CliOptions = {}): Promise<number> {
@@ -44,7 +44,7 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
       "tap.add": ["ref"], "tap.update": ["ref", "default-branch", "allow-rewind"], "tap.remove": [], "tap.trust": [], "tap.untrust": [], "tap.list": [],
       "adapter.inspect-upgrade": ["module"], "adapter.upgrade": ["module", "authorize-signature", "capability", "bundle-file"], "adapter.add": ["capabilities"], "adapter.remove": [], "adapter.list": [],
       install: ["target", "scope", "project", "root"], upgrade: [], remove: [], link: ["target", "scope", "project", "root"], unlink: ["target", "scope", "project", "root"],
-      "bundle.apply": ["file", "update-lock"], "bundle.detach": ["binding"], repair: ["all", "target", "scope", "project", "root", "overwrite-owned", "restore-content"], cleanup: [], recover: [], doctor: [], list: [], search: [], info: [], outdated: [], "apply-plan": [], help: [], version: []
+      "bundle.apply": ["file", "update-lock"], "bundle.detach": ["binding"], repair: ["all", "target", "scope", "project", "root", "overwrite-owned", "restore-content"], maintenance: ["ttl-days", "keep-newest", "max-bytes"], cleanup: [], recover: [], doctor: [], list: [], search: [], info: [], outdated: [], "apply-plan": [], help: [], version: []
     };
     if (!Object.hasOwn(allowed, name)) invalid(`Unknown command: ${name}`);
     const readonly = ["adapter.inspect-upgrade", "tap.list", "adapter.list", "doctor", "list", "search", "info", "outdated", "help", "version"].includes(name);
@@ -61,6 +61,13 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
     const envelope = (result: unknown, ok = true): CliJsonEnvelope => ({ format: "harnessbrew.result", version: 1, ok, command: sub ? `${command} ${sub}` : command, mode, result, diagnostics: [] });
     if (name === "help" || name === "version") { arg(0); return output(envelope(name === "help" ? help : VERSION), 0); }
     service = createHarness({ home: path.resolve(cwd, value("home") ?? options.home ?? process.env.HARNESSBREW_HOME ?? path.join(userHome, ".harnessbrew")), cwd, userHome });
+    if (name === "maintenance") {
+      arg(0); if (!opts.has("dry-run")) invalid("maintenance currently requires --dry-run");
+      const number = (key: string) => { const raw = value(key); if (raw === undefined) return undefined; if (!/^\d+$/u.test(raw) || !Number.isSafeInteger(Number(raw))) invalid(`Invalid --${key}`); return Number(raw); };
+      const days = number("ttl-days"), count = number("keep-newest"), bytes = number("max-bytes");
+      mode = "preview";
+      return output(envelope(await service.planMaintenance({ ...(days === undefined ? {} : { ttlMs: days * 86400000 }), ...(count === undefined ? {} : { keepNewest: count }), ...(bytes === undefined ? {} : { maxBytes: bytes }) })), 0);
+    }
     if (name === "adapter.inspect-upgrade") { const adapter = arg(1); if (!value("module")) invalid("--module is required"); return output(envelope(await service.inspectAdapterUpgrade({ name: adapter, module: value("module")! })), 0); }
     if (name === "recover") { arg(0); mode = "recover"; return output(envelope(await service.recover()), 0); }
     if (name === "apply-plan") { const id = arg(1); mode = "execute"; return output(envelope(await service.apply(id)), 0); }

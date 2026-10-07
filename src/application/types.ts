@@ -34,6 +34,7 @@ export type { DoctorFinding, DoctorReport } from "../diagnostics/types.js";
 export interface PlanPreview { contentChanges: import("./content.js").ContentChange[]; planId: string; baseRevision: string; changes: unknown[]; retained: ChangePlan["desiredState"]["retained"]; fileUpdates: ChangePlan["fileUpdates"]; operations: ChangePlan["operations"]; diagnostics: string[] }
 export interface RecoveryResult { recovered: boolean; diagnostics: string[] }
 export interface HarnessService {
+  planMaintenance(policy?: Partial<import("./retention.js").RetentionPolicy>): Promise<import("./maintenance.js").MaintenancePreview>;
   inspectAdapterUpgrade(input: { name: string; module: string }): Promise<AdapterUpgradeInspection>;
   plan(request: ChangeRequest): Promise<PlanPreview>;
   execute(request: ChangeRequest): Promise<ExecutionResult>;

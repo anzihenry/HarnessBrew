@@ -8,7 +8,7 @@ import { exists, image } from "../execution/files.js";
 import { catalogAssetReader } from "../ports/planning.js";
 import type { PreparedContentPublisher } from "../transactions/coordinator.js";
 import type { Saved } from "./saved.js";
-import { cacheDirectory } from "./cache.js";
+import { cacheDirectory, ownedCacheDirectory } from "./cache.js";
 
 /** Only host-created cache paths are eligible for consumption by a transaction. */
 export async function stagePreparation(saved: Saved, cache: string): Promise<void> {
@@ -22,7 +22,7 @@ export async function stagePreparation(saved: Saved, cache: string): Promise<voi
     const source = catalog.pinned(asset);
     if (!source) continue; // Execution reports missing pinned input; release may need no source.
     const root = await cacheDirectory(cache, "prepared");
-    const operation = await cacheDirectory(root, saved.id), destination = path.join(operation, asset.contentDigest.slice(7));
+    const operation = await ownedCacheDirectory(root, saved.id, "prepared"), destination = path.join(operation, asset.contentDigest.slice(7));
     if (restoration) { await rename(restoration.staged, destination); restoration.staged = destination; }
     else await stageContent(destination, source, reader);
     staged.set(asset.contentDigest, { digest: asset.contentDigest, staged: destination });

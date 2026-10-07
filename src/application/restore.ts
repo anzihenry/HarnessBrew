@@ -12,7 +12,7 @@ import { canonicalJson, sortBy } from "../domain/validation.js";
 
 import { catalogAssetReader } from "../ports/planning.js";
 import { stageContent } from "../execution/content.js";
-import { cacheDirectory } from "./cache.js";
+import { cacheDirectory, ownedCacheDirectory } from "./cache.js";
 
 /** Prepare verified bytes outside the write transaction. Never changes Home or target resources. */
 export async function prepareRestore(state: HomeState, query: string, cache: string, sources: ApplicationDependencies["sources"] = nodeApplicationDependencies.sources) {
@@ -22,7 +22,7 @@ export async function prepareRestore(state: HomeState, query: string, cache: str
   const registration = state.sources.registrations.find(s => s.name === origin.snapshot.tap);
   if (!registration?.trusted || registration.url !== origin.snapshot.url) throw new HarnessError("SOURCE_UNTRUSTED", "Content restoration requires the original trusted source.");
   await cacheDirectory(cache, "restores");
-  const working = path.join(cache, "restores", randomUUID());
+  const working = await ownedCacheDirectory(path.join(cache, "restores"), randomUUID(), "restore");
   let snapshot: SourceSnapshot = state.sources.snapshots.find(s => s.id === origin.snapshot.id) ?? origin.snapshot, exact: CatalogSnapshot;
   try { exact = await loadCatalog([snapshot], []); }
   catch {

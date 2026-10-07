@@ -8,3 +8,6 @@ export type { CliIO, CliOptions, CliJsonEnvelope, CliJsonError } from "./cli.js"
 export { VERSION } from "./version.js";
 
 export type { ContentRecord, ContentChange } from "./domain/content.js";
+
+export type { MaintenancePreview } from "./application/maintenance.js";
+export type { RetentionPolicy, RetentionDecision, RetentionReport } from "./application/retention.js";

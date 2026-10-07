@@ -1,3 +1,4 @@
+import { previewMaintenance } from "./maintenance.js";
 import { prepareUpgradeBundles } from "./use-cases/upgrade-bundles.js";
 import { upgradeExecutionState } from "../execution/adapter-upgrade.js";
 import type { AdapterRegistry } from "../adapters/registry.js";
@@ -85,6 +86,10 @@ class Application implements HarnessService {
       await stagePreparation(saved, this.cache);
       return saved;
     }));
+  }
+  async planMaintenance(policy: Partial<import("./retention.js").RetentionPolicy> = {}): Promise<import("./maintenance.js").MaintenancePreview> {
+    this.check(); await this.prepareContext();
+    return previewMaintenance(this.store.home, this.cache, await this.snapshot(), policy);
   }
   async plan(input: ChangeRequest): Promise<PlanPreview> {
     this.check(); await this.prepareContext();
