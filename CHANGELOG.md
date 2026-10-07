@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.2.0 - 2026-10-07
+
+### Added
+
+- inspect Adapter upgrade candidates without importing code, with signature coverage and affected installations/Bundle bindings
+- explicitly authorize candidate signatures and capabilities through SDK and CLI upgrade previews
+- atomically upgrade an Adapter registration, its targets and every affected Bundle lock without changing installed asset pins
+- retain other Adapters' operations and support explicit upgrades back to retained third-party packages
+
+### Changed
+
+- derive built-in Adapter signatures from emitted runtime closure and production dependency locks; existing registrations require explicit upgrade
+- use saved-plan v3 for Adapter upgrades while retaining ordinary v2 previews and v1 Home/Journal/Bundle/CLI formats
+- validate all affected checkout inputs and all lock bytes before commit, preserving recovery evidence on external conflicts
+
+### Validation
+
+- cover manual and multi-Bundle upgrades, capability changes, stale inputs, real SIGKILL recovery and consistent backup rollback
+- include packaged Adapter identity/upgrade checks in release gates; final cross-platform and real runtime evidence is recorded separately
+
 ## 1.1.0 - 2026-10-06
 
 ### Changed
