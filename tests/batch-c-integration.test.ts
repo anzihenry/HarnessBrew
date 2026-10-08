@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, symlink } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { createApplication } from "../src/application/service.js";
@@ -52,4 +52,18 @@ test("multi-Bundle upgrade cancellation restores locks; committed cleanup failur
   await f.service.recover();
   for (const file of f.files) assert.equal(JSON.parse(await readFile(`${file}.lock.json`, "utf8")).adapterSignatures[0].signature, request.authorizedSignature);
   assert.ok(!(await readdir(f.home)).includes("transaction.json"));
+});
+
+
+test("fresh service resolves a Home alias before validating saved-plan maintenance protection", async t => {
+  const f = await upgradeFixture(t);
+  const plan = await f.service.plan(await f.request());
+  const alias = path.join(f.root, "alias"); await symlink(f.root, alias, "dir");
+  const service = createApplication({ ...f.options, home: path.join(alias, "home") });
+  t.after(() => service.close());
+  const preview = await service.planMaintenance({ ttlMs: 0, keepNewest: 0 });
+  assert.equal(preview.home, f.home); assert.deepEqual(preview.diagnostics, []);
+  assert.equal(preview.objects.find(o => o.path.endsWith(`${plan.planId}.json`))?.status, "protected");
+  assert.equal((await service.applyMaintenance(preview.planId)).status, "complete");
+  assert.equal((await service.apply(plan.planId)).outcome, "committed");
 });

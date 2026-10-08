@@ -19,6 +19,10 @@ All notable changes to this project will be documented in this file.
 - roll back cancellation before durable commit, preserve committed outcomes afterward, and finish recovery without cancellation
 - retain ordinary plan v2, upgrade plan v3 and Home/Journal/Bundle v1 formats; existing built-in Adapter registrations require explicit upgrade when signatures change
 
+### Fixed
+
+- resolve Home parent aliases before validating maintenance previews and saved-plan protection
+
 ### Limits
 
 - retention budgets are advisory; unknown objects, referenced history, cross-cache references and bare Git repositories may remain

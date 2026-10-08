@@ -106,7 +106,8 @@ class Application implements HarnessService {
   }
   async planMaintenance(policy: Partial<import("./retention.js").RetentionPolicy> = {}): Promise<import("./maintenance.js").MaintenancePreview> {
     this.check(); await this.prepareContext();
-    return previewMaintenance(this.store.home, this.cache, await this.snapshot(), policy);
+    const state = await this.snapshot();
+    return previewMaintenance(this.store.home, this.cache, state, policy);
   }
   async plan(input: ChangeRequest): Promise<PlanPreview> {
     this.check(); await this.prepareContext();
