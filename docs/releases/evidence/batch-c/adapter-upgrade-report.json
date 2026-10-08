@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "startedAt": "2026-10-08T02:12:54.396Z",
+  "completedAt": "2026-10-08T02:13:02.664Z",
+  "artifact": {
+    "filename": "harnessbrew-1.3.0.tgz",
+    "version": "1.3.0",
+    "sha256": "b97157a39adef37666d97b49ac6366e2663d81d22077d0878b600d2fa2964fa4",
+    "commit": "1b95071e2f2580398742419438054c7676113a6e"
+  },
+  "oldArtifact": {
+    "filename": "harnessbrew-1.2.0.tgz",
+    "version": "1.2.0",
+    "sha256": "1d61c99b85ed663a89582e828751656c4dad678db571b75073741dc7690019de",
+    "commit": "fc40a3efda361301b0801feae7a1cf72bf18b6d9"
+  },
+  "checks": [
+    "old-package-install",
+    "manual-and-two-bundles",
+    "explicit-builtin-upgrade",
+    "unchanged-asset-pins",
+    "all-lock-signatures",
+    "old-reader-compatible",
+    "consistent-backup-rollback",
+    "old-package-doctor"
+  ]
+}

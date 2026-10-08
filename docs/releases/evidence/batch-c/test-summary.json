@@ -1,0 +1,31 @@
+{
+  "sourceCommit": "1b95071e2f2580398742419438054c7676113a6e",
+  "candidateSha256": "b97157a39adef37666d97b49ac6366e2663d81d22077d0878b600d2fa2964fa4",
+  "suites": {
+    "fast": {
+      "tests": 286,
+      "pass": 286,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "packaged": {
+      "tests": 19,
+      "pass": 19,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "regressions": {
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    }
+  },
+  "architecture": "passed",
+  "build": "passed",
+  "releaseSource": "passed",
+  "note": "Fast and regressions execute source tests; packaged tests share this candidate. Counts extracted from completed test logs."
+}
