@@ -36,3 +36,18 @@ SourceManager 只清理自身随机临时目录；已验证缓存可由后续维
 加载完输入后，在下一轮来源准备、插件加载、解析计划及发布 prepared 内容前再次检查取消。
 保存计划的 references 与计划文件发布作为不可取消的短收尾，避免主动取消制造悬空引用。
 尚未返回的完整计划仍可按正常过期策略回收；不删除其他计划或共享缓存。
+
+## 事务取消与 close（C08）
+
+写入到持久 after-image 之间不响应取消；在 after-record 再检查，这样主动取消不会制造不可证明的未记录写入。
+prepared、before-write、after-record、before/after-state 是安全取消点；回滚、自动恢复和显式恢复屏蔽取消。
+外部变化阻碍回滚时返回 RECOVERY_REQUIRED，保留用户数据与 Journal，不用 OPERATION_ABORTED 掩盖冲突。
+Journal committed 持久化后锁定已提交结果；之后的 abort 不改变 outcome，也不阻止清理收尾。
+
+维护在持久回收意图之前响应取消；意图持久化后完成不可取消的可恢复删除。
+维护中断的 I/O 错误返回 recovery.action=recover-maintenance，保留证据。
+查询和纯准备在返回前再次检查截止时间。保存计划已完整发布但调用随后取消时，该计划仍按正常有效期保留。
+
+服务在调用进入时登记任务，再调用任何用户回调，因此进度回调中调用 close 也不会提前关闭已接收任务。
+close 立即关闭新任务入口，等待全部已接收任务、必要回滚以及缓存租约释放后才关闭内部服务。
+重复 close 返回同一个 Promise；close 不触发 AbortController。

@@ -65,7 +65,7 @@ test("recovery preserves externally added or modified quarantine data", async t 
   const f = await fixture(t), preview = await f.service.planMaintenance(limits);
   const interrupted = createApplication(f.options, { maintenanceFault: point => { if (point === "quarantined") throw new Error("simulated crash"); } });
   t.after(() => interrupted.close());
-  await assert.rejects(interrupted.applyMaintenance(preview.planId), /simulated crash/u);
+  await assert.rejects(interrupted.applyMaintenance(preview.planId), { code: "RECOVERY_REQUIRED" });
   const quarantine = path.join(f.cache, "maintenance", `trash-${preview.planId}`, "0");
   await writeFile(path.join(quarantine, "user-note"), "preserve me");
   await assert.rejects(f.service.recoverMaintenance(), { code: "RECOVERY_CONFLICT" });

@@ -1,3 +1,4 @@
+import { operationCheckpoint, operationCommitted, withoutCancellation } from "../observability/operation.js";
 import { upgradeExecutionState, type AdapterUpgrade, type UpgradeLockUpdate } from "../execution/adapter-upgrade.js";
 import { parseBundleLock } from "../domain/bundle.js";
 import { outsideRepair } from "../domain/plan.js";
@@ -77,7 +78,8 @@ export class TransactionCoordinator {
       if (!(await lstat(this.lockRoot)).isDirectory()) throw new HarnessError("RECOVERY_REQUIRED", "Unsafe external lock root.");
       return withFileLock(path.join(this.lockRoot, "external.lock"), async () => {
         const journal = new JournalStore(this.store.home);
-        await this.recoverLocked(access, journal);
+        await withoutCancellation(() => this.recoverLocked(access, journal));
+        operationCheckpoint();
         let active = true, applying = false;
         const check = () => { if (!active) throw new HarnessError("INVALID_ARGUMENT", "Expired transaction session."); };
         const session: TransactionSession = {
@@ -104,6 +106,7 @@ export class TransactionCoordinator {
   async recover(): Promise<void> { await this.withSession(async () => undefined); }
   /** Metadata-only changes still use the same journal and durable commit point. */
   private async publishMetadata(access: ExclusiveStateAccess, store: JournalStore, input: HomeState): Promise<ExecutionResult> {
+    operationCheckpoint();
     const before = await access.read(), candidate = parseHomeState(input);
     if (candidate.revision !== before.revision) throw new HarnessError("PLAN_STALE", "Metadata plan is stale.");
     if (canonicalJson(before) === canonicalJson(candidate)) return { outcome: "unchanged", maintenance: "complete", effects: [], committedRevision: before.revision, changes: [], operations: [], retained: [], diagnostics: [] };
@@ -124,17 +127,17 @@ export class TransactionCoordinator {
     }
     try {
       await store.save(journal);
-      await this.fault("prepared", { transactionId: journal.id });
-      await this.fault("before-state", { transactionId: journal.id });
+      await this.fault("prepared", { transactionId: journal.id }); operationCheckpoint();
+      await this.fault("before-state", { transactionId: journal.id }); operationCheckpoint();
       await access.publish(before.revision, next);
-      await this.fault("after-state", { transactionId: journal.id });
-      journal.status = "committed"; await store.save(journal);
+      await this.fault("after-state", { transactionId: journal.id }); operationCheckpoint();
+      journal.status = "committed"; await store.save(journal); operationCommitted();
     } catch (cause) {
       let persisted: Journal | undefined;
       try { persisted = await store.load(); }
       catch (journalError) { throw new HarnessError("RECOVERY_REQUIRED", "Metadata update failed and journal integrity cannot be verified.", { transactionId: journal.id }, { cause: new AggregateError([cause, journalError]) }); }
       if (persisted?.status === "committed") throw new HarnessError("RECOVERY_REQUIRED", "Confirm commit through recovery.", {}, { cause });
-      try { await this.rollback(access, store, journal); }
+      try { await withoutCancellation(() => this.rollback(access, store, journal)); }
       catch (recovery) { throw new HarnessError("RECOVERY_REQUIRED", "Metadata update and recovery failed.", {}, { cause: new AggregateError([cause, recovery]) }); }
       throw cause;
     }
@@ -158,7 +161,7 @@ export class TransactionCoordinator {
         if (!journal.nextState || canonicalJson(await access.read()) !== canonicalJson(journal.nextState)) throw new HarnessError("RECOVERY_CONFLICT", "Committed journal and state disagree.");
         try { await this.cleanup(store, journal); } catch (cause) { throw new HarnessError("RECOVERY_CONFLICT", "Committed cleanup requires inspection; preserve the journal and quarantine.", { transactionId: journal.id }, { cause }); } return;
       }
-      try { await this.rollback(access, store, journal); }
+      try { await withoutCancellation(() => this.rollback(access, store, journal)); }
       catch (cause) { journal.status = "recovery-required"; await store.save(journal).catch(() => undefined); throw new HarnessError("RECOVERY_REQUIRED", "Recovery could not safely restore the transaction.", { transactionId: journal.id }, { cause }); }
     });
   }
@@ -264,7 +267,11 @@ export class TransactionCoordinator {
       await assertPlanFresh(plan, { revision: before.revision, home: this.store.home, io: nodePlanningIO, adapters: input.adapters });
       const journal: Journal = { format: "harnessbrew.journal", version: 1, id: randomUUID(), home: this.store.home, status: "prepared", beforeState: before, nextRevision: randomUUID(), steps: [] };
       const directories: string[] = [];
-      const checkpoint = (point: TransactionCheckpoint, destination?: string) => this.fault(point, { transactionId: journal.id, ...(destination ? { path: destination } : {}) });
+      const checkpoint = async (point: TransactionCheckpoint, destination?: string) => {
+        await this.fault(point, { transactionId: journal.id, ...(destination ? { path: destination } : {}) });
+        // Never interrupt the write -> durable after-image interval.
+        if (point !== "after-write" && point !== "committed") operationCheckpoint();
+      };
       const step = async (destination: string, kind: JournalStep["kind"], intended: FileImage, perform?: () => Promise<void>) => {
         const previous = await image(destination, kind === "content");
         const entry: JournalStep = { path: destination, kind, temporary: path.join(path.dirname(destination), `.harnessbrew-${journal.id}-${journal.steps.length}.tmp`), before: previous, intended, parent: await nodePlanningIO.identify(destination), phase: "pending" };
@@ -382,9 +389,9 @@ export class TransactionCoordinator {
         candidate = await stateAfterExecution(executionState, plan, journal.nextRevision, directories);
         for (const restoration of journal.restorations ?? []) if (!sameImage(await image(restoration.quarantine, true), restoration.before)) throw new HarnessError("RECOVERY_CONFLICT", "Quarantined content changed during repair.");
         candidate.quarantines.push(...(journal.restorations ?? []).map(r => ({ path: r.quarantine, digest: `sha256:${path.basename(r.path)}` as import("../domain/identity.js").Digest })));
-        journal.nextState = candidate; await store.save(journal);
+        journal.nextState = candidate; await store.save(journal); operationCheckpoint();
         await access.publish(before.revision, candidate); await checkpoint("after-state");
-        journal.status = "committed"; await store.save(journal); committed = true;
+        journal.status = "committed"; await store.save(journal); operationCommitted(); committed = true;
         const diagnostics: string[] = [];
         try { await checkpoint("committed"); await this.cleanup(store, journal); }
         catch { diagnostics.push("Transaction committed; maintenance cleanup is pending."); }
@@ -394,7 +401,7 @@ export class TransactionCoordinator {
         try { persisted = await store.load(); }
         catch (journalError) { throw new HarnessError("RECOVERY_REQUIRED", "Operation failed and journal integrity cannot be verified.", { transactionId: journal.id }, { cause: new AggregateError([cause, journalError]) }); }
         if (committed || persisted?.status === "committed") throw new HarnessError("RECOVERY_REQUIRED", "Commit durability could not be confirmed; recover before retrying.", { transactionId: journal.id }, { cause });
-        try { await this.rollback(access, store, journal); }
+        try { await withoutCancellation(() => this.rollback(access, store, journal)); }
         catch (recoveryError) {
           journal.status = "recovery-required"; await store.save(journal).catch(() => undefined);
           throw new HarnessError("RECOVERY_REQUIRED", "Operation and recovery failed; preserve the journal.", { transactionId: journal.id }, { cause: new AggregateError([cause, recoveryError], "Original failure and recovery failure") });

@@ -1,3 +1,4 @@
+import { operationCheckpoint, operationCommitted, withoutCancellation } from "../observability/operation.js";
 import { lstat, readFile, readdir, rename, rm, rmdir } from "node:fs/promises";
 import path from "node:path";
 import { HarnessError } from "../domain/errors.js";
@@ -128,6 +129,12 @@ async function finish(journal: MaintenanceJournal, recovered: boolean, fault: Ma
   await rmdir(path.join(journal.cache, "maintenance", `trash-${journal.id}`)).catch(() => undefined);
   return result;
 }
+async function durableMaintenance(action: () => Promise<MaintenanceResult>): Promise<MaintenanceResult> {
+  return withoutCancellation(async () => {
+    try { const result = await action(); operationCommitted(); return result; }
+    catch (cause) { if (cause instanceof HarnessError) throw cause; throw new HarnessError("RECOVERY_REQUIRED", "Maintenance needs recovery; preserve its journal.", { action: "recover-maintenance" }, { cause }); }
+  });
+}
 export async function executeMaintenance(store: StateStore, cache: string, id: string | undefined, fault: MaintenanceFault = () => undefined): Promise<MaintenanceResult | undefined> {
   if (id !== undefined && !uuid.test(id)) throw new HarnessError("PLAN_NOT_FOUND", "Unknown maintenance plan.");
   await cacheDirectory(cache, "maintenance");
@@ -137,7 +144,7 @@ export async function executeMaintenance(store: StateStore, cache: string, id: s
       const existing = await load(cache, store.home);
       if (existing) {
         if (id !== undefined && existing.id !== id) throw new HarnessError("RECOVERY_REQUIRED", "Recover the pending maintenance before applying another preview.", { action: "recover-maintenance" });
-        return finish(existing, true, fault);
+        return durableMaintenance(() => finish(existing, true, fault));
       }
       if (id === undefined) return undefined;
       const file = path.join(cache, "maintenance", `${id}.json`);
@@ -162,7 +169,8 @@ export async function executeMaintenance(store: StateStore, cache: string, id: s
       }
       const root = await lstat(cache), home = await lstat(store.home);
       const journal: MaintenanceJournal = { format: "harnessbrew.maintenance-journal", version: 1, id, home: store.home, cache, rootDevice: String(root.dev), rootInode: String(root.ino), homeDevice: String(home.dev), homeInode: String(home.ino), entries };
-      await save(journal); await fault("journal-durable"); return finish(journal, false, fault);
+      operationCheckpoint();
+      return durableMaintenance(async () => { await save(journal); await fault("journal-durable"); return finish(journal, false, fault); });
     });
     if (!result.ran) throw new HarnessError("PLAN_STALE", "Active cache leases prevent maintenance; retry after the operations finish.");
     return result.value;

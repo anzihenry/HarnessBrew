@@ -1,3 +1,4 @@
+import { operationCheckpoint } from "../observability/operation.js";
 import { randomUUID } from "node:crypto";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
@@ -26,6 +27,7 @@ export interface MaintenanceTreeEntry { path: string; device: string; inode: str
 export async function inspectTree(file: string): Promise<{ bytes: number; modifiedAt: number; digest: string; safe: boolean; entries: MaintenanceTreeEntry[] }> {
   const entries: MaintenanceTreeEntry[] = []; let bytes = 0, safe = true, modifiedAt = 0;
   async function visit(current: string): Promise<void> {
+    operationCheckpoint();
     const stat = await lstat(current); modifiedAt = Math.max(modifiedAt, Math.floor(stat.mtimeMs));
     const identity = { path: path.relative(file, current), device: String(stat.dev), inode: String(stat.ino), mode: stat.mode, modifiedAt: stat.mtimeMs };
     if (stat.isFile()) { const content = await readFile(current); bytes += content.length; entries.push({ ...identity, digest: hash(content) }); }

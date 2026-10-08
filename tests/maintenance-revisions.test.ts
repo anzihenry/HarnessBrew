@@ -57,7 +57,7 @@ test("revision quarantine stays inside Home and resumes without changing CURRENT
     if (point === "quarantined" && file?.startsWith(path.join(f.home, "revisions"))) throw new Error("interrupted revision quarantine");
   } });
   t.after(() => service.close());
-  await assert.rejects(service.applyMaintenance(preview.planId), /interrupted revision quarantine/u);
+  await assert.rejects(service.applyMaintenance(preview.planId), { code: "RECOVERY_REQUIRED" });
   assert.ok((await readdir(path.join(f.home, "revisions"))).some(n => n.startsWith(".maintenance-")));
   assert.equal((await f.service.recoverMaintenance())?.recovered, true);
   assert.equal(await readFile(path.join(f.home, "CURRENT"), "utf8"), current);
