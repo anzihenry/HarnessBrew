@@ -1,4 +1,4 @@
-import { operationCheckpoint, operationCommitted, withoutCancellation } from "../observability/operation.js";
+import { operationCheckpoint, operationCommitted, withoutCancellation, progress } from "../observability/operation.js";
 import { upgradeExecutionState, type AdapterUpgrade, type UpgradeLockUpdate } from "../execution/adapter-upgrade.js";
 import { parseBundleLock } from "../domain/bundle.js";
 import { outsideRepair } from "../domain/plan.js";
@@ -106,7 +106,7 @@ export class TransactionCoordinator {
   async recover(): Promise<void> { await this.withSession(async () => undefined); }
   /** Metadata-only changes still use the same journal and durable commit point. */
   private async publishMetadata(access: ExclusiveStateAccess, store: JournalStore, input: HomeState): Promise<ExecutionResult> {
-    operationCheckpoint();
+    progress("apply", 0, 1); operationCheckpoint();
     const before = await access.read(), candidate = parseHomeState(input);
     if (candidate.revision !== before.revision) throw new HarnessError("PLAN_STALE", "Metadata plan is stale.");
     if (canonicalJson(before) === canonicalJson(candidate)) return { outcome: "unchanged", maintenance: "complete", effects: [], committedRevision: before.revision, changes: [], operations: [], retained: [], diagnostics: [] };
@@ -131,7 +131,7 @@ export class TransactionCoordinator {
       await this.fault("before-state", { transactionId: journal.id }); operationCheckpoint();
       await access.publish(before.revision, next);
       await this.fault("after-state", { transactionId: journal.id }); operationCheckpoint();
-      journal.status = "committed"; await store.save(journal); operationCommitted();
+      journal.status = "committed"; await store.save(journal); operationCommitted(); progress("apply", 1, 1);
     } catch (cause) {
       let persisted: Journal | undefined;
       try { persisted = await store.load(); }
@@ -156,6 +156,7 @@ export class TransactionCoordinator {
   }
   private async recoverLocked(access: ExclusiveStateAccess, store: JournalStore): Promise<void> {
     const journal = await store.load(); if (!journal) return;
+    progress("recover", 0, journal.steps.length);
     await this.targetsLocked(journal.steps.map(step => step.path), async () => {
       if (journal.status === "committed") {
         if (!journal.nextState || canonicalJson(await access.read()) !== canonicalJson(journal.nextState)) throw new HarnessError("RECOVERY_CONFLICT", "Committed journal and state disagree.");
@@ -166,6 +167,7 @@ export class TransactionCoordinator {
     });
   }
   private async rollback(access: ExclusiveStateAccess, store: JournalStore, journal: Journal): Promise<void> {
+    progress("recover", 0, journal.steps.length);
     await this.fault("before-rollback", { transactionId: journal.id });
     journal.status = "rolling-back"; await store.save(journal);
     const state = await access.read();
@@ -184,7 +186,7 @@ export class TransactionCoordinator {
       }
       // A transaction-specific temporary is never used as proof that a target write is owned.
       if (await exists(step.temporary)) throw new HarnessError("RECOVERY_CONFLICT", "Unrecorded temporary resource requires inspection.", { path: step.temporary });
-      step.phase = "reverted"; await store.save(journal);
+      step.phase = "reverted"; await store.save(journal); progress("recover", journal.steps.filter(s => s.phase === "reverted").length, journal.steps.length);
     }
     for (const restoration of [...(journal.restorations ?? [])].reverse()) {
       await this.parentUnchanged(restoration);
@@ -265,6 +267,7 @@ export class TransactionCoordinator {
     }
     return this.targetsLocked(destinations, async () => {
       await assertPlanFresh(plan, { revision: before.revision, home: this.store.home, io: nodePlanningIO, adapters: input.adapters });
+      progress("apply", 0); operationCheckpoint();
       const journal: Journal = { format: "harnessbrew.journal", version: 1, id: randomUUID(), home: this.store.home, status: "prepared", beforeState: before, nextRevision: randomUUID(), steps: [] };
       const directories: string[] = [];
       const checkpoint = async (point: TransactionCheckpoint, destination?: string) => {
@@ -282,7 +285,7 @@ export class TransactionCoordinator {
         await checkpoint("after-write", destination);
         const actual = await image(destination, kind === "content");
         if (intended.kind === "directory" ? actual.kind !== "directory" : intended.kind === "content" ? actual.kind !== "content" || actual.digest !== intended.digest : !sameImage(actual, intended)) throw new HarnessError("TARGET_MODIFIED", "Write verification failed.");
-        entry.after = actual; entry.phase = "done"; await store.save(journal); await checkpoint("after-record", destination);
+        entry.after = actual; entry.phase = "done"; await store.save(journal); progress("apply", journal.steps.filter(s => s.phase === "done").length); await checkpoint("after-record", destination);
       };
       const ensureParents = async (destination: string) => {
         const missing: string[] = []; let current = path.dirname(destination);

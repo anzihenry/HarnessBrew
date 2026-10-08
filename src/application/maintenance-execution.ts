@@ -1,4 +1,4 @@
-import { operationCheckpoint, operationCommitted, withoutCancellation } from "../observability/operation.js";
+import { operationCheckpoint, operationCommitted, withoutCancellation, progress } from "../observability/operation.js";
 import { lstat, readFile, readdir, rename, rm, rmdir } from "node:fs/promises";
 import path from "node:path";
 import { HarnessError } from "../domain/errors.js";
@@ -104,6 +104,7 @@ async function verifySourceParents(cache: string, source: string): Promise<void>
   }
 }
 async function finish(journal: MaintenanceJournal, recovered: boolean, fault: MaintenanceFault): Promise<MaintenanceResult> {
+  progress("maintenance", journal.entries.filter(e => e.phase === "done").length, journal.entries.length);
   for (const entry of journal.entries) {
     await verifyCache(journal);
     if (entry.phase === "done") continue;
@@ -122,7 +123,7 @@ async function finish(journal: MaintenanceJournal, recovered: boolean, fault: Ma
       if ((await inspectTree(entry.quarantine)).digest !== entry.digest) conflict("Quarantine changed before deletion.");
       entry.phase = "deleting"; await save(journal); await fault("delete-recorded", entry.source);
     }
-    await deleteTree(entry, fault); entry.phase = "done"; await save(journal);
+    await deleteTree(entry, fault); entry.phase = "done"; await save(journal); progress("maintenance", journal.entries.filter(e => e.phase === "done").length, journal.entries.length);
   }
   const result: MaintenanceResult = { status: "complete", planId: journal.id, deleted: journal.entries.filter(e => !e.reference).map(e => e.source), retiredReferences: journal.entries.filter(e => e.reference).map(e => e.source), recovered };
   await rm(journalFile(journal.cache)); await syncDirectory(path.dirname(journalFile(journal.cache)));

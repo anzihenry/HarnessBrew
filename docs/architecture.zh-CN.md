@@ -80,3 +80,7 @@ Adapter 升级先静态检查候选，再按确切摘要与能力授权加载。
 快速测试覆盖领域到业务入口，并包含真实进程锁和崩溃恢复；打包测试验证实际安装后的候选包。Linux/macOS gate 与真实 Codex preflight 必须引用同一个候选包摘要。模拟 runtime 测试仅证明验收工具自身行为，不能替代真实 Codex 验证。实际执行结果见[阶段 7 记录](design/phase7-implementation.zh-CN.md)。
 
 内容库存以摘要登记清单和精确来源，与当前安装坐标分离；升级旧版本保留库存，cleanup 按活动引用回收。repair 在写事务外准备精确 commit 内容，事务内校验并隔离/恢复；修改内容的隔离路径保存在 quarantines。详见 [内容生命周期](design/content-lifecycle.zh-CN.md)。
+
+缓存维护使用独立预览和持久回收 Journal，按 Home→cache lease guard 锁序复核输入、隔离归属明确的候选，恢复时逐项验证剩余文件。revision 隔离在 Home 内进行。当前状态、活跃消费者、有效计划和恢复输入优先于预算；未知数据保留。审计 revision 不能替代一致性备份。
+
+操作级控制器包装应用入口，运行选项不进入保存请求。取消传递至准备、Git 进程组和锁等待；写入到 after-image、回滚、恢复及提交后清理不受已触发信号中断。持久提交锁定结果。公开阶段/计数事件桥接内部 observer，不替换既有观察者。入口先登记已接收工作再调用回调；close 拒绝新工作并等待已有操作及租约释放。SDK effects 和 committed/maintenance 结果有明确类型；CLI 进度写 stderr，与 JSON envelope 分离。

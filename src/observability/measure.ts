@@ -6,6 +6,15 @@ export type Observer = (event: Readonly<Measurement>) => void | Promise<void>;
 const observers = new AsyncLocalStorage<Observer>();
 /** Internal, operation-scoped observation. No paths, payloads or credentials. */
 export function observe<T>(observer: Observer, action: () => T): T { return observers.run(observer, action); }
+/** Add a public bridge without replacing a caller's internal measurements. */
+export function observeAdditional<T>(observer: Observer, action: () => T): T {
+  const parent = observers.getStore();
+  return observe(event => {
+    for (const callback of [parent, observer]) {
+      try { void Promise.resolve(callback?.(event)).catch(() => undefined); } catch { /* Independent observers. */ }
+    }
+  }, action);
+}
 export function emit(name: string, value: number, unit: Measurement["unit"]): void {
   try { const result = observers.getStore()?.(Object.freeze({ name, value, unit })); void Promise.resolve(result).catch(() => undefined); }
   catch { /* Observation cannot change a business outcome. */ }

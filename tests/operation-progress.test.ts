@@ -1,0 +1,51 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { runCli } from "../src/cli.js";
+import { observe } from "../src/observability/measure.js";
+import type { ProgressEvent } from "../src/index.js";
+import { stableId } from "../src/domain/identity.js";
+import { withFileLock } from "../src/transactions/file-lock.js";
+import { applicationFixture } from "./helpers/application.js";
+test("public phase/count events preserve internal observers and contain no payloads", async t => {
+  const f = await applicationFixture(t); await f.add("a"); await f.register();
+  const events: Readonly<ProgressEvent>[] = [], metrics: string[] = [];
+  await observe(event => { metrics.push(event.name); }, () => f.service.execute({ kind: "asset.install", coordinate: "a", placements: [f.placement] }, { onProgress: event => { events.push(event); } }));
+  assert.equal(events[0]?.phase, "prepare"); assert.equal(events.at(-1)?.phase, "complete");
+  assert.ok(events.some(e => e.phase === "apply" && (e.completed ?? 0) > 0));
+  assert.ok(events.some(e => e.phase === "lock-wait")); assert.ok(metrics.includes("prepare")); assert.ok(metrics.includes("journal.writes"));
+  for (const event of events) assert.ok(Object.keys(event).every(k => ["phase", "completed", "total"].includes(k)));
+  assert.ok(!JSON.stringify(events).includes(f.home));
+});
+test("CLI progress stays on stderr, JSON remains one document, and timeout/cancel have explicit exit codes", async t => {
+  const f = await applicationFixture(t); await f.add("a"); await f.register();
+  const stdout: string[] = [], stderr: string[] = [], io = { stdout: (s: string) => stdout.push(s), stderr: (s: string) => stderr.push(s) };
+  assert.equal(await runCli(["install", "a", "--json", "--progress"], io, f.options), 0);
+  assert.equal(stdout.length, 1); assert.equal(JSON.parse(stdout[0]!).result.outcome, "committed");
+  assert.ok(stderr.length > 0); assert.ok(stderr.every(line => /^\[(prepare|lock-wait|apply|recover|maintenance|complete)\]( \d+(\/\d+)?)?\n$/u.test(line)));
+  stdout.length = 0; stderr.length = 0;
+  assert.equal(await runCli(["list", "--json", "--timeout-ms", "0"], io, f.options), 124); assert.equal(stdout.length, 1);
+  assert.equal(JSON.parse(stdout[0]!).error.code, "OPERATION_TIMEOUT");
+  const controller = new AbortController(); controller.abort(); stdout.length = 0;
+  assert.equal(await runCli(["list", "--json"], io, { ...f.options, signal: controller.signal }), 130);
+  assert.equal(JSON.parse(stdout[0]!).error.code, "OPERATION_ABORTED");
+  const cache = path.join(path.dirname(f.home), `.harnessbrew-cache-${stableId(f.home)}`); await mkdir(path.join(cache, "maintenance"), { recursive: true });
+  await writeFile(path.join(cache, "maintenance", "transaction.json"), "{}"); stdout.length = 0;
+  assert.equal(await runCli(["recover-maintenance", "--json"], io, f.options), 3);
+  assert.equal(JSON.parse(stdout[0]!).error.recovery.action, "recover-maintenance");
+});
+test("CLI SIGINT waits for safe cancellation and emits one JSON result", { timeout: 10000 }, async t => {
+  const f = await applicationFixture(t); await f.register();
+  await withFileLock(path.join(f.home, ".store.lock"), async () => {
+    const child = spawn(process.execPath, [fileURLToPath(new URL("../src/bin.js", import.meta.url)), "list", "--home", f.home, "--progress", "--json"], { stdio: ["ignore", "pipe", "pipe"] });
+    t.after(() => child.kill("SIGKILL")); let output = "", sent = false;
+    child.stdout.on("data", (bytes: Buffer) => { output += bytes.toString(); });
+    child.stderr.on("data", (bytes: Buffer) => { if (!sent && bytes.toString().includes("lock-wait")) { sent = true; child.kill("SIGINT"); } });
+    const [code] = await once(child, "exit"); assert.equal(code, 130); assert.ok(sent);
+    const lines = output.trim().split("\n"); assert.equal(lines.length, 1); assert.equal(JSON.parse(lines[0]!).error.code, "OPERATION_ABORTED");
+  });
+});

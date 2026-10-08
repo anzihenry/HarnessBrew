@@ -1,4 +1,4 @@
-import { operationCheckpoint } from "../observability/operation.js";
+import { operationCheckpoint, progress } from "../observability/operation.js";
 import { emit, measured } from "../observability/measure.js";
 import { randomUUID, createHash } from "node:crypto";
 import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
@@ -53,7 +53,7 @@ async function readParticipant(directory: string, name: string): Promise<Partici
  */
 export async function withFileLock<T>(lockPath: string, action: () => Promise<T>, options: LockOptions = {}): Promise<T> {
   const check = () => { operationCheckpoint(); if (options.signal?.aborted) throw new HarnessError("OPERATION_ABORTED", "Lock wait aborted.", { committed: false }); };
-  check();
+  check(); progress("lock-wait"); check();
   const directory = path.resolve(lockPath), startedAt = Date.now();
   const owner: Participant = { version: 1, token: randomUUID(), pid: process.pid, ticket: null };
   const name = `${owner.pid}-${owner.token}.json`, file = path.join(directory, name), temporary = `${file}.tmp`;

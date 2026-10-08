@@ -19,7 +19,8 @@ test("operation controls are separate from saved data and callback failures cann
   const events: ProgressEvent[] = [], controller = new AbortController();
   const preview = await f.service.plan({ kind: "asset.install", coordinate: "a" }, { signal: controller.signal, timeoutMs: 10000, onProgress: event => { events.push(event); throw new Error("observer failed"); } });
   assert.ok(preview.effects.some(e => exhaustive(e).endsWith("/a")));
-  assert.deepEqual(events.map(e => e.phase), ["prepare", "complete"]);
+  assert.equal(events[0]?.phase, "prepare"); assert.equal(events.at(-1)?.phase, "complete");
+  assert.ok(events.some(e => e.phase === "lock-wait"));
   const cache = path.join(path.dirname(f.home), `.harnessbrew-cache-${stableId(f.home)}`);
   const saved = await readFile(path.join(cache, "plans", `${preview.planId}.json`), "utf8");
   for (const key of ["signal", "timeoutMs", "onProgress", "effects"]) assert.ok(!Object.hasOwn(JSON.parse(saved).saved, key));

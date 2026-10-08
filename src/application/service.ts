@@ -1,4 +1,4 @@
-import { operationCheckpoint, withoutCancellation } from "../observability/operation.js";
+import { operationCheckpoint, withoutCancellation, progress } from "../observability/operation.js";
 import { OperationService } from "./operation-service.js";
 import { executeMaintenance } from "./maintenance-execution.js";
 import { previewMaintenance } from "./maintenance.js";
@@ -89,7 +89,7 @@ class Application implements HarnessService {
   private catalog(state: HomeState) { return withRelatedCacheLeases(this.cacheInputs(state), () => catalogFor(state)); }
   private build(state: HomeState, request: ChangeRequest): Promise<Saved> {
     return withRelatedCacheLeases(this.cacheInputs(state), () => measured("prepare", async () => {
-      operationCheckpoint();
+      progress("prepare"); operationCheckpoint();
       const saved = await prepareChange({ home: this.store.home, cache: this.cache, options: this.options, dependencies: this.dependencies }, state, request);
       saved.resources = [...new Set([...(saved.catalog?.snapshots ?? saved.candidate?.sources.snapshots ?? []).map(s => s.contentLocation), ...(saved.restorations ?? []).map(r => r.staged), ...(saved.adapterUpgrade ? [saved.adapterUpgrade.after, ...state.adapters.registrations] : state.adapters.registrations).filter(a => !a.module.startsWith("builtin:") && !a.module.startsWith("supplied:")).map(a => path.join(this.cache, "plugins", a.signature.slice(7)))])].sort();
       operationCheckpoint(); await stagePreparation(saved, this.cache); operationCheckpoint();

@@ -51,3 +51,25 @@ Journal committed 持久化后锁定已提交结果；之后的 abort 不改变 
 服务在调用进入时登记任务，再调用任何用户回调，因此进度回调中调用 close 也不会提前关闭已接收任务。
 close 立即关闭新任务入口，等待全部已接收任务、必要回滚以及缓存租约释放后才关闭内部服务。
 重复 close 返回同一个 Promise；close 不触发 AbortController。
+
+## 进度及 CLI（C09）
+
+阶段/计数接入真实 prepare、锁等待、apply、recover 和 maintenance；成功时最后一个事件为 complete。
+apply.completed 表示持久记录后的 Journal 步骤数（包括内容、目录、目标和 lock）；恢复按已回退步骤计数，维护按完成对象计数。
+没有可靠总数时不发 total。事件不是审计记录，重复锁等待不代表重复执行业务。
+内部 observer 通过附加桥接保留，回调不包含路径或 payload。
+
+CLI --progress 写 stderr，JSON stdout 仍为一份结果；--timeout-ms 覆盖命令中的前置查询与后续写操作，
+SIGINT/SIGTERM 走同一安全取消通道。退出码：取消 130，超时 124，恢复需求 3。
+以下穷尽分支由类型测试验证：
+
+```ts
+function describe(effect: OperationEffect): string {
+  switch (effect.kind) {
+    case "asset": return effect.change.asset;
+    case "metadata": return effect.operation;
+    case "adapter-upgrade": return effect.after.name;
+    default: { const exhaustive: never = effect; return exhaustive; }
+  }
+}
+```

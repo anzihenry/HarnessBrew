@@ -1,3 +1,4 @@
+import { observeAdditional } from "./measure.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { performance } from "node:perf_hooks";
 import { HarnessError } from "../domain/errors.js";
@@ -28,6 +29,6 @@ export async function runOperation<T>(options: OperationOptions | undefined, pha
   const context: Context = { completion: { durable: false }, signal: controller.signal, ...(value.timeoutMs === undefined ? {} : { deadline: started + value.timeoutMs }), ...(value.onProgress ? { onProgress: value.onProgress } : {}), phase, protected: false, timedOut: false };
   const abort = () => controller.abort(); value.signal?.addEventListener("abort", abort, { once: true }); if (value.signal?.aborted) abort();
   const timer = value.timeoutMs === undefined ? undefined : setTimeout(() => { context.timedOut = true; controller.abort(); }, value.timeoutMs); timer?.unref();
-  try { return await contexts.run(context, async () => { operationCheckpoint(); progress(phase); operationCheckpoint(); const result = await action(); operationCheckpoint(); progress("complete"); return result; }); }
+  try { return await contexts.run(context, async () => { operationCheckpoint(); progress(phase); operationCheckpoint(); const result = await observeAdditional(event => { if (/^lock\..*\.wait$/u.test(event.name)) progress("lock-wait"); else if (event.name === "prepare") progress("prepare"); }, action); operationCheckpoint(); progress("complete"); return result; }); }
   finally { if (timer) clearTimeout(timer); value.signal?.removeEventListener("abort", abort); }
 }

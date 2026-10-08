@@ -1,3 +1,5 @@
+import { performance } from "node:perf_hooks";
+import type { OperationOptions } from "./application/types.js";
 import path from "node:path";
 import os from "node:os";
 import { createHarness } from "./application/service.js";
@@ -8,14 +10,15 @@ import type { Placement } from "./domain/placement.js";
 import type { AppliedOperationType } from "./domain/state.js";
 import { VERSION } from "./version.js";
 export interface CliIO { stdout(message: string): void; stderr(message: string): void }
-export interface CliOptions { home?: string; cwd?: string; userHome?: string }
+export interface CliOptions { signal?: AbortSignal; home?: string; cwd?: string; userHome?: string }
 export interface CliJsonError { code: string; message: string; details: Readonly<Record<string, unknown>>; recovery?: unknown }
 export interface CliJsonEnvelope { format: "harnessbrew.result"; version: 1; ok: boolean; command: string; mode: "query" | "preview" | "execute" | "recover"; result?: unknown; diagnostics: string[]; error?: CliJsonError }
-const help = `HarnessBrew — Git-native package manager for AI Agent assets\nCommands: tap add|update|remove|trust|untrust|list, adapter add|remove|list|inspect-upgrade|upgrade,\ninstall, upgrade, remove, link, unlink, bundle apply|detach, cleanup, repair,\nrecover, doctor, list, search, info, outdated, apply-plan, maintenance --dry-run, apply-maintenance, recover-maintenance.\nGlobal: --home <path> --json. Changes: --dry-run.\nPlacement: --target <name> --scope user|project --project <path> --root <path>.\nTap: update retains its tracking ref; --ref <branch|tag> changes it; --default-branch follows remote HEAD.\nRepair: <asset> or --all; --restore-content preserves modified content in quarantine; --overwrite-owned repairs shared target keys/blocks.\nBundle: apply --file <path> [--update-lock]; detach --binding <id>.`;
-const values = new Set(["home", "target", "scope", "project", "root", "file", "binding", "ref", "capabilities", "module", "authorize-signature", "capability", "bundle-file", "ttl-days", "keep-newest", "max-bytes"]);
-const flags = new Set(["all", "default-branch", "json", "dry-run", "update-lock", "allow-rewind", "overwrite-owned", "restore-content", "help", "version"]);
+const help = `HarnessBrew — Git-native package manager for AI Agent assets\nCommands: tap add|update|remove|trust|untrust|list, adapter add|remove|list|inspect-upgrade|upgrade,\ninstall, upgrade, remove, link, unlink, bundle apply|detach, cleanup, repair,\nrecover, doctor, list, search, info, outdated, apply-plan, maintenance --dry-run, apply-maintenance, recover-maintenance.\nGlobal: --home <path> --json --progress --timeout-ms <milliseconds>. Changes: --dry-run.\nPlacement: --target <name> --scope user|project --project <path> --root <path>.\nTap: update retains its tracking ref; --ref <branch|tag> changes it; --default-branch follows remote HEAD.\nRepair: <asset> or --all; --restore-content preserves modified content in quarantine; --overwrite-owned repairs shared target keys/blocks.\nBundle: apply --file <path> [--update-lock]; detach --binding <id>.`;
+const values = new Set(["home", "target", "scope", "project", "root", "file", "binding", "ref", "capabilities", "module", "authorize-signature", "capability", "bundle-file", "ttl-days", "keep-newest", "max-bytes", "timeout-ms"]);
+const flags = new Set(["progress", "all", "default-branch", "json", "dry-run", "update-lock", "allow-rewind", "overwrite-owned", "restore-content", "help", "version"]);
 function invalid(message: string): never { throw new HarnessError("INVALID_ARGUMENT", message); }
 export async function runCli(argv: string[], io: CliIO = { stdout: message => process.stdout.write(message), stderr: message => process.stderr.write(message) }, options: CliOptions = {}): Promise<number> {
+  const started = performance.now();
   const repeated = new Map<string, string[]>();
   const json = argv.includes("--json"), positional: string[] = [], opts = new Map<string, string | true>();
   let command = "", mode: CliJsonEnvelope["mode"] = "query", service: ReturnType<typeof createHarness> | undefined;
@@ -48,9 +51,14 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
     };
     if (!Object.hasOwn(allowed, name)) invalid(`Unknown command: ${name}`);
     const readonly = ["adapter.inspect-upgrade", "tap.list", "adapter.list", "doctor", "list", "search", "info", "outdated", "help", "version"].includes(name);
-    for (const key of opts.keys()) if (!["home", "json", "help", ...(name === "version" || name === "help" ? ["version"] : []), ...(!readonly && name !== "recover" && ! ["apply-plan", "apply-maintenance", "recover-maintenance"].includes(name) ? ["dry-run"] : []), ...allowed[name]!].includes(key)) invalid(`Option --${key} is not valid for ${name}`);
+    for (const key of opts.keys()) if (!["home", "json", "help", ...(["help", "version"].includes(name) ? [] : ["progress", "timeout-ms"]), ...(name === "version" || name === "help" ? ["version"] : []), ...(!readonly && name !== "recover" && ! ["apply-plan", "apply-maintenance", "recover-maintenance"].includes(name) ? ["dry-run"] : []), ...allowed[name]!].includes(key)) invalid(`Option --${key} is not valid for ${name}`);
     const arg = (count: number, optional = false) => { if (positional.length > count || positional.length < count - (optional ? 1 : 0)) invalid(`Invalid arguments for ${name}`); return positional[0]!; };
     const value = (key: string) => typeof opts.get(key) === "string" ? opts.get(key) as string : undefined;
+    const rawTimeout = value("timeout-ms");
+    if (rawTimeout !== undefined && (!/^\d+$/u.test(rawTimeout) || !Number.isSafeInteger(Number(rawTimeout)) || Number(rawTimeout) > 2147483647)) invalid("Invalid --timeout-ms");
+    const controls = (): OperationOptions => ({ ...(options.signal ? { signal: options.signal } : {}),
+      ...(rawTimeout === undefined ? {} : { timeoutMs: Math.max(0, Math.floor(Number(rawTimeout) - (performance.now() - started))) }),
+      ...(opts.has("progress") ? { onProgress: (event: import("./application/types.js").ProgressEvent) => io.stderr(`[${event.phase}]${event.completed === undefined ? "" : ` ${event.completed}${event.total === undefined ? "" : `/${event.total}`}`}\n`) } : {}) });
     const cwd = path.resolve(options.cwd ?? process.cwd()), userHome = path.resolve(options.userHome ?? os.homedir());
     const placement = (): Placement => {
       const scope = value("scope") ?? "user";
@@ -61,23 +69,23 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
     const envelope = (result: unknown, ok = true): CliJsonEnvelope => ({ format: "harnessbrew.result", version: 1, ok, command: sub ? `${command} ${sub}` : command, mode, result, diagnostics: [] });
     if (name === "help" || name === "version") { arg(0); return output(envelope(name === "help" ? help : VERSION), 0); }
     service = createHarness({ home: path.resolve(cwd, value("home") ?? options.home ?? process.env.HARNESSBREW_HOME ?? path.join(userHome, ".harnessbrew")), cwd, userHome });
-    if (name === "apply-maintenance") { const id = arg(1); mode = "execute"; return output(envelope(await service.applyMaintenance(id)), 0); }
-    if (name === "recover-maintenance") { arg(0); mode = "recover"; return output(envelope((await service.recoverMaintenance()) ?? { recovered: false }), 0); }
+    if (name === "apply-maintenance") { const id = arg(1); mode = "execute"; return output(envelope(await service.applyMaintenance(id, controls())), 0); }
+    if (name === "recover-maintenance") { arg(0); mode = "recover"; return output(envelope((await service.recoverMaintenance(controls())) ?? { recovered: false }), 0); }
     if (name === "maintenance") {
       arg(0); if (!opts.has("dry-run")) invalid("maintenance currently requires --dry-run");
       const number = (key: string) => { const raw = value(key); if (raw === undefined) return undefined; if (!/^\d+$/u.test(raw) || !Number.isSafeInteger(Number(raw))) invalid(`Invalid --${key}`); return Number(raw); };
       const days = number("ttl-days"), count = number("keep-newest"), bytes = number("max-bytes");
       mode = "preview";
-      return output(envelope(await service.planMaintenance({ ...(days === undefined ? {} : { ttlMs: days * 86400000 }), ...(count === undefined ? {} : { keepNewest: count }), ...(bytes === undefined ? {} : { maxBytes: bytes }) })), 0);
+      return output(envelope(await service.planMaintenance({ ...(days === undefined ? {} : { ttlMs: days * 86400000 }), ...(count === undefined ? {} : { keepNewest: count }), ...(bytes === undefined ? {} : { maxBytes: bytes }) }, controls())), 0);
     }
-    if (name === "adapter.inspect-upgrade") { const adapter = arg(1); if (!value("module")) invalid("--module is required"); return output(envelope(await service.inspectAdapterUpgrade({ name: adapter, module: value("module")! })), 0); }
-    if (name === "recover") { arg(0); mode = "recover"; return output(envelope(await service.recover()), 0); }
-    if (name === "apply-plan") { const id = arg(1); mode = "execute"; return output(envelope(await service.apply(id)), 0); }
-    if (name === "doctor") { const coordinate = arg(1, true); const report = await service.doctor(coordinate ? { coordinate } : {}); return output(envelope(report, report.healthy), report.healthy ? 0 : report.findings.some(f => f.code.startsWith("RECOVERY_")) ? 3 : 1); }
+    if (name === "adapter.inspect-upgrade") { const adapter = arg(1); if (!value("module")) invalid("--module is required"); return output(envelope(await service.inspectAdapterUpgrade({ name: adapter, module: value("module")! }, controls())), 0); }
+    if (name === "recover") { arg(0); mode = "recover"; return output(envelope(await service.recover(controls())), 0); }
+    if (name === "apply-plan") { const id = arg(1); mode = "execute"; return output(envelope(await service.apply(id, controls())), 0); }
+    if (name === "doctor") { const coordinate = arg(1, true); const report = await service.doctor(coordinate ? { coordinate } : {}, controls()); return output(envelope(report, report.healthy), report.healthy ? 0 : report.findings.some(f => f.code.startsWith("RECOVERY_")) ? 3 : 1); }
     if (readonly) {
       const kind = name === "tap.list" ? "taps" : name === "adapter.list" ? "adapters" : name;
       const query = kind === "info" ? { kind: "info" as const, coordinate: arg(1) } : kind === "search" ? { kind: "search" as const, ...(arg(1, true) ? { text: positional[0]! } : {}) } : (arg(0), { kind: kind as "list" | "taps" | "adapters" | "outdated" });
-      return output(envelope(await service.query(query)), 0);
+      return output(envelope(await service.query(query, controls())), 0);
     }
     let request: ChangeRequest;
     switch (name) {
@@ -93,7 +101,7 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
       case "link": case "unlink": {
         const coordinate = arg(1); let selected = placement();
         if (!opts.has("scope")) {
-          const installed = await service.query({ kind: "list" });
+          const installed = await service.query({ kind: "list" }, controls());
           const asset = resolveAsset(installed.assets, coordinate);
           const matches = installed.requirements.filter(r => r.ownerId === "manual" && r.rootCoordinate === asset.coordinate).flatMap(r => r.placements)
             .filter(p => p.target === selected.target && (!value("root") || p.rootOverride === selected.rootOverride));
@@ -109,10 +117,10 @@ export async function runCli(argv: string[], io: CliIO = { stdout: message => pr
       default: invalid("Unsupported command");
     }
     mode = opts.has("dry-run") ? "preview" : "execute";
-    return output(envelope(mode === "preview" ? await service.plan(request) : await service.execute(request)), 0);
+    return output(envelope(mode === "preview" ? await service.plan(request, controls()) : await service.execute(request, controls())), 0);
   } catch (cause) {
     const error = cause instanceof HarnessError ? cause : new HarnessError("INTERNAL_ERROR", cause instanceof Error ? cause.message : "Unexpected failure.", {}, { cause });
-    const code = ["RECOVERY_REQUIRED", "RECOVERY_CONFLICT"].includes(error.code) ? 3 : ["INVALID_ARGUMENT", "INVALID_STATE", "UNSUPPORTED_FORMAT"].includes(error.code) ? 2 : error.code === "INTERNAL_ERROR" ? 4 : 1;
-    return output({ format: "harnessbrew.result", version: 1, ok: false, command, mode, diagnostics: [], error: { code: error.code, message: error.message, details: error.details, ...(code === 3 ? { recovery: { action: "recover", preserve: "transaction.json and affected resources" } } : {}) } }, code);
+    const code = error.code === "OPERATION_ABORTED" ? 130 : error.code === "OPERATION_TIMEOUT" ? 124 : ["RECOVERY_REQUIRED", "RECOVERY_CONFLICT"].includes(error.code) ? 3 : ["INVALID_ARGUMENT", "INVALID_STATE", "UNSUPPORTED_FORMAT"].includes(error.code) ? 2 : error.code === "INTERNAL_ERROR" ? 4 : 1;
+    return output({ format: "harnessbrew.result", version: 1, ok: false, command, mode, diagnostics: [], error: { code: error.code, message: error.message, details: error.details, ...(code === 3 ? { recovery: { action: error.recovery?.action ?? "recover", preserve: "journal and affected resources" } } : {}) } }, code);
   } finally { await service?.close(); }
 }
