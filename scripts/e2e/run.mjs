@@ -13,8 +13,11 @@ import { upgradeRepairScenario } from "./scenarios/upgrade-repair.mjs";
 
 import { adapterUpgradeScenario } from "./scenarios/adapter-upgrade.mjs";
 
+import { maintenanceControlsScenario } from "./scenarios/maintenance-controls.mjs";
+
 const runnerPath = fileURLToPath(import.meta.url);
 const scenarioRegistry = new Map([
+  ["maintenance-controls", maintenanceControlsScenario],
   ["adapter-upgrade", adapterUpgradeScenario],
   ["lifecycle", lifecycleScenario],
   ["bundle-reproduction", bundleReproductionScenario],
@@ -39,7 +42,7 @@ export async function runPackagedE2E({
   checksumsPath,
   cachePath,
   reportDirectory,
-  scenarios = ["adapter-upgrade", "lifecycle", "target-matrix", "upgrade-repair", "bundle-reproduction", "cli-contract"],
+  scenarios = ["maintenance-controls", "adapter-upgrade", "lifecycle", "target-matrix", "upgrade-repair", "bundle-reproduction", "cli-contract"],
   keepOnFailure = false
 }) {
   const environment = await createE2EEnvironment({

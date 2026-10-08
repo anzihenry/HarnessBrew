@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.3.0 - 2026-10-08
+
+### Added
+
+- preview and explicitly apply conservative cache/revision retention, with journaled deletion and resumable maintenance recovery
+- protect live preparation leases, valid saved plans, registered plugins, catalog snapshots, CURRENT and user quarantine evidence
+- support SDK cancellation, deadlines, isolated progress callbacks and draining close; CLI progress uses stderr and signals finish safely
+- return typed effects and explicit commit/maintenance outcomes
+
+### Changed
+
+- expire saved plans after 30 days; regenerate expired plans explicitly
+- roll back cancellation before durable commit, preserve committed outcomes afterward, and finish recovery without cancellation
+- retain ordinary plan v2, upgrade plan v3 and Home/Journal/Bundle v1 formats; existing built-in Adapter registrations require explicit upgrade when signatures change
+
+### Limits
+
+- retention budgets are advisory; unknown objects, referenced history, cross-cache references and bare Git repositories may remain
+- retained revisions are not complete rollback backups; preserve Home, managed targets and Bundle locks together
+- candidate verification and real-runtime evidence are recorded separately from production publication
+
 ## 1.2.0 - 2026-10-07
 
 ### Added
