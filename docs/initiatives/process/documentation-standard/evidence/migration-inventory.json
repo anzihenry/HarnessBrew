@@ -1,0 +1,750 @@
+{
+  "baseline": "5cf66d7cf12673f7c3a6a433d73f84fb4766db49",
+  "date": "2026-10-09",
+  "files": [
+    {
+      "source": "CHANGELOG.md",
+      "sha256": "c9bea14434a248986088d4d2e5e115530ba4e693a7aa9e343a33e719e63db899",
+      "action": "translate",
+      "targets": [
+        "CHANGELOG.md",
+        "CHANGELOG.en.md"
+      ],
+      "reason": "保留全部原英文变更条目，中文逐条翻译，新增文档变更摘要"
+    },
+    {
+      "source": "README.md",
+      "sha256": "52a2cd90a84060ef001f5062ec60f16e346728614e17d98533bf2e80d1de2923",
+      "action": "replace",
+      "targets": [
+        "README.md",
+        "README.en.md",
+        "docs/guides/README.md"
+      ],
+      "reason": "中文主语言并拆分详细指南"
+    },
+    {
+      "source": "README.zh-CN.md",
+      "sha256": "9118141e1cbc32ea63de6c54270c3d58546ed1c13d24f3335dea41333ad9b1fa",
+      "action": "replace",
+      "targets": [
+        "README.md",
+        "README.en.md",
+        "docs/guides/README.md"
+      ],
+      "reason": "中文主语言并拆分详细指南"
+    },
+    {
+      "source": "docs/README.en.md",
+      "sha256": "142b0ca653df379946c1c6ba26ff32a14880c321a425d378d4df17463dc5b672",
+      "action": "replace",
+      "targets": [
+        "docs/README.en.md"
+      ],
+      "reason": "新规范执行和迁移状态替换草案限定内容"
+    },
+    {
+      "source": "docs/architecture.md",
+      "sha256": "c997ab579d9745d3046d8a7d059cb115e368cbd98a5225a8fb698142fd115ce6",
+      "action": "move",
+      "targets": [
+        "docs/engineering/architecture.en.md"
+      ],
+      "reason": "架构更新至A/B/C当前状态"
+    },
+    {
+      "source": "docs/architecture.zh-CN.md",
+      "sha256": "dfec56773735d952ec518a615a9d31a2e24aae8f97f6974abd6b293ce65add25",
+      "action": "move",
+      "targets": [
+        "docs/engineering/architecture.md"
+      ],
+      "reason": "架构更新至A/B/C当前状态"
+    },
+    {
+      "source": "docs/README.md",
+      "sha256": "849371c17bf59478827e992fc602c5394ba3865b1271e4a8a1f4315c9ce509a1",
+      "action": "replace",
+      "targets": [
+        "docs/README.md"
+      ],
+      "reason": "新规范执行和迁移状态替换草案限定内容"
+    },
+    {
+      "source": "docs/documentation.en.md",
+      "sha256": "33aa1c8322bea118b972e6372b70d80c6e840ce88bf72aaf74cbe81b577ea369",
+      "action": "replace",
+      "targets": [
+        "docs/documentation.en.md"
+      ],
+      "reason": "新规范执行和迁移状态替换草案限定内容"
+    },
+    {
+      "source": "docs/documentation.md",
+      "sha256": "3df894545e1e4b97d74aff4e8cd6a73bf633f90f6b17563a3db30e9a00ad2a3d",
+      "action": "replace",
+      "targets": [
+        "docs/documentation.md"
+      ],
+      "reason": "新规范执行和迁移状态替换草案限定内容"
+    },
+    {
+      "source": "docs/design/file-lock-protocol.zh-CN.md",
+      "sha256": "06e67ea5ffc1cf89aa41b190eb8c3d1650d4e949b416b5971b5b73899056a2d7",
+      "action": "replace",
+      "targets": [
+        "docs/engineering/file-locks.md"
+      ],
+      "reason": "当前协议复核并补英文，移除未来GC表述"
+    },
+    {
+      "source": "docs/design/architecture-improvement-tasks.zh-CN.md",
+      "sha256": "39d7d1618b3fb46e6042b2d954dc54cec5c3aa86efad53983d46d7833ddc457a",
+      "action": "consolidate",
+      "targets": [
+        "docs/planning/delivery-history.md",
+        "docs/initiatives/README.md"
+      ],
+      "reason": "失效估计/拟议接口删除，完成结果与跨批依赖保留"
+    },
+    {
+      "source": "docs/design/architecture-improvement-plan.zh-CN.md",
+      "sha256": "b0121d8816ab902f2884520b7c7408df65c7c927e7c29782adcb9b5fe81173b9",
+      "action": "consolidate",
+      "targets": [
+        "docs/planning/delivery-history.md",
+        "docs/initiatives/README.md"
+      ],
+      "reason": "失效估计/拟议接口删除，完成结果与跨批依赖保留"
+    },
+    {
+      "source": "docs/design/batch-a-invariants.zh-CN.md",
+      "sha256": "bb0642068dfc588ae7d9ea94ed494ef6f435cf131ee3d85aeb586334771c4730",
+      "action": "consolidate",
+      "targets": [
+        "docs/initiatives/refactor/preparation-boundary/README.md"
+      ],
+      "reason": "当前不变量与测试引用收口"
+    },
+    {
+      "source": "docs/design/maintenance-retention.zh-CN.md",
+      "sha256": "f6a868f1894b08c8cbaf346280c86599b125551534c6570b127f813c06e7c92d",
+      "action": "replace",
+      "targets": [
+        "docs/engineering/maintenance-retention.md"
+      ],
+      "reason": "以当前维护协议替换逐批实施时态"
+    },
+    {
+      "source": "docs/design/phase5-implementation.zh-CN.md",
+      "sha256": "db12c8f9a3814b1c22855cf75c3250ed57fbd8e232af8839e8f07a070a6ee941",
+      "action": "consolidate",
+      "targets": [
+        "docs/initiatives/refactor/unified-state-transactions/README.md",
+        "docs/engineering/contracts.md",
+        "docs/engineering/architecture.md"
+      ],
+      "reason": "旧阶段和目标契约合并为历史结果与当前依据"
+    },
+    {
+      "source": "docs/design/phase6-implementation.zh-CN.md",
+      "sha256": "bd6b7c3449870e1f9dffe7d7f12aca0dcb9ff133879dac68e17f4d7fd960246e",
+      "action": "consolidate",
+      "targets": [
+        "docs/initiatives/refactor/unified-state-transactions/README.md",
+        "docs/engineering/contracts.md",
+        "docs/engineering/architecture.md"
+      ],
+      "reason": "旧阶段和目标契约合并为历史结果与当前依据"
+    },
+    {
+      "source": "docs/design/refactor-architecture.zh-CN.md",
+      "sha256": "3375a829383b93375944c74d2562e115de5fc015cba70018323a47fdabb884e6",
+      "action": "consolidate",
+      "targets": [
+        "docs/initiatives/refactor/unified-state-transactions/README.md",
+        "docs/engineering/contracts.md",
+        "docs/engineering/architecture.md"
+      ],
+      "reason": "旧阶段和目标契约合并为历史结果与当前依据"
+    },
+    {
+      "source": "docs/design/content-lifecycle.zh-CN.md",
+      "sha256": "6ad242933be5a6cae6f3d560ba38fe7f14f15096636c13fec0236cb6a9897c0c",
+      "action": "consolidate",
+      "targets": [
+        "docs/engineering/content-lifecycle.md",
+        "docs/initiatives/feature/content-lifecycle/README.md"
+      ],
+      "reason": "当前契约与历史交付分离"
+    },
+    {
+      "source": "docs/design/phase2-implementation.zh-CN.md",
+      "sha256": "b084bd1eb871460b9ee9e97761cb2dd79d5ac7737d18608ac59bd74ceab4033a",
+      "action": "consolidate",
+      "targets": [
+        "docs/initiatives/refactor/unified-state-transactions/README.md",
+        "docs/engineering/contracts.md",
+        "docs/engineering/architecture.md"
+      ],
+      "reason": "旧阶段和目标契约合并为历史结果与当前依据"
+    },
+    {
+      "source": "docs/design/phase4-implementation.zh-CN.md",
+      "sha256": "6fdb8cc0f7f1469fdf0203703454917991fd4a37d4ea0a27d107ec4ed64b1112",
+      "action": "consolidate",
+      "targets": [
+        "docs/initiatives/refactor/unified-state-transactions/README.md",
+        "docs/engineering/contracts.md",
+        "docs/engineering/architecture.md"
+      ],
+      "reason": "旧阶段和目标契约合并为历史结果与当前依据"
+    },
+    {
+      "source": "docs/design/refactor-contracts.zh-CN.md",
+      "sha256": "5fec4bdb1c334a5dc934fdfc9e3769e8eb3ce602baede0427131ea752c5de3f9",
+      "action": "consolidate",
+      "targets": [
+        "docs/initiatives/refactor/unified-state-transactions/README.md",
+        "docs/engineering/contracts.md",
+        "docs/engineering/architecture.md"
+      ],
+      "reason": "旧阶段和目标契约合并为历史结果与当前依据"
+    },
+    {
+      "source": "docs/design/content-lifecycle-implementation.zh-CN.md",
+      "sha256": "a7c26ffc2102d4d4ae042dfd77a3fe13f0deaa1a4b421eb7bcfd791c313fa60a",
+      "action": "consolidate",
+      "targets": [
+        "docs/engineering/content-lifecycle.md",
+        "docs/initiatives/feature/content-lifecycle/README.md"
+      ],
+      "reason": "当前契约与历史交付分离"
+    },
+    {
+      "source": "docs/design/refactor-acceptance.zh-CN.md",
+      "sha256": "af65e18ab5173d44db2e361f121aab68f5db1dd1347446697e4fe9c6c1f7a67c",
+      "action": "consolidate",
+      "targets": [
+        "docs/initiatives/refactor/unified-state-transactions/README.md",
+        "docs/engineering/contracts.md",
+        "docs/engineering/architecture.md"
+      ],
+      "reason": "旧阶段和目标契约合并为历史结果与当前依据"
+    },
+    {
+      "source": "docs/design/operation-control.zh-CN.md",
+      "sha256": "5d83a538e21ce98e978aaf8cb23ff6c98b0ea34d57b893506ef0b031a92e106e",
+      "action": "replace",
+      "targets": [
+        "docs/engineering/operation-control.md"
+      ],
+      "reason": "保留当前取消/提交/close语义"
+    },
+    {
+      "source": "docs/design/batch-b-compatibility.zh-CN.md",
+      "sha256": "de7bc79bac8c2a1969d1978327fe6152e7691e9340024a4ba7852465113e9b50",
+      "action": "consolidate",
+      "targets": [
+        "docs/engineering/adapter-upgrades.md",
+        "docs/initiatives/feature/adapter-upgrade/README.md"
+      ],
+      "reason": "保留兼容范围与历史验证边界"
+    },
+    {
+      "source": "docs/design/adr-001-preparation-and-adapter-upgrade.zh-CN.md",
+      "sha256": "709ffa09bf47bb6c6e04e8af731e58889edcd2d82a6fe0a327b69d0f72a7479d",
+      "action": "replace",
+      "targets": [
+        "docs/engineering/decisions/0001-preparation-and-adapter-upgrade.md"
+      ],
+      "reason": "复核已实施决策、备选和后果"
+    },
+    {
+      "source": "docs/design/phase3-implementation.zh-CN.md",
+      "sha256": "665d732bcede099bb69c489c6c14fb16b979e523bb762f2920f5e647c9a294c4",
+      "action": "consolidate",
+      "targets": [
+        "docs/initiatives/refactor/unified-state-transactions/README.md",
+        "docs/engineering/contracts.md",
+        "docs/engineering/architecture.md"
+      ],
+      "reason": "旧阶段和目标契约合并为历史结果与当前依据"
+    },
+    {
+      "source": "docs/design/phase7-implementation.zh-CN.md",
+      "sha256": "054c9193755035e850dfe81ea10d05341f7929f70d372166a1cbbf8656ac266a",
+      "action": "consolidate",
+      "targets": [
+        "docs/initiatives/refactor/unified-state-transactions/README.md",
+        "docs/engineering/contracts.md",
+        "docs/engineering/architecture.md"
+      ],
+      "reason": "旧阶段和目标契约合并为历史结果与当前依据"
+    },
+    {
+      "source": "docs/releases/release-runbook.md",
+      "sha256": "df0790f80def9770df230047d5549c060a886f7fa4e7c30219b93416c0c0c286",
+      "action": "move",
+      "targets": [
+        "docs/guides/releasing.md",
+        "docs/guides/releasing.en.md"
+      ],
+      "reason": "中文翻译及当前通用发布流程"
+    },
+    {
+      "source": "docs/releases/release-0.7.1.md",
+      "sha256": "2835b5bc03487e2fe9fee45b1f377765c06917a5bf9aeff88619b63004584bea",
+      "action": "delete",
+      "targets": [
+        "CHANGELOG.md",
+        "CHANGELOG.en.md"
+      ],
+      "reason": "重复/过时发布执行计划删除，版本变更历史保留在 CHANGELOG"
+    },
+    {
+      "source": "docs/releases/release-1.2.0.md",
+      "sha256": "a116a8ab02f8b2aeeea39548e3e0632657bd8d1dacb9fe482d75476a3a674e71",
+      "action": "replace",
+      "targets": [
+        "docs/releases/1.2.0/README.md",
+        "docs/releases/1.2.0/README.en.md"
+      ],
+      "reason": "真实候选状态替换陈旧计划，引用原始证据"
+    },
+    {
+      "source": "docs/releases/release-0.6.0.md",
+      "sha256": "50c3448a5f6887c419d210a11a2747770d2b82fc85d315b43ac7e8b58f380c14",
+      "action": "delete",
+      "targets": [
+        "CHANGELOG.md",
+        "CHANGELOG.en.md"
+      ],
+      "reason": "重复/过时发布执行计划删除，版本变更历史保留在 CHANGELOG"
+    },
+    {
+      "source": "docs/releases/release-0.7.0.md",
+      "sha256": "c7f23f888f16612050efb46aef4ffdb4ccdfa6c7427774ad8d782a8bbfdc266f",
+      "action": "delete",
+      "targets": [
+        "CHANGELOG.md",
+        "CHANGELOG.en.md"
+      ],
+      "reason": "重复/过时发布执行计划删除，版本变更历史保留在 CHANGELOG"
+    },
+    {
+      "source": "docs/releases/release-1.3.0.md",
+      "sha256": "4f342b8de2a88770163b384fbb25dfff0411d5a93022973f038b5657a1464ed4",
+      "action": "replace",
+      "targets": [
+        "docs/releases/1.3.0/README.md",
+        "docs/releases/1.3.0/README.en.md"
+      ],
+      "reason": "真实候选状态替换陈旧计划，引用原始证据"
+    },
+    {
+      "source": "docs/releases/batch-a-acceptance.zh-CN.md",
+      "sha256": "760283eaec8a35de02545fde8ffd0be4a38432b9ba3358802e8fa5f89c4f7d7b",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.1.0/validation.md",
+        "docs/releases/1.1.0/validation.en.md"
+      ],
+      "reason": "完整验收内容双语并按版本管理"
+    },
+    {
+      "source": "docs/releases/release-0.6.1.md",
+      "sha256": "1c80cbfcdda65319223397b1d76c302095265b2cccbc397c6fbed9ab1f73b320",
+      "action": "delete",
+      "targets": [
+        "CHANGELOG.md",
+        "CHANGELOG.en.md"
+      ],
+      "reason": "重复/过时发布执行计划删除，版本变更历史保留在 CHANGELOG"
+    },
+    {
+      "source": "docs/releases/batch-c-acceptance.zh-CN.md",
+      "sha256": "1cdb10616462d17c2dde48682d00c4b3bf4be259475eff96f162b1e452ccd882",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.3.0/validation.md",
+        "docs/releases/1.3.0/validation.en.md"
+      ],
+      "reason": "完整验收内容双语并按版本管理"
+    },
+    {
+      "source": "docs/releases/batch-b-acceptance.zh-CN.md",
+      "sha256": "ae16acccbb73f278dabb84f70481765155e9e66ec4a2eea963cf5d1a68334274",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.2.0/validation.md",
+        "docs/releases/1.2.0/validation.en.md"
+      ],
+      "reason": "完整验收内容双语并按版本管理"
+    },
+    {
+      "source": "docs/releases/release-0.5.2.md",
+      "sha256": "be8e7f802eb00fb48bb9deda5456993fbacf23c982cb06e193fe54f48b4ecb0c",
+      "action": "delete",
+      "targets": [
+        "CHANGELOG.md",
+        "CHANGELOG.en.md"
+      ],
+      "reason": "重复/过时发布执行计划删除，版本变更历史保留在 CHANGELOG"
+    },
+    {
+      "source": "docs/releases/release-0.8.0.md",
+      "sha256": "51f57eba72f664c129d41e93f4304f20f4fc1ed14f38e6fb720faa890e57284e",
+      "action": "delete",
+      "targets": [
+        "CHANGELOG.md",
+        "CHANGELOG.en.md"
+      ],
+      "reason": "重复/过时发布执行计划删除，版本变更历史保留在 CHANGELOG"
+    },
+    {
+      "source": "docs/releases/release-0.6.2.md",
+      "sha256": "78ccd949fb3abb9b3fd3ca9caff003a87449c73048be757046225a85ff735295",
+      "action": "delete",
+      "targets": [
+        "CHANGELOG.md",
+        "CHANGELOG.en.md"
+      ],
+      "reason": "重复/过时发布执行计划删除，版本变更历史保留在 CHANGELOG"
+    },
+    {
+      "source": "docs/releases/release-1.0.0.md",
+      "sha256": "0704f3be9cde3a6afb56cea26b609f6833181e3bdf251b73862930df14501298",
+      "action": "replace",
+      "targets": [
+        "docs/releases/1.0.0/README.md",
+        "docs/releases/1.0.0/README.en.md"
+      ],
+      "reason": "真实候选状态替换陈旧计划，引用原始证据"
+    },
+    {
+      "source": "docs/releases/release-0.5.1.md",
+      "sha256": "cd261f5ffae97c3bc4ffe6ebce441475ebc96500c035da6c75df37d86d651bda",
+      "action": "delete",
+      "targets": [
+        "CHANGELOG.md",
+        "CHANGELOG.en.md"
+      ],
+      "reason": "重复/过时发布执行计划删除，版本变更历史保留在 CHANGELOG"
+    },
+    {
+      "source": "docs/releases/release-1.1.0.md",
+      "sha256": "e97ea35c6cb7dacf19a8bd3931fedcfe29fa31f173d484df8a865f73b46f21dd",
+      "action": "replace",
+      "targets": [
+        "docs/releases/1.1.0/README.md",
+        "docs/releases/1.1.0/README.en.md"
+      ],
+      "reason": "真实候选状态替换陈旧计划，引用原始证据"
+    },
+    {
+      "source": "docs/releases/release-0.5.0.md",
+      "sha256": "07c8fba1718aa7d9996637b19ce72d0c3e85acc8574839f774c646ca78a258c1",
+      "action": "delete",
+      "targets": [
+        "CHANGELOG.md",
+        "CHANGELOG.en.md"
+      ],
+      "reason": "重复/过时发布执行计划删除，版本变更历史保留在 CHANGELOG"
+    },
+    {
+      "source": "docs/initiatives/README.en.md",
+      "sha256": "0997d1ce9197f243c9762d739cbe6ae4c0f65bb5c73048c521fdadb76466bac8",
+      "action": "replace",
+      "targets": [
+        "docs/initiatives/README.en.md"
+      ],
+      "reason": "新规范执行和迁移状态替换草案限定内容"
+    },
+    {
+      "source": "docs/initiatives/README.md",
+      "sha256": "872cfd9a523b1816b2be5b3307941c66584363be4bcfc964a2e010464d374d1e",
+      "action": "replace",
+      "targets": [
+        "docs/initiatives/README.md"
+      ],
+      "reason": "新规范执行和迁移状态替换草案限定内容"
+    },
+    {
+      "source": "docs/benchmarks/batch-a-baseline.json",
+      "sha256": "93f1bc6bd6e92e840c429a034fdca8ec7843f5cf0ce6edc5f372c88446ddf263",
+      "action": "move",
+      "targets": [
+        "docs/initiatives/refactor/preparation-boundary/evidence/batch-a-baseline.json"
+      ],
+      "reason": "基准原始数据逐字保留"
+    },
+    {
+      "source": "docs/benchmarks/README.md",
+      "sha256": "45d9d6853c392951bb685c80e8c5c45208fc85b455b44173d977093be571186e",
+      "action": "consolidate",
+      "targets": [
+        "docs/guides/benchmarking.md",
+        "docs/initiatives/refactor/preparation-boundary/benchmark.md"
+      ],
+      "reason": "运行方法与历史结果分离"
+    },
+    {
+      "source": "docs/benchmarks/batch-a-after.json",
+      "sha256": "871f101e8bc96a061d6040b8663b7eadc05e6201852c4e227cf2314d8d5ae2c3",
+      "action": "move",
+      "targets": [
+        "docs/initiatives/refactor/preparation-boundary/evidence/batch-a-after.json"
+      ],
+      "reason": "基准原始数据逐字保留"
+    },
+    {
+      "source": "docs/initiatives/process/documentation-standard/README.en.md",
+      "sha256": "15d4e8a055972394bdf8cd0a364ca73bc70a8c606ef154812d33ff4b34b79321",
+      "action": "replace",
+      "targets": [
+        "docs/initiatives/process/documentation-standard/README.en.md"
+      ],
+      "reason": "新规范执行和迁移状态替换草案限定内容"
+    },
+    {
+      "source": "docs/initiatives/process/documentation-standard/validation.en.md",
+      "sha256": "2759b1dccc9455e294ddf5b5867c6cdef0c7a584fa248ea6ef6b956e9c08abd5",
+      "action": "replace",
+      "targets": [
+        "docs/initiatives/process/documentation-standard/validation.en.md"
+      ],
+      "reason": "新规范执行和迁移状态替换草案限定内容"
+    },
+    {
+      "source": "docs/initiatives/process/documentation-standard/validation.md",
+      "sha256": "355e47e78c98aa0b3226f4abdd23406e3817d8c81092e563077f52683624cb9a",
+      "action": "replace",
+      "targets": [
+        "docs/initiatives/process/documentation-standard/validation.md"
+      ],
+      "reason": "新规范执行和迁移状态替换草案限定内容"
+    },
+    {
+      "source": "docs/initiatives/process/documentation-standard/README.md",
+      "sha256": "9f71545835de8897e8df1a370d4abe62c489eed0fcf0ffb67c9040e0d7c5ee51",
+      "action": "replace",
+      "targets": [
+        "docs/initiatives/process/documentation-standard/README.md"
+      ],
+      "reason": "新规范执行和迁移状态替换草案限定内容"
+    },
+    {
+      "source": "docs/initiatives/process/documentation-standard/evidence/check-draft.mjs",
+      "sha256": "ac7ace79a9ce284744b00290cb2e32618e3819e4e03a7379e1636cc0e06c92a2",
+      "action": "delete",
+      "targets": [],
+      "reason": "草案限定脚本/摘要被全仓库检查与新评审替代"
+    },
+    {
+      "source": "docs/initiatives/process/documentation-standard/evidence/independent-review.json",
+      "sha256": "ffd1b2cfb81fcd6eab03777cd31c2d3f8a8051ce0a14bd7617bb9c2e98262b40",
+      "action": "replace",
+      "targets": [
+        "docs/initiatives/process/documentation-standard/evidence/independent-review.json"
+      ],
+      "reason": "用全仓库独立评审替换已失效草案评审；不是兼容路径"
+    },
+    {
+      "source": "docs/initiatives/process/documentation-standard/evidence/draft-check.json",
+      "sha256": "11291ac8838d5d9f51462bebf96761bb4738ac972d427398bc653402d0e3bc85",
+      "action": "delete",
+      "targets": [],
+      "reason": "草案限定脚本/摘要被全仓库检查与新评审替代"
+    },
+    {
+      "source": "docs/releases/evidence/batch-a/release-gate-linux.json",
+      "sha256": "12ddfdde0f0aecf5c62af362f39444010088a81569b6b5c5c7acd2878047ccfa",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.1.0/evidence/release-gate-linux.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-a/runtime-report.json",
+      "sha256": "a34054366a3a15945e5578e3214b6bd7526120578dc5be1d5bbaabecb4ba025d",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.1.0/evidence/runtime-report.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-a/runtime-report-initial-failed.json",
+      "sha256": "5d8e0677f9779143846e8430d13dff354a22d15d1ac963454ea0c7b268b35bfd",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.1.0/evidence/runtime-report-initial-failed.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-a/artifact-manifest.json",
+      "sha256": "ad22959694cf3ef10ec50117ded00c3c2f3d2e0a21b55d1ee47534098bb43db1",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.1.0/evidence/artifact-manifest.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-a/release-gate-macos.json",
+      "sha256": "e01e38405245a62b77d610ae77f9abbe1fc1f3b25cf1d54fb70c8b3b63a6870a",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.1.0/evidence/release-gate-macos.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-a/SHA256SUMS",
+      "sha256": "4126a14239266fba37030f9250640b3881823cc4ab88621077469cb3d022eb5b",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.1.0/evidence/SHA256SUMS"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-c/adapter-upgrade-report.json",
+      "sha256": "a1837b70360dbd5ee22fdd6d5e812deacc8dcfae71001f649fe87be22ce5e6d4",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.3.0/evidence/adapter-upgrade-report.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-c/e2e-linux.md",
+      "sha256": "3bc4c109b1c04d6525ecacc3ae5db30f3d3951d23fb0439a94543020d50d0dfd",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.3.0/evidence/e2e-linux.md"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-c/release-gate-linux.json",
+      "sha256": "9e2c9b368ec905906f6295512df9800c048aaea0dcc9d0a9a761edb5f8f62fc3",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.3.0/evidence/release-gate-linux.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-c/runtime-report.json",
+      "sha256": "b8c36f2c76fc53128c43977698a2b4b65aaf8ff42a98dca9f7fcb3ef40df2f42",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.3.0/evidence/runtime-report.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-c/test-summary.json",
+      "sha256": "869fe63d80f07af7af2d722a564d882c797d278bb4190c2e84df3c800aa02361",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.3.0/evidence/test-summary.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-c/artifact-manifest.json",
+      "sha256": "a8b84be85cbe98450c99f83e35d514e00f7ea2eb6999159983a2a82c70f33932",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.3.0/evidence/artifact-manifest.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-c/e2e-macos.md",
+      "sha256": "9375bf056978036be8f49955d962cde1badbe4b415371ffb60bf4d9ce009e475",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.3.0/evidence/e2e-macos.md"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-c/release-gate-macos.json",
+      "sha256": "10d17f701e63befe2655cde82c30872e9a34a74527f4f3339ab5d09e11c5dd5f",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.3.0/evidence/release-gate-macos.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-c/SHA256SUMS",
+      "sha256": "ce6e42d58ac1ba1e76bca425811c2aa9674be2c34721180a35d19ccd4a163593",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.3.0/evidence/SHA256SUMS"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-b/adapter-upgrade-report.json",
+      "sha256": "843b73a4394a69dd0ff9a87e83cb909c9bbc223a390ecd66b63ad9c92ed4a8ad",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.2.0/evidence/adapter-upgrade-report.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-b/release-gate-linux.json",
+      "sha256": "30c575bf61f77e5267b15514be92ae6524600a101a88dc7b4e2f79e0a88888e5",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.2.0/evidence/release-gate-linux.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-b/runtime-report.json",
+      "sha256": "d0e0620182d59b2a3110135f452f332e8119115126de0aeed080e65924259bb9",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.2.0/evidence/runtime-report.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-b/artifact-manifest.json",
+      "sha256": "239a7bd9ae52c95a43a283d4ad19d4947b0d11f0f105f7edcbb049fd699c12b5",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.2.0/evidence/artifact-manifest.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-b/release-gate-macos.json",
+      "sha256": "ca9e9e255b4e22908072f13c6521a3569809ba0428eb8a80f99c896922650699",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.2.0/evidence/release-gate-macos.json"
+      ],
+      "reason": "候选原始证据逐字保留"
+    },
+    {
+      "source": "docs/releases/evidence/batch-b/SHA256SUMS",
+      "sha256": "9858d99f1fb191b21733356e1641ebdf91520e9429714175b14bda49b3315992",
+      "action": "move",
+      "targets": [
+        "docs/releases/1.2.0/evidence/SHA256SUMS"
+      ],
+      "reason": "候选原始证据逐字保留"
+    }
+  ]
+}

@@ -1,311 +1,322 @@
-# Changelog
+---
+title: 变更记录
+status: current
+owner: project-maintainers
+updated: 2026-10-09
+---
 
-All notable changes to this project will be documented in this file.
+# 变更记录
 
-## Unreleased
+[English](CHANGELOG.en.md)
+
+版本摘要保留历史语境，不代表当前支持或正式发布。1.x 候选与发布状态见[版本索引](docs/releases/README.md)。
+
+## 未发布
+
+- 采用全生命周期文档规范，迁移为中文主文件和英文配对，整理当前指南/契约/专题/版本证据，接入结构和独立评审检查。
 
 ## 1.3.0 - 2026-10-08
 
-### Added
+### 新增
 
-- preview and explicitly apply conservative cache/revision retention, with journaled deletion and resumable maintenance recovery
-- protect live preparation leases, valid saved plans, registered plugins, catalog snapshots, CURRENT and user quarantine evidence
-- support SDK cancellation, deadlines, isolated progress callbacks and draining close; CLI progress uses stderr and signals finish safely
-- return typed effects and explicit commit/maintenance outcomes
+- 预览并显式应用保守缓存/revision 保留策略，使用日志删除并支持恢复中断维护
+- 保护活跃准备租约、有效计划、注册插件、catalog 快照、CURRENT 和用户隔离证据
+- 支持 SDK 取消、期限、隔离进度回调和 close 排空；CLI 进度写 stderr，信号安全收尾
+- 返回类型化 effects 和明确提交/维护结果
 
-### Changed
+### 调整
 
-- expire saved plans after 30 days; regenerate expired plans explicitly
-- roll back cancellation before durable commit, preserve committed outcomes afterward, and finish recovery without cancellation
-- retain ordinary plan v2, upgrade plan v3 and Home/Journal/Bundle v1 formats; existing built-in Adapter registrations require explicit upgrade when signatures change
+- 保存计划 30 天后过期，必须显式重新生成
+- 持久提交前取消回滚，提交后保留结果，恢复不受取消中断
+- 普通计划 v2、升级 v3、Home/Journal/Bundle v1 保持；内置签名改变须显式升级
 
-### Fixed
+### 修复
 
-- resolve Home parent aliases before validating maintenance previews and saved-plan protection
+- 在验证维护预览和计划保护前解析 Home 父目录别名
 
-### Limits
+### 限制
 
-- retention budgets are advisory; unknown objects, referenced history, cross-cache references and bare Git repositories may remain
-- retained revisions are not complete rollback backups; preserve Home, managed targets and Bundle locks together
-- candidate verification and real-runtime evidence are recorded separately from production publication
+- 保留预算仅作报告；未知对象、引用历史、跨缓存引用和 bare Git 可能保留
+- revisions 不是完整回退备份，Home、目标和 Bundle lock 须一致保存
+- 候选验证和真实 runtime 证据与正式发布分别记录
 
 ## 1.2.0 - 2026-10-07
 
-### Added
+### 新增
 
-- inspect Adapter upgrade candidates without importing code, with signature coverage and affected installations/Bundle bindings
-- explicitly authorize candidate signatures and capabilities through SDK and CLI upgrade previews
-- atomically upgrade an Adapter registration, its targets and every affected Bundle lock without changing installed asset pins
-- retain other Adapters' operations and support explicit upgrades back to retained third-party packages
+- 不 import 代码地检查 Adapter 候选，报告签名覆盖和受影响安装/Bundle
+- 通过 SDK/CLI 预览显式授权候选摘要和能力
+- 同事务升级注册、目标和所有受影响 Bundle lock，资产 pins 不变
+- 保留其他 Adapter 操作，支持显式升级回保留的第三方旧包
 
-### Changed
+### 调整
 
-- derive built-in Adapter signatures from emitted runtime closure and production dependency locks; existing registrations require explicit upgrade
-- use saved-plan v3 for Adapter upgrades while retaining ordinary v2 previews and v1 Home/Journal/Bundle/CLI formats
-- validate all affected checkout inputs and all lock bytes before commit, preserving recovery evidence on external conflicts
+- 内置签名从 emitted runtime 闭包和生产依赖锁生成，已有注册须显式升级
+- 升级预览 v3，普通 v2，Home/Journal/Bundle/CLI v1 保持
+- 提交前验证所有 checkout 和 lock 字节，外部冲突保留恢复证据
 
-### Validation
+### 验证
 
-- cover manual and multi-Bundle upgrades, capability changes, stale inputs, real SIGKILL recovery and consistent backup rollback
-- include packaged Adapter identity/upgrade checks in release gates; final cross-platform and real runtime evidence is recorded separately
+- 覆盖手动/多 Bundle 升级、能力变化、输入漂移、真实 SIGKILL 和一致备份回退
+- release gate 包含打包 Adapter 身份/升级检查，最终跨平台及真实 runtime 证据单独记录
 
 ## 1.1.0 - 2026-10-06
 
-### Changed
+### 调整
 
-- prepare Git sources, verified adapters and content outside transaction write locks, then revalidate all evidence before commit
-- split application use cases behind internal injectable ports and enforce architectural import boundaries
-- strictly validate saved-plan v2; regenerate v1 previews, while Home/Journal/CLI result contracts remain v1
-- protect active preparation and saved preview caches with process leases and persistent references, including historical cache roots
-- reject stale concurrent work without automatic replanning; preserve journal commit/recovery semantics
+- Git、插件和内容准备在事务写锁外进行，提交前完整复验
+- 应用用例拆分为内部可注入端口，检查架构导入边界
+- 严格校验 saved-plan v2，v1 重新生成，Home/Journal/CLI result v1 保持
+- 进程租约和持久引用保护准备/保存预览缓存，包括历史根
+- 拒绝过期并发工作而不自动重规划，保留 Journal 提交/恢复语义
 
-### Validation
+### 验证
 
-- add multi-process contention, crash, stale-input and prepared-content integrity coverage
-- record six source-size benchmarks with reduced transaction lock hold time; candidate acceptance is tracked separately in release notes
+- 增加多进程竞争、崩溃、输入漂移和准备内容完整性覆盖
+- 记录六组来源规模基准及更短事务锁持有，候选验收单独记录
 
-### Content lifecycle (included from the development baseline)
+### 内容生命周期（纳入开发基线）
 
-- track managed content by digest independently of active assets, retaining upgrade history for verified reclamation
-- restore missing installed content from exact trusted commits; require `--restore-content` to quarantine modified originals before recovery
-- expose content changes, shared references and quarantine locations through CLI/SDK and grouped Doctor findings
-- require content inventory and quarantine fields in new Homes; earlier experimental Homes are not migrated
+- 内容以摘要独立登记，保留升级历史供核验回收
+- 从精确可信 commit 修复缺失内容，修改原件须 --restore-content 隔离
+- CLI/SDK 与 Doctor 分组提供内容变化、共享引用和隔离路径
+- 新 Home 必须有内容库存和隔离字段，旧实验 Home 不迁移
 
 ## 1.0.0 - 2026-10-02
 
-### Breaking changes
+### 破坏性变更
 
-- replace the legacy SDK with `createHarness`, typed business requests, and `HarnessError`; export plugin types from `harnessbrew/adapter`
-- require new versioned Home, source, asset, manifest, lock, plan, and plugin formats; old data is rejected without migration or deletion
-- remove legacy CLI aliases and use `remove`, `repair`, `bundle apply/detach`, and explicit source trust
-- replace Receipt/Cellar state with immutable content, usage requirements, resource ownership, and atomic CURRENT snapshots
+- 旧 SDK 替换为 createHarness、类型请求和 HarnessError；harnessbrew/adapter 导出插件类型
+- Home、来源、资产、Manifest、lock、plan、插件要求版本化格式，旧数据拒绝而不自动删除/迁移
+- 旧 CLI 别名移除，采用 remove、repair、bundle apply/detach 和显式来源信任
+- Receipt/Cellar 改为不可变内容、usage requirements、资源所有权和 CURRENT 原子快照
 
-### Added
+### 新增
 
-- unified dependency resolution and planning across manual installs, upgrades, placements, and independent Bundle bindings
-- read-only previews, host-saved plans, strict stale-plan checks, and exact portable Bundle locks
-- journaled execution and metadata updates, crash recovery, cross-Home locking, and verified orphan cleanup
-- grouped Doctor diagnostics, missing-target repair, scoped shared-resource overwrite, and signed link-only plugin authorization
-- versioned CLI JSON results and separate macOS, Linux, and authenticated runtime release evidence
+- 手动安装、升级、placement 和独立 Bundle 共用依赖解析/规划
+- 只读预览、宿主保存计划、严格漂移检查和精确可移植 Bundle lock
+- 日志执行/元数据、崩溃恢复、跨 Home 锁和核验孤立内容回收
+- Doctor 分组诊断、缺失目标修复、共享资源范围覆盖和签名链接插件授权
+- 版本化 CLI JSON 和独立 macOS/Linux/已认证 runtime 发布证据
 
-### Removed
+### 移除
 
-- the unused legacy backend and its dedicated test fixtures; all remaining tests exercise the current architecture or release tooling
+- 删除无用旧后端和专用夹具，剩余测试覆盖当前架构或发布工具
 
 ## 0.8.0 - 2026-09-17
 
-### Added
+### 新增
 
-- orchestrate candidate build, cross-platform gates, authenticated runtime evidence, one protected approval, and exact-byte publication from one release dispatch
-- verify complete fresh release evidence and publish a GitHub Release with six hash-checked attachments; safely resume identical npm publications without overwriting tags or assets
+- 一次 dispatch 编排候选构建、跨平台、真实 runtime、保护审批和精确字节发布
+- 验证完整新鲜证据与六个校验附件，安全继续相同 npm 发布而不覆盖 tag/资产
 
-### Fixed
+### 修复
 
-- reject Adapter records without an integrity baseline before importing any plugins; require explicit review and remove/re-add
-- label Adapter integrity as entry-file-only in records and CLI output, without claiming imported files or dependencies are covered
-- emit the versioned JSON error envelope for filesystem and unexpected CLI exceptions in JSON mode
-- use the public npm registry for all locked dependencies and project installs, avoiding npm 12 EALLOWREMOTE failures on clean installations
+- import 前拒绝无完整性基线的 Adapter，要求显式审查并移除/重新注册
+- 记录/CLI 标注 Adapter 仅验证入口文件，不声称覆盖导入和依赖
+- JSON 模式的文件系统/未知 CLI 异常使用版本化错误 envelope
+- 所有依赖和项目安装使用公共 npm registry，避免 npm12 EALLOWREMOTE
 
-### Changed
+### 调整
 
-- focus built-in Target support and runtime preflight on OpenAI Codex; remove the Claude Code Adapter and runtime probes
-- cover all 12 Codex Formula/scope placements and require every Codex runtime probe to pass
-- clean generated build output before compilation so removed modules cannot enter release packages
+- 内置 Target/runtime 只保留 OpenAI Codex，移除 Claude Code Adapter/探针
+- 覆盖 Codex 全部 12 种 Formula/scope 投放，每项 runtime 必须通过
+- 编译前清空生成目录，删除模块不进入发布包
 
-Existing receipts retain generic ownership-based cleanup; removed Targets cannot be linked, relinked, or upgraded without a compatible Adapter.
+当时已有 receipts 可按所有权清理；已移除 Target 需兼容 Adapter 才能链接/重投放/升级。
 
 ## 0.7.1 - 2026-09-07
 
-### Added
+### 新增
 
-- verify source compatibility on Node.js 22 with npm 11 and Node.js 24 with npm 12
-- record and verify the SHA-256 digest of each trusted Adapter module entry point before execution
+- 验证 Node22/npm11 和 Node24/npm12 源码兼容
+- 信任 Adapter 时记录入口 SHA-256，执行前核验
 
-### Changed
+### 调整
 
-- pin npm 11.17.0 for deterministic candidate builds and cross-platform release gates
-- document the implemented Tap/Formula architecture as current rather than aspirational
+- 固定 npm11.17.0 用于候选和跨平台 gate
+- 当前文档描述已实现 Tap/Formula 架构
 
-### Fixed
+### 修复
 
-- accept both npm 11 array output and npm 12 keyed-object output from `npm pack --json`
-- make concurrent artifact locking resilient to release and abandoned-lock races
+- 兼容 npm pack --json 的 npm11 数组和 npm12 按键对象输出
+- 并发产物锁处理释放及遗留锁竞争
 
 ## 0.7.0 - 2026-08-13
 
-### Added
+### 新增
 
-- add an immutable release artifact manifest and SHA-256 checksum generated from one npm tarball
-- add isolated packaged-CLI E2E coverage for the full Tap and Formula lifecycle, all 24 built-in Target placements, upgrades, doctor/relink, Bundle reproduction, cleanup, JSON errors, and dry-run rollback
-- add `release:gate` as the credential-free deterministic package gate shared by Linux and macOS
-- add `release:preflight` for authenticated local Codex and Claude Code Skill, Instruction, custom Agent, and MCP runtime probes
-- add redacted runtime evidence with candidate identity, CLI versions, failure classification, timings, and bounded structured event metadata
-- add release candidate, protected npm publication, and post-publication registry smoke workflows
-- add an operational release verification runbook
+- 单次 npm tarball 生成不可变 manifest 和 SHA-256
+- 隔离打包 CLI E2E 覆盖 Tap/Formula 全生命周期、24 种内置投放、升级、doctor/relink、Bundle、cleanup、JSON 和预览回滚
+- 添加 Linux/macOS 共用的无凭据 deterministic release:gate
+- 添加已认证 Codex/Claude Skill、Instruction、Agent、MCP 本地 release:preflight
+- 添加脱敏 runtime 证据：候选身份、CLI 版本、失败分类、时序和有限事件元数据
+- 添加候选、受保护 npm 发布和发布后 registry smoke 工作流
+- 添加发布验证操作指南
 
-### Changed
+### 调整
 
-- package smoke and E2E commands now require an explicit candidate tarball and never repack implicitly
-- CI builds a candidate once and verifies the same SHA-256 across Linux and macOS without model credentials
-- npm publication downloads an approved candidate by workflow run ID, verifies commit, tag, version, and digest, then publishes the existing tarball with provenance
+- package smoke/E2E 必须提供候选，不隐式重新打包
+- CI 单次构建并在 Linux/macOS 验证相同 SHA-256，不使用模型凭据
+- npm 发布按 workflow run ID 下载已批准候选，核对 commit/tag/version/digest 后带 provenance 发布同包
 
-### Fixed
+### 修复
 
-- remove Bundle formulas in dependent-before-dependency order during cleanup
-- keep transaction fingerprints current when multiple Target writes share newly created parent directories
-- serialize concurrent artifact builds so `npm pack` cannot race while `prepack` rewrites build output
+- Bundle cleanup 按依赖者先于依赖顺序删除
+- 多个 Target 写共享新父目录时保持事务指纹更新
+- 串行产物构建，避免 npm pack 与 prepack 输出改写竞争
 
 ## 0.6.2 - 2026-08-13
 
-### Security
+### 安全
 
-- replace personal account identifiers in README and architecture examples with neutral `your-name` placeholders
+- README/架构示例个人标识替换为中性 your-name
 
 ## 0.6.1 - 2026-08-13
 
-### Changed
+### 调整
 
-- upgrade GitHub CI and release workflows to `actions/checkout@v6` and `actions/setup-node@v6` while keeping HarnessBrew builds on Node.js 22
-- require Node.js 22 or later consistently in package metadata, CI, and installation documentation
-- make English the default README and architecture language while retaining complete Simplified Chinese editions
-- move historical release notes under `docs/releases` and remove obsolete roadmap, task-breakdown, and legacy walkthrough documents
-- add CI, npm version, Node.js support, and license badges to both README editions
+- CI/发布升级 checkout@v6 和 setup-node@v6，构建仍使用 Node22
+- 包元数据、CI、安装一致要求 Node22+
+- 当时以英文为 README/架构主语言，并保留完整简体中文
+- 历史发布说明移入 docs/releases，删除过时路线图、任务和旧 walkthrough
+- 两版 README 添加 CI、npm、Node 和许可证徽标
 
 ## 0.6.0 - 2026-08-13
 
-### Added
+### 新增
 
-- add a versioned JSON CLI envelope with command-level results and structured errors
-- add transactional `--dry-run` previews that report path fingerprints and roll back all managed changes
-- add Target Adapter API v1 with validated registration, Cellar-bounded symlink plans, transaction-managed execution, and lockfile version fingerprints
-- add explicit CLI management for trusted Adapter modules with persisted identity verification and transactional previews
+- 版本化 JSON CLI envelope，提供命令结果和结构化错误
+- 事务 dry-run 报告路径指纹并回滚受管变更
+- Target Adapter API v1：验证注册、Cellar 限定链接、事务执行和 lock 版本指纹
+- CLI 显式管理可信 Adapter 模块，持久身份校验和事务预览
 
-### Security
+### 安全
 
-- validate complete Receipt structures, canonical Cellar locations, operation metadata, owned keys, and all destructive paths before use
-- detect added, removed, modified, unsupported, and permission-changed Cellar files through exact inventory comparison
-- prevent forced cleanup from recursively deleting a real directory that replaced a managed directory symlink
-- serialize CLI mutations per HarnessBrew home and protect shared Target configuration updates across processes
-- recover interrupted mutations from durable write-ahead journals, including abandoned process locks and external Target files
-- add Harnessfile and lockfile v2 with structured scopes, portable paths, content digests, explicit lock refresh, and Target convergence
-- require explicit Tap trust before Target activation, enforce fast-forward updates by default, and roll back invalid Tap candidates
+- 破坏操作前验证 Receipt、Cellar 规范位置、操作元数据、归属键和路径
+- 库存精确检测新增/删除/修改/不支持/权限变化文件
+- 防止强制 cleanup 递归删除替换受管链接的真实目录
+- 每 Home CLI 变更串行，跨进程保护共享 Target 配置
+- 持久 write-ahead Journal 恢复中断操作、死亡锁和外部 Target 文件
+- Harnessfile/lockfile v2：结构 scope、可移植路径、内容摘要、显式 lock 刷新和 Target 收敛
+- Target 激活前要求 Tap 信任，默认快进更新，非法候选回滚
 
 ## 0.5.2 - 2026-08-13
 
-### Fixed
+### 修复
 
-- automated publication now passes npm an explicit local tarball path instead of a Git dependency specifier
-- release tests guard the exact artifact handoff between `npm pack` and `npm publish`
+- 自动发布传显式本地 tarball 路径，不被 npm 当作 Git 依赖
+- 发布测试保护 npm pack→npm publish 的精确产物交接
 
 ## 0.5.1 - 2026-08-13
 
-### Fixed
+### 修复
 
-- npm package metadata now preserves the `harnessbrew` executable mapping in the published tarball
-- package smoke tests run in clean CI environments without requiring an already-populated offline cache
-- release automation checks out and validates the exact release tag, builds one immutable tarball, and publishes that same artifact with provenance
-- release version consistency is now covered by an automated check across package metadata, source, changelog, and Git tags
+- 发布 tarball 包元数据保留 harnessbrew 可执行映射
+- package smoke 在干净 CI 运行，不要求预热离线缓存
+- 自动发布检出/验证精确 tag，构建一次并带 provenance 发布同包
+- 自动校验包、源码、CHANGELOG、Git tag 版本一致
 
 ## 0.5.0 - 2026-08-13
 
-### Added
+### 新增
 
-- explicit capability matrix and pure installation planners for OpenAI Codex and Claude Code
-- receipt schema v2 with transactional `symlink-directory`, `symlink-file`, `render-file`, `managed-block`, and `merge-config` operations
-- target-native Agent rendering, Workflow/Prompt-to-Skill projection, managed Instruction installation, and key-owned MCP configuration merging
-- user and project target scopes, including multiple placements of the same Formula on one Target
-- `doctor` integrity diagnostics and `relink` repair commands
-- end-to-end integration coverage across every supported Formula, Target, and scope combination
+- Codex/Claude 采用显式能力矩阵与纯安装规划
+- Receipt schema v2 支持事务 symlink-directory/file、render-file、managed-block、merge-config
+- 原生 Agent、Workflow/Prompt 转 Skill、托管 Instruction 和键归属 MCP 合并
+- user/project scope，同一 Formula 在同 Target 多位置投放
+- doctor 完整性诊断和 relink 修复
+- 每种 Formula/Target/scope 的 E2E 覆盖
 
-### Changed
+### 调整
 
-- Skill installation now links the complete directory so scripts, references, and other relative resources remain available
-- Target identity is now based on Target plus destination instead of Target name alone
-- upgrades regenerate every recorded Target placement and preserve unrelated user configuration
-- MCP Formula entries use a portable JSON model whose credentials reference environment variable names only
+- Skill 链接完整目录，保留脚本、引用和相对资源
+- Target 身份由 Target+目的地确定，不只名称
+- 升级重建全部已记录 Target 投放并保留无关配置
+- MCP 使用可移植 JSON，凭据仅引用环境变量名
 
-### Fixed
+### 修复
 
-- shared `AGENTS.md`, Codex TOML, and Claude JSON updates preserve user-owned content during link, upgrade, unlink, and rollback
-- modified or missing rendered files, links, managed blocks, and configuration keys are detected before destructive operations
-- Adapter Formula linking now fails explicitly instead of falling back to guessed `${kind}s` directories
+- 共享 AGENTS.md、Codex TOML、Claude JSON 在链接/升级/移除/回滚保留用户内容
+- 破坏操作前检测修改/缺失的文件、链接、区块和键
+- Adapter Formula 链接明确失败，不猜测 kind 目录
 
 ## 0.4.0 - 2026-08-12
 
-### Added
+### 新增
 
-- Git Tap registration, validation, updates, commit checkout, and removal
-- Formula catalog for skills, agents, workflows, instructions, prompts, MCP configurations, and adapters
-- dependency resolution, conflict detection, immutable Cellar installs, and SHA-256 receipts
-- OpenAI Codex and Claude Code target linking with ownership and tamper checks
-- `update`, `outdated`, and rollback-safe `upgrade` commands
-- Git-reproducible `Harnessfile`, `Harnessfile.lock`, `bundle install`, and `bundle cleanup`
-- TypeScript 7.0 strict builds, comprehensive tests, npm packaging, and GitHub release automation
+- Git Tap 注册、校验、更新、commit checkout 和移除
+- Formula catalog 覆盖 skills、agents、workflows、instructions、prompts、MCP 和 adapters
+- 依赖解析、冲突、不可变 Cellar 安装和 SHA-256 receipts
+- Codex/Claude Target 链接带所有权和篡改检查
+- update、outdated 与可回滚 upgrade
+- Git 可复现 Harnessfile/Harnessfile.lock、bundle install/cleanup
+- TypeScript7 strict、测试、npm 打包和 GitHub 发布自动化
 
-### Changed
+### 调整
 
-- redefined HarnessBrew as a Git-native package manager for AI Agent assets
-- moved version history from per-asset snapshots to Tap commits and tags
-- raised the minimum supported Node.js version to 20
+- 重新定义为 Git-native AI Agent 资产管理器
+- 版本历史从单资产快照改为 Tap commits/tags
+- 最低 Node 版本提升为20
 
-### Removed
+### 移除
 
-- repository-owned sample assets and the obsolete workspace/export architecture
+- 移除仓库样例资产与旧 workspace/export 架构
 
 ## 0.3.0 - 2026-06-27
 
-### Added
+### 新增
 
-- asset maintenance commands: `set`, `add-dependency`, `remove-dependency`, `clone`, and `archive`
-- dependency graph commands: `deps`, `dependents`, `orphans`, and `impact`
-- bundle `checksums.json` generation plus manifest digest metadata for release artifact verification
-- `verify-bundle` command for validating required bundle files, SHA-256 digests, and asset payload consistency
-- `pack --channel draft|stable`, with `stable` bundles requiring workspace validation before packaging
-- `pack --archive` for producing distributable `.tar.gz` bundle archives
-- `docs/walkthrough-asset-to-bundle.md` covering asset creation through bundle verification
-- `docs/release-0.3.0.md` with version touchpoints, verification commands, manual checks, and release flow
+- 资产维护 set、add/remove-dependency、clone、archive
+- 依赖图 deps、dependents、orphans、impact
+- bundle checksums.json 与 manifest 摘要验证产物
+- verify-bundle 校验文件、SHA-256 和 payload 一致
+- pack --channel draft/stable，stable 要求 workspace 验证
+- pack --archive 生成 tar.gz
+- 添加资产创建至 bundle 验证 walkthrough（现已移除）
+- 添加0.3.0版本触点、检查和发布流程文档（现已合并）
 
-### Changed
+### 调整
 
-- repository sample agent now declares dependencies that match the initialized sample workspace
-- asset metadata now includes `status: "active" | "archived"` and `list --status` filtering
-- README command surface now reflects the `0.3.0` asset lifecycle, dependency graph, and bundle verification workflows
-- smoke coverage now exercises lifecycle commands, graph queries, bundle digests, bundle verification, release channels, and archive packaging
+- 样例 agent 依赖与初始化 workspace 一致
+- 资产 status active/archived 与 list --status
+- README 展示0.3.0生命周期/依赖图/bundle验证
+- smoke 覆盖生命周期、图、摘要、验证、channel 和归档
 
-### Fixed
+### 修复
 
-- archive flow now blocks assets that are still depended on, avoiding broken dependency graphs
-- bundle verification now catches missing files, checksum mismatches, and manifest/assets asset set drift
+- archive 拒绝仍被依赖的资产
+- bundle 验证检测缺文件、摘要错误及 manifest/assets 集合漂移
 
 ## 0.2.0 - 2026-06-17
 
-### Added
+### 新增
 
-- asset dependency modeling with validation for missing, duplicate, cyclic, and target-incompatible dependencies
-- `show --resolved` for inspecting dependency trees and flattened dependency graphs
-- filtered and grouped `list` output with `--kind`, `--tag`, `--owner`, `--target`, and `--group-by`
-- structured `--json` output for `list`, `validate`, `history`, `diff`, `export`, and `pack`
-- entry-scoped exports with `--entry <kind:id>` and optional `--include-dependencies`
-- `pack` command for bundle delivery with `manifest.json`, `assets.json`, and `rendered/<target>.json`
-- workspace-level `schemaVersion` and `bundleDirectory` configuration
-- `0.2.0` roadmap documentation covering milestones, command design, and bundle packaging direction
+- 资产依赖检测缺失、重复、循环和 Target 不兼容
+- show --resolved 展示依赖树和扁平图
+- list 支持 kind/tag/owner/target/group-by
+- list/validate/history/diff/export/pack 支持 JSON
+- export --entry 与 include-dependencies
+- pack 交付 manifest.json、assets.json 和 rendered/target.json
+- workspace schemaVersion 与 bundleDirectory
+- 0.2.0里程碑、命令与打包方向路线图
 
-### Changed
+### 调整
 
-- strengthened target compatibility enforcement during export and pack flows
-- expanded smoke coverage for dependency resolution, local adapter compatibility, scoped exports, and bundle generation
-- updated README and architecture docs to reflect the `0.2.0` asset, export, and packaging model
+- export/pack 强化 Target 兼容
+- smoke 增加依赖、Adapter、scope export 和 bundle
+- README/架构更新为0.2.0模型
 
 ## 0.1.1 - 2026-06-17
 
-### Added
+### 新增
 
-- `harness --version` support for checking the CLI release version directly
-- release-facing documentation for version visibility and pre-release verification
+- harness --version 查看版本
+- 发布文档提供版本可见性和预发布验证
 
-### Changed
+### 调整
 
-- stricter workspace validation for timezone presence, history integrity, compatibility target duplication, and snapshot consistency
-- clearer `diff` output with metadata-field change summaries
-- clearer `history` output with current-version markers and snapshot paths
-- more focused `show` output with `--metadata` and `--content` modes
+- workspace 更严格检查 timezone、历史、Target 重复和快照一致
+- 更清晰的 diff 元数据字段摘要
+- history 显示当前版本和快照路径
+- show 支持 metadata/content 模式

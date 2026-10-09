@@ -1,0 +1,322 @@
+---
+title: Changelog
+status: current
+owner: project-maintainers
+updated: 2026-10-09
+---
+
+# Changelog
+
+[中文主版本](CHANGELOG.md)
+
+Version summaries preserve historical context, not current support or proof of publication. See [release records](docs/releases/README.en.md) for 1.x candidate/publication status.
+
+## Unreleased
+
+- adopt lifecycle documentation rules, Chinese primary/English pairs, current guides/contracts/initiatives/version evidence, and structural/independent-review checks.
+
+## 1.3.0 - 2026-10-08
+
+### Added
+
+- preview and explicitly apply conservative cache/revision retention, with journaled deletion and resumable maintenance recovery
+- protect live preparation leases, valid saved plans, registered plugins, catalog snapshots, CURRENT and user quarantine evidence
+- support SDK cancellation, deadlines, isolated progress callbacks and draining close; CLI progress uses stderr and signals finish safely
+- return typed effects and explicit commit/maintenance outcomes
+
+### Changed
+
+- expire saved plans after 30 days; regenerate expired plans explicitly
+- roll back cancellation before durable commit, preserve committed outcomes afterward, and finish recovery without cancellation
+- retain ordinary plan v2, upgrade plan v3 and Home/Journal/Bundle v1 formats; existing built-in Adapter registrations require explicit upgrade when signatures change
+
+### Fixed
+
+- resolve Home parent aliases before validating maintenance previews and saved-plan protection
+
+### Limits
+
+- retention budgets are advisory; unknown objects, referenced history, cross-cache references and bare Git repositories may remain
+- retained revisions are not complete rollback backups; preserve Home, managed targets and Bundle locks together
+- candidate verification and real-runtime evidence are recorded separately from production publication
+
+## 1.2.0 - 2026-10-07
+
+### Added
+
+- inspect Adapter upgrade candidates without importing code, with signature coverage and affected installations/Bundle bindings
+- explicitly authorize candidate signatures and capabilities through SDK and CLI upgrade previews
+- atomically upgrade an Adapter registration, its targets and every affected Bundle lock without changing installed asset pins
+- retain other Adapters' operations and support explicit upgrades back to retained third-party packages
+
+### Changed
+
+- derive built-in Adapter signatures from emitted runtime closure and production dependency locks; existing registrations require explicit upgrade
+- use saved-plan v3 for Adapter upgrades while retaining ordinary v2 previews and v1 Home/Journal/Bundle/CLI formats
+- validate all affected checkout inputs and all lock bytes before commit, preserving recovery evidence on external conflicts
+
+### Validation
+
+- cover manual and multi-Bundle upgrades, capability changes, stale inputs, real SIGKILL recovery and consistent backup rollback
+- include packaged Adapter identity/upgrade checks in release gates; final cross-platform and real runtime evidence is recorded separately
+
+## 1.1.0 - 2026-10-06
+
+### Changed
+
+- prepare Git sources, verified adapters and content outside transaction write locks, then revalidate all evidence before commit
+- split application use cases behind internal injectable ports and enforce architectural import boundaries
+- strictly validate saved-plan v2; regenerate v1 previews, while Home/Journal/CLI result contracts remain v1
+- protect active preparation and saved preview caches with process leases and persistent references, including historical cache roots
+- reject stale concurrent work without automatic replanning; preserve journal commit/recovery semantics
+
+### Validation
+
+- add multi-process contention, crash, stale-input and prepared-content integrity coverage
+- record six source-size benchmarks with reduced transaction lock hold time; candidate acceptance is tracked separately in release notes
+
+### Content lifecycle (included from the development baseline)
+
+- track managed content by digest independently of active assets, retaining upgrade history for verified reclamation
+- restore missing installed content from exact trusted commits; require `--restore-content` to quarantine modified originals before recovery
+- expose content changes, shared references and quarantine locations through CLI/SDK and grouped Doctor findings
+- require content inventory and quarantine fields in new Homes; earlier experimental Homes are not migrated
+
+## 1.0.0 - 2026-10-02
+
+### Breaking changes
+
+- replace the legacy SDK with `createHarness`, typed business requests, and `HarnessError`; export plugin types from `harnessbrew/adapter`
+- require new versioned Home, source, asset, manifest, lock, plan, and plugin formats; old data is rejected without migration or deletion
+- remove legacy CLI aliases and use `remove`, `repair`, `bundle apply/detach`, and explicit source trust
+- replace Receipt/Cellar state with immutable content, usage requirements, resource ownership, and atomic CURRENT snapshots
+
+### Added
+
+- unified dependency resolution and planning across manual installs, upgrades, placements, and independent Bundle bindings
+- read-only previews, host-saved plans, strict stale-plan checks, and exact portable Bundle locks
+- journaled execution and metadata updates, crash recovery, cross-Home locking, and verified orphan cleanup
+- grouped Doctor diagnostics, missing-target repair, scoped shared-resource overwrite, and signed link-only plugin authorization
+- versioned CLI JSON results and separate macOS, Linux, and authenticated runtime release evidence
+
+### Removed
+
+- the unused legacy backend and its dedicated test fixtures; all remaining tests exercise the current architecture or release tooling
+
+## 0.8.0 - 2026-09-17
+
+### Added
+
+- orchestrate candidate build, cross-platform gates, authenticated runtime evidence, one protected approval, and exact-byte publication from one release dispatch
+- verify complete fresh release evidence and publish a GitHub Release with six hash-checked attachments; safely resume identical npm publications without overwriting tags or assets
+
+### Fixed
+
+- reject Adapter records without an integrity baseline before importing any plugins; require explicit review and remove/re-add
+- label Adapter integrity as entry-file-only in records and CLI output, without claiming imported files or dependencies are covered
+- emit the versioned JSON error envelope for filesystem and unexpected CLI exceptions in JSON mode
+- use the public npm registry for all locked dependencies and project installs, avoiding npm 12 EALLOWREMOTE failures on clean installations
+
+### Changed
+
+- focus built-in Target support and runtime preflight on OpenAI Codex; remove the Claude Code Adapter and runtime probes
+- cover all 12 Codex Formula/scope placements and require every Codex runtime probe to pass
+- clean generated build output before compilation so removed modules cannot enter release packages
+
+Existing receipts retain generic ownership-based cleanup; removed Targets cannot be linked, relinked, or upgraded without a compatible Adapter.
+
+## 0.7.1 - 2026-09-07
+
+### Added
+
+- verify source compatibility on Node.js 22 with npm 11 and Node.js 24 with npm 12
+- record and verify the SHA-256 digest of each trusted Adapter module entry point before execution
+
+### Changed
+
+- pin npm 11.17.0 for deterministic candidate builds and cross-platform release gates
+- document the implemented Tap/Formula architecture as current rather than aspirational
+
+### Fixed
+
+- accept both npm 11 array output and npm 12 keyed-object output from `npm pack --json`
+- make concurrent artifact locking resilient to release and abandoned-lock races
+
+## 0.7.0 - 2026-08-13
+
+### Added
+
+- add an immutable release artifact manifest and SHA-256 checksum generated from one npm tarball
+- add isolated packaged-CLI E2E coverage for the full Tap and Formula lifecycle, all 24 built-in Target placements, upgrades, doctor/relink, Bundle reproduction, cleanup, JSON errors, and dry-run rollback
+- add `release:gate` as the credential-free deterministic package gate shared by Linux and macOS
+- add `release:preflight` for authenticated local Codex and Claude Code Skill, Instruction, custom Agent, and MCP runtime probes
+- add redacted runtime evidence with candidate identity, CLI versions, failure classification, timings, and bounded structured event metadata
+- add release candidate, protected npm publication, and post-publication registry smoke workflows
+- add an operational release verification runbook
+
+### Changed
+
+- package smoke and E2E commands now require an explicit candidate tarball and never repack implicitly
+- CI builds a candidate once and verifies the same SHA-256 across Linux and macOS without model credentials
+- npm publication downloads an approved candidate by workflow run ID, verifies commit, tag, version, and digest, then publishes the existing tarball with provenance
+
+### Fixed
+
+- remove Bundle formulas in dependent-before-dependency order during cleanup
+- keep transaction fingerprints current when multiple Target writes share newly created parent directories
+- serialize concurrent artifact builds so `npm pack` cannot race while `prepack` rewrites build output
+
+## 0.6.2 - 2026-08-13
+
+### Security
+
+- replace personal account identifiers in README and architecture examples with neutral `your-name` placeholders
+
+## 0.6.1 - 2026-08-13
+
+### Changed
+
+- upgrade GitHub CI and release workflows to `actions/checkout@v6` and `actions/setup-node@v6` while keeping HarnessBrew builds on Node.js 22
+- require Node.js 22 or later consistently in package metadata, CI, and installation documentation
+- make English the default README and architecture language while retaining complete Simplified Chinese editions
+- move historical release notes under `docs/releases` and remove obsolete roadmap, task-breakdown, and legacy walkthrough documents
+- add CI, npm version, Node.js support, and license badges to both README editions
+
+## 0.6.0 - 2026-08-13
+
+### Added
+
+- add a versioned JSON CLI envelope with command-level results and structured errors
+- add transactional `--dry-run` previews that report path fingerprints and roll back all managed changes
+- add Target Adapter API v1 with validated registration, Cellar-bounded symlink plans, transaction-managed execution, and lockfile version fingerprints
+- add explicit CLI management for trusted Adapter modules with persisted identity verification and transactional previews
+
+### Security
+
+- validate complete Receipt structures, canonical Cellar locations, operation metadata, owned keys, and all destructive paths before use
+- detect added, removed, modified, unsupported, and permission-changed Cellar files through exact inventory comparison
+- prevent forced cleanup from recursively deleting a real directory that replaced a managed directory symlink
+- serialize CLI mutations per HarnessBrew home and protect shared Target configuration updates across processes
+- recover interrupted mutations from durable write-ahead journals, including abandoned process locks and external Target files
+- add Harnessfile and lockfile v2 with structured scopes, portable paths, content digests, explicit lock refresh, and Target convergence
+- require explicit Tap trust before Target activation, enforce fast-forward updates by default, and roll back invalid Tap candidates
+
+## 0.5.2 - 2026-08-13
+
+### Fixed
+
+- automated publication now passes npm an explicit local tarball path instead of a Git dependency specifier
+- release tests guard the exact artifact handoff between `npm pack` and `npm publish`
+
+## 0.5.1 - 2026-08-13
+
+### Fixed
+
+- npm package metadata now preserves the `harnessbrew` executable mapping in the published tarball
+- package smoke tests run in clean CI environments without requiring an already-populated offline cache
+- release automation checks out and validates the exact release tag, builds one immutable tarball, and publishes that same artifact with provenance
+- release version consistency is now covered by an automated check across package metadata, source, changelog, and Git tags
+
+## 0.5.0 - 2026-08-13
+
+### Added
+
+- explicit capability matrix and pure installation planners for OpenAI Codex and Claude Code
+- receipt schema v2 with transactional `symlink-directory`, `symlink-file`, `render-file`, `managed-block`, and `merge-config` operations
+- target-native Agent rendering, Workflow/Prompt-to-Skill projection, managed Instruction installation, and key-owned MCP configuration merging
+- user and project target scopes, including multiple placements of the same Formula on one Target
+- `doctor` integrity diagnostics and `relink` repair commands
+- end-to-end integration coverage across every supported Formula, Target, and scope combination
+
+### Changed
+
+- Skill installation now links the complete directory so scripts, references, and other relative resources remain available
+- Target identity is now based on Target plus destination instead of Target name alone
+- upgrades regenerate every recorded Target placement and preserve unrelated user configuration
+- MCP Formula entries use a portable JSON model whose credentials reference environment variable names only
+
+### Fixed
+
+- shared `AGENTS.md`, Codex TOML, and Claude JSON updates preserve user-owned content during link, upgrade, unlink, and rollback
+- modified or missing rendered files, links, managed blocks, and configuration keys are detected before destructive operations
+- Adapter Formula linking now fails explicitly instead of falling back to guessed `${kind}s` directories
+
+## 0.4.0 - 2026-08-12
+
+### Added
+
+- Git Tap registration, validation, updates, commit checkout, and removal
+- Formula catalog for skills, agents, workflows, instructions, prompts, MCP configurations, and adapters
+- dependency resolution, conflict detection, immutable Cellar installs, and SHA-256 receipts
+- OpenAI Codex and Claude Code target linking with ownership and tamper checks
+- `update`, `outdated`, and rollback-safe `upgrade` commands
+- Git-reproducible `Harnessfile`, `Harnessfile.lock`, `bundle install`, and `bundle cleanup`
+- TypeScript 7.0 strict builds, comprehensive tests, npm packaging, and GitHub release automation
+
+### Changed
+
+- redefined HarnessBrew as a Git-native package manager for AI Agent assets
+- moved version history from per-asset snapshots to Tap commits and tags
+- raised the minimum supported Node.js version to 20
+
+### Removed
+
+- repository-owned sample assets and the obsolete workspace/export architecture
+
+## 0.3.0 - 2026-06-27
+
+### Added
+
+- asset maintenance commands: `set`, `add-dependency`, `remove-dependency`, `clone`, and `archive`
+- dependency graph commands: `deps`, `dependents`, `orphans`, and `impact`
+- bundle `checksums.json` generation plus manifest digest metadata for release artifact verification
+- `verify-bundle` command for validating required bundle files, SHA-256 digests, and asset payload consistency
+- `pack --channel draft|stable`, with `stable` bundles requiring workspace validation before packaging
+- `pack --archive` for producing distributable `.tar.gz` bundle archives
+- `docs/walkthrough-asset-to-bundle.md` covering asset creation through bundle verification
+- `docs/release-0.3.0.md` with version touchpoints, verification commands, manual checks, and release flow
+
+### Changed
+
+- repository sample agent now declares dependencies that match the initialized sample workspace
+- asset metadata now includes `status: "active" | "archived"` and `list --status` filtering
+- README command surface now reflects the `0.3.0` asset lifecycle, dependency graph, and bundle verification workflows
+- smoke coverage now exercises lifecycle commands, graph queries, bundle digests, bundle verification, release channels, and archive packaging
+
+### Fixed
+
+- archive flow now blocks assets that are still depended on, avoiding broken dependency graphs
+- bundle verification now catches missing files, checksum mismatches, and manifest/assets asset set drift
+
+## 0.2.0 - 2026-06-17
+
+### Added
+
+- asset dependency modeling with validation for missing, duplicate, cyclic, and target-incompatible dependencies
+- `show --resolved` for inspecting dependency trees and flattened dependency graphs
+- filtered and grouped `list` output with `--kind`, `--tag`, `--owner`, `--target`, and `--group-by`
+- structured `--json` output for `list`, `validate`, `history`, `diff`, `export`, and `pack`
+- entry-scoped exports with `--entry <kind:id>` and optional `--include-dependencies`
+- `pack` command for bundle delivery with `manifest.json`, `assets.json`, and `rendered/<target>.json`
+- workspace-level `schemaVersion` and `bundleDirectory` configuration
+- `0.2.0` roadmap documentation covering milestones, command design, and bundle packaging direction
+
+### Changed
+
+- strengthened target compatibility enforcement during export and pack flows
+- expanded smoke coverage for dependency resolution, local adapter compatibility, scoped exports, and bundle generation
+- updated README and architecture docs to reflect the `0.2.0` asset, export, and packaging model
+
+## 0.1.1 - 2026-06-17
+
+### Added
+
+- `harness --version` support for checking the CLI release version directly
+- release-facing documentation for version visibility and pre-release verification
+
+### Changed
+
+- stricter workspace validation for timezone presence, history integrity, compatibility target duplication, and snapshot consistency
+- clearer `diff` output with metadata-field change summaries
+- clearer `history` output with current-version markers and snapshot paths
+- more focused `show` output with `--metadata` and `--content` modes
