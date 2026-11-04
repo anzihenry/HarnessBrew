@@ -68,3 +68,54 @@ test("SDK preparation propagates signal to SourceManager and starts no follow-up
   assert.deepEqual(await readdir(path.join(cache, "leases")), []);
   assert.deepEqual(await readdir(path.join(cache, "sources", "repositories")), []);
 });
+
+test("cold and cached source inventory cancellation preserves retryable snapshots", async t => {
+  const { observe } = await import("../src/observability/measure.js");
+  const f = await applicationFixture(t);
+  await f.add("first"); await f.add("second");
+  const manager = new SourceManager(path.join(f.root, "source-cache"));
+  const request = { name: "test/assets", url: f.repository };
+  for (const cached of [false, true]) {
+    const controller = new AbortController();
+    let files = 0;
+    await assert.rejects(observe(event => {
+      if (event.name === "inventory.files") { files++; controller.abort(); }
+    }, () => manager.prepare({ ...request, signal: controller.signal })), { code: "OPERATION_ABORTED" });
+    assert.equal(files, 1, `cancel stops inventory (cached=${cached})`);
+    const snapshots = await readdir(path.join(f.root, "source-cache", "snapshots"));
+    assert.equal(snapshots.length, cached ? 1 : 0);
+    assert.ok(snapshots.every(name => !name.endsWith(".tmp")));
+    const snapshot = await manager.prepare(request);
+    assert.match(await readFile(path.join(snapshot.contentLocation, "assets/first/SKILL.md"), "utf8"), /first/u);
+  }
+});
+
+test("cached application cancellation leaves CURRENT and leases intact for retry", async t => {
+  const { observe } = await import("../src/observability/measure.js");
+  const f = await applicationFixture(t);
+  await f.add("first"); await f.add("second"); await f.register();
+  const before = await readFile(path.join(f.home, "CURRENT"), "utf8");
+  const controller = new AbortController();
+  let files = 0;
+  await assert.rejects(observe(event => {
+    if (event.name === "inventory.files") { files++; controller.abort(); }
+  }, () => f.service.execute({ kind: "asset.install", coordinate: "first" }, { signal: controller.signal })),
+  { code: "OPERATION_ABORTED" });
+  assert.equal(files, 1);
+  assert.equal(await readFile(path.join(f.home, "CURRENT"), "utf8"), before);
+  const cache = path.join(path.dirname(f.home), `.harnessbrew-cache-${stableId(f.home)}`);
+  assert.deepEqual(await readdir(path.join(cache, "leases")), []);
+  await f.service.execute({ kind: "asset.install", coordinate: "first" });
+});
+
+test("inventory deadline retains timeout error semantics", async t => {
+  const { observe } = await import("../src/observability/measure.js");
+  const { inspectContent } = await import("../src/sources/inventory.js");
+  const f = await applicationFixture(t); await f.add("first");
+  await assert.rejects(runOperation({ timeoutMs: 100 }, "prepare", () => observe(event => {
+    if (event.name === "inventory.files") {
+      // Advance beyond the deadline deterministically while still inside inventory.
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150);
+    }
+  }, () => inspectContent(path.join(f.repository, "assets")))), { code: "OPERATION_TIMEOUT" });
+});

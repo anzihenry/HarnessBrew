@@ -49,7 +49,7 @@ function markdownContent(name, version) {
   return `# ${name} ${version}\n\nVerification content for ${name} at ${version}.\n`;
 }
 
-async function writeFormula(repository, definition, version) {
+export async function writeFormula(repository, definition, version) {
   const kindDirectory = kindDirectories[definition.kind];
   const directory = path.join(repository, "assets", definition.name);
   const entry = definition.kind === "skill" ? "SKILL.md" : definition.kind === "mcp" ? "server.json" : "content.md";

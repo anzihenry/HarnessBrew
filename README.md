@@ -27,15 +27,23 @@ node dist/bin.js help
 
 ## 快速开始
 
+构建后，在仓库根目录运行以下命令。示例会创建本地 Git Tap，Home 和投递目录均位于独立临时目录中。
+
 ```sh
-harnessbrew tap add team/assets https://example.com/team/assets.git
-harnessbrew tap trust team/assets
-harnessbrew search review
-harnessbrew install team/assets/review --scope project --project .
-harnessbrew doctor
+HB_DEMO="$(node scripts/examples/local-tap.mjs)"
+node dist/bin.js --home "$HB_DEMO/home" tap add demo/assets "$HB_DEMO/tap"
+node dist/bin.js --home "$HB_DEMO/home" search main-skill
+node dist/bin.js --home "$HB_DEMO/home" tap trust demo/assets
+node dist/bin.js --home "$HB_DEMO/home" install demo/assets/main-skill --root "$HB_DEMO/codex" --dry-run
+node dist/bin.js --home "$HB_DEMO/home" install demo/assets/main-skill --root "$HB_DEMO/codex"
+node dist/bin.js --home "$HB_DEMO/home" list
+cat "$HB_DEMO/codex/skills/main-skill/SKILL.md"
+node dist/bin.js --home "$HB_DEMO/home" doctor
+node dist/bin.js --home "$HB_DEMO/home" remove demo/assets/main-skill
+test ! -e "$HB_DEMO/codex/skills/main-skill"
 ```
 
-URL 是占位示例，请替换为符合来源格式的仓库。来源必须显式授权；移除资产只释放当前手动引用，其他 Bundle 仍需要的内容会保留。
+预览会显示即将投递的路径；安装会同时引入 helper-skill 依赖。移除后，最后一条命令验证主 Skill 的投递路径已消失。示例数据保留在 `$HB_DEMO`，便于检查。
 
 ## 文档
 
