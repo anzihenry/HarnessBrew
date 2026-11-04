@@ -14,8 +14,8 @@
     "CHANGELOG.en.md": "758e85947ddd5e83ddaae9b1accfc66d69b0bb6b4c0ed45f0778c0a9cff74518",
     "CHANGELOG.md": "40eb547f6e9c2f22025bc05794ff9e82f36aa5685582d2d769fda6549ee7b4ac",
     "LICENSE": "c0c06de6fbe8d44437648427865179cfc79677eee760133d0857ce6c61a13c98",
-    "README.en.md": "1f716d31b01930845487a28cef41ffcafce9a5364324773ac7b78c77e4d1dc9f",
-    "README.md": "85289d0c98a246f4c72f6f6cd4b3a6cbe8e4f51cb105c130d300b9b048208a41",
+    "README.en.md": "ade67708bcb34f75d6861b1ed9658ece7528b05c5604dd49d5c05b3dea79b2e5",
+    "README.md": "6ac8140e45cd8072489d1fdd842a0068019eca1c98003bf0dd04b0b57f33d38d",
     "docs/README.en.md": "84f77880ec08c14669584abb43202b4355d2fec1c2b4915ee4656bbfa3b3582a",
     "docs/README.md": "3903b8cfa48e8638909599e16f6bbe0e0b1e80e8e70c573179f0090ff03506d6",
     "docs/documentation.en.md": "9a695f85bf99f556f622dace3c0048f54a027bbc5c7d0c279c967c8738a3e6b7",
@@ -136,7 +136,7 @@
     "scripts/e2e/assertions.mjs": "4a839644315056ee290361c58bd5f2894315941b82bc0b62dc391cfa91aa1c8d",
     "scripts/e2e/cli-driver.mjs": "c5b37ca064eaa1c0dbfef0deebb0f701e650d30d755155289c6b59ef9d6b1e47",
     "scripts/e2e/environment.mjs": "2d2f51e70fab6141cb035a679ab07546d9bbdad77103bc25c7b36a3af8840a55",
-    "scripts/e2e/fixture-tap.mjs": "e04a10b97f3bccb34aefd1396e1cc301d5012b0f9532933d2e6db7f1b9153d3f",
+    "scripts/e2e/fixture-tap.mjs": "8fd97a1c05e52a9a50da47b3797445fbd5de38bbbc273061d5cc469eab2bbe3d",
     "scripts/e2e/reporter.mjs": "104dd8b9036a891046d30aee053215bab24bd4a2e454585213e854ea229b6772",
     "scripts/e2e/run.mjs": "ac2ffde63a7330777dfac16da5b573aa9863b94e46ac985657e439ef5244e132",
     "scripts/e2e/scenarios/adapter-upgrade.mjs": "835a86354256eb8cfba999406ba0e61376280532181abc4f8b8815f7246d5329",
@@ -229,8 +229,8 @@
     "src/ports/io.ts": "38bf1eb4c4a9c1ed1876d16b36932fe1e92c71c3e8eda173dd025fc40ad9282e",
     "src/ports/planning.ts": "df5a3685dab100d1e190acf09a41c55ca4fac616e12ee61dffe6f86d0c150e4c",
     "src/resolution/resolve.ts": "bbd121b00116ed1d7ea0517bc1c9fc17d5ed77aa9c0d035fa1c812832009a728",
-    "src/sources/inventory.ts": "098f977cc35e9bbcff1fa8d547822e3399f14b88e15b9ec6ebc7ca830691d7cb",
-    "src/sources/manager.ts": "b3ba33ffc897b09418104d0963869e8c3dc9e90122d4cc10b5ef828705a13ceb",
+    "src/sources/inventory.ts": "12f69fab7a0525ed5c6a94af868f903272bed92123167f53848194d024371616",
+    "src/sources/manager.ts": "5118b004df09db1000c6fed77058208277c969bae9f7f63e97448f7efb55c0c3",
     "src/storage/state-store.ts": "bd08e9d1905c6e9f81d5edbfcf14a3fcde4f08849d43e6ef91b774798a9590fb",
     "src/transactions/coordinator.ts": "f48d58657f85dc45e26e3103ad3036b914b40f75534468965a6e6eeb4953d8c4",
     "src/transactions/file-lock.ts": "be4f683a61595eb3bdcef5aa56626fef3258295d2a5e3b91c9be30460d80a7f7",
@@ -283,7 +283,7 @@
     "tests/maintenance-preview.test.ts": "f0a33cdbb836525d6816159b347e1e40b3f789d00048d923f9fb76863bf795ad",
     "tests/maintenance-revisions.test.ts": "b41e44c279e082bf1c374a7bcc395311ccc9dd3dc598b5693eb361d951d67247",
     "tests/observability.test.ts": "e538076d77456093694a45198f02ff8f60ca8a151fba6886aa78274cdc63bb59",
-    "tests/operation-cancel.test.ts": "bcb2313f31c67a84d070e1c2d6b371e9bdf409b88626ed44f824fce5dca42306",
+    "tests/operation-cancel.test.ts": "528d5ad5ee8c47f16854bbde18cb0c5b8a298e45dbe13318909214bd4216535a",
     "tests/operation-contract.test.ts": "31a6322deb144a4e6912ee0b937fe2967f72c30a6040ac23c1985e0d358a3bc2",
     "tests/operation-lifecycle.test.ts": "404f535369be0fdd7e5f2d123e73596cf367f6941c04e0063ee1a00bdd876fe5",
     "tests/operation-progress.test.ts": "9d4d87d6f29d85144647526da76929901f3584adad90746a5522cde91c45e3e9",
@@ -310,7 +310,8 @@
     "tests/state-store.test.ts": "ff194ba7d7e081959b11455d4b2818c38c9d67c3ce4929b4ff70b3660d29e488",
     "tests/transaction-crash.test.ts": "e34275c527524c8ce8552f77da53e4edea6a644bbaa9318a86a2e7460f7b3d44",
     "tsconfig.json": "433409269308f6160a30a5398ceb4335f36044162f24660306f30b4fbad95ff7",
-    "tsconfig.test.json": "1c9d000055a4cb7beebcc26feba508335001d3a823ec6f002903d4471ce9f3c5"
+    "tsconfig.test.json": "1c9d000055a4cb7beebcc26feba508335001d3a823ec6f002903d4471ce9f3c5",
+    "scripts/examples/local-tap.mjs": "268f78aca7d647a0d9f0972700f96fdab6756062af3ee3f5020802c7bf88227e"
   },
   "actualReadScope": [
     {
@@ -473,5 +474,54 @@
     "Original raw evidence and other unchanged implementation files have identity coverage without a claim of exhaustive semantic rereview."
   ],
   "result": "pass",
-  "conclusion": "Local full-repository documentation migration and configured delivery tooling pass independent review at recorded identities. No unresolved migration blocker remains. Default approval gate should be run after copying this unmodified independent report; its output is the final automated delivery result."
+  "conclusion": "Local full-repository documentation migration and configured delivery tooling pass independent review at recorded identities. No unresolved migration blocker remains. Default approval gate should be run after copying this unmodified independent report; its output is the final automated delivery result.",
+  "incrementalReviews": [
+    {
+      "reviewer": "/root/acceptance_review",
+      "reviewerType": "independent-ai-agent",
+      "readOnly": true,
+      "date": "2026-11-04",
+      "scope": "Incremental review of runnable local Tap example, bilingual quick start, source verification cancellation, and regression coverage. Unchanged identities inherit the original review.",
+      "reviewedFiles": {
+        "README.md": "6ac8140e45cd8072489d1fdd842a0068019eca1c98003bf0dd04b0b57f33d38d",
+        "README.en.md": "ade67708bcb34f75d6861b1ed9658ece7528b05c5604dd49d5c05b3dea79b2e5",
+        "scripts/e2e/fixture-tap.mjs": "8fd97a1c05e52a9a50da47b3797445fbd5de38bbbc273061d5cc469eab2bbe3d",
+        "scripts/examples/local-tap.mjs": "268f78aca7d647a0d9f0972700f96fdab6756062af3ee3f5020802c7bf88227e",
+        "src/sources/inventory.ts": "12f69fab7a0525ed5c6a94af868f903272bed92123167f53848194d024371616",
+        "src/sources/manager.ts": "5118b004df09db1000c6fed77058208277c969bae9f7f63e97448f7efb55c0c3",
+        "tests/operation-cancel.test.ts": "528d5ad5ee8c47f16854bbde18cb0c5b8a298e45dbe13318909214bd4216535a"
+      },
+      "actualReadScope": [
+        "README.md",
+        "README.en.md",
+        "scripts/e2e/fixture-tap.mjs",
+        "scripts/examples/local-tap.mjs",
+        "src/sources/inventory.ts",
+        "src/sources/manager.ts",
+        "tests/operation-cancel.test.ts",
+        "src/observability/operation.ts",
+        "src/observability/measure.ts",
+        "docs/engineering/operation-control.md",
+        "src/transactions/coordinator.ts (metadata cancellation and recovery boundaries)",
+        "scripts/check-docs.mjs (identity coverage and review validation)",
+        "docs/initiatives/process/documentation-standard/evidence/independent-review.json (historical provenance and limitations)",
+        "inspectContent and withoutCancellation call sites across src"
+      ],
+      "validation": [
+        "Existing compiled operation-cancel suite independently passed 7/7 tests.",
+        "Documentation checker tests independently passed 11/11 tests.",
+        "Documentation structure-only check independently passed for 84 files.",
+        "git diff --check passed.",
+        "Compared all current identity entries against prior review; only the seven reviewed deltas differ."
+      ],
+      "remainingBlockingFindings": [],
+      "limitations": [
+        "Full build, fast, packaged and regression suites were not independently rerun by this reviewer.",
+        "README commands were semantically reviewed; the parent agent execution evidence supplies end-to-end example validation.",
+        "Existing compiled cancellation tests were used without rebuilding shared output.",
+        "Unchanged files retain prior review coverage, without a claim of exhaustive semantic rereview."
+      ],
+      "result": "pass"
+    }
+  ]
 }

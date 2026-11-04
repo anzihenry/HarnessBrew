@@ -27,15 +27,23 @@ Examples use `harnessbrew` for the built command. Choose a Home with `--home /ab
 
 ## Quick start
 
+After building, run these commands from the repository root. The example creates a local Git Tap with an isolated Home and target in a temporary directory.
+
 ```sh
-harnessbrew tap add team/assets https://example.com/team/assets.git
-harnessbrew tap trust team/assets
-harnessbrew search review
-harnessbrew install team/assets/review --scope project --project .
-harnessbrew doctor
+HB_DEMO="$(node scripts/examples/local-tap.mjs)"
+node dist/bin.js --home "$HB_DEMO/home" tap add demo/assets "$HB_DEMO/tap"
+node dist/bin.js --home "$HB_DEMO/home" search main-skill
+node dist/bin.js --home "$HB_DEMO/home" tap trust demo/assets
+node dist/bin.js --home "$HB_DEMO/home" install demo/assets/main-skill --root "$HB_DEMO/codex" --dry-run
+node dist/bin.js --home "$HB_DEMO/home" install demo/assets/main-skill --root "$HB_DEMO/codex"
+node dist/bin.js --home "$HB_DEMO/home" list
+cat "$HB_DEMO/codex/skills/main-skill/SKILL.md"
+node dist/bin.js --home "$HB_DEMO/home" doctor
+node dist/bin.js --home "$HB_DEMO/home" remove demo/assets/main-skill
+test ! -e "$HB_DEMO/codex/skills/main-skill"
 ```
 
-The URL is a placeholder; replace it with a repository using the source format. Sources require explicit authorization. Removing an asset releases the manual reference; content needed by another Bundle remains.
+Preview shows the planned target paths. Installation includes the helper-skill dependency. After removal, the final command verifies that the main Skill target is gone. Example data remains in `$HB_DEMO` for inspection.
 
 ## Documentation
 

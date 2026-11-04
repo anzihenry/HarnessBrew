@@ -8,7 +8,7 @@ import { absolutePath, commitId, relativePath, stableId, tapName, type CommitId 
 import { canonicalJson, format, text } from "../domain/validation.js";
 import { nodeGitClient, type GitClient, type GitCommand } from "../ports/io.js";
 import { withFileLock } from "../transactions/file-lock.js";
-import { inspectContent } from "./inventory.js";
+import { inspectContent, readSourceFile, sourceCheckpoint } from "./inventory.js";
 
 export interface SourceRequest {
   name: string;
@@ -146,7 +146,7 @@ export class SourceManager {
         const snapshot = await this.readMetadata(destination);
         if (snapshot.id !== id || snapshot.tap !== name || snapshot.url !== url || canonicalJson(snapshot.commit) !== canonicalJson(commit)
           || snapshot.contentLocation !== path.join(destination, "content")) throw new HarnessError("CONTENT_MODIFIED", "Cached snapshot identity changed.");
-        await this.verifyTree(snapshot, files);
+        await this.verifyTree(snapshot, files, input.signal);
         return { snapshot, ...(trackingRef ? { ref: trackingRef } : {}) };
       }
       const temporary = `${destination}.${randomUUID()}.tmp`;
@@ -160,13 +160,14 @@ export class SourceManager {
           await writeFile(output, bytes, { flag: "wx", mode: file.mode });
           await chmod(output, file.mode);
         }
-        const inventory = await inspectContent(content);
+        const inventory = await inspectContent(content, input.signal);
         // Explicit directory permissions make the digest independent of the caller's umask.
         for (const entry of inventory.entries.filter(entry => entry.type === "directory")) await chmod(path.join(content, entry.path), 0o755);
-        const treeDigest = (await inspectContent(content)).digest;
+        const treeDigest = (await inspectContent(content, input.signal)).digest;
         const snapshot: SourceSnapshot = { id, tap: name, url, commit, treeDigest, contentLocation: path.join(destination, "content") };
-        await this.verifyTree({ ...snapshot, contentLocation: content }, files);
+        await this.verifyTree({ ...snapshot, contentLocation: content }, files, input.signal);
         await writeFile(path.join(temporary, "snapshot.json"), `${canonicalJson({ format: "harnessbrew.source-snapshot", version: 1, snapshot })}\n`, { flag: "wx" });
+        sourceCheckpoint(input.signal);
         await rename(temporary, destination);
         return { snapshot, ...(trackingRef ? { ref: trackingRef } : {}) };
       } finally { await rm(temporary, { recursive: true, force: true }); }
@@ -191,17 +192,19 @@ export class SourceManager {
       return { name, object: match[2]!, mode: match[1] === "100755" ? 0o755 : 0o644 };
     }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
   }
-  private async verifyTree(snapshot: SourceSnapshot, files: TreeFile[]): Promise<void> {
-    const actual = await inspectContent(snapshot.contentLocation);
+  private async verifyTree(snapshot: SourceSnapshot, files: TreeFile[], signal?: AbortSignal): Promise<void> {
+    const actual = await inspectContent(snapshot.contentLocation, signal);
     if (actual.digest !== snapshot.treeDigest) throw new HarnessError("CONTENT_MODIFIED", "Cached source content changed.");
     const entries = actual.entries.filter(entry => entry.type === "file");
     if (entries.length !== files.length) throw new HarnessError("CONTENT_MODIFIED", "Cached source inventory differs from Git.");
     for (const file of files) {
+      sourceCheckpoint(signal);
       const entry = entries.find(entry => entry.path === file.name);
-      const bytes = await readFile(path.join(snapshot.contentLocation, file.name));
+      const bytes = await readSourceFile(path.join(snapshot.contentLocation, file.name), signal);
       const object = createHash(snapshot.commit.algorithm).update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
       if (!entry || entry.mode !== file.mode || object !== file.object) throw new HarnessError("CONTENT_MODIFIED", `Cached source differs from Git: ${file.name}`);
     }
+    sourceCheckpoint(signal);
     const expectedDirectories = new Set(files.flatMap(file => file.name.split("/").slice(0, -1).map((_, index) => file.name.split("/").slice(0, index + 1).join("/"))));
     const directories = actual.entries.filter(entry => entry.type === "directory");
     if (directories.length !== expectedDirectories.size || directories.some(entry => entry.mode !== 0o755 || !expectedDirectories.has(entry.path))) {
